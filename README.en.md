@@ -1,6 +1,6 @@
 # Pixiv PBD Manager
 
-[Bilingual README](README.md)
+[中文 README](README.md)
 
 Pixiv PBD Manager is a local Pixiv download manager. It can work with the browser extension Powerful Pixiv Downloader, and it can also directly download newly detected artworks with its own downloader.
 
