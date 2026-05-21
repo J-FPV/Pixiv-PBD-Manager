@@ -1,0 +1,15 @@
+{
+  "download_roots": [
+    "D:/Downloads/pixiv"
+  ],
+  "exclude_roots": [
+    "D:/Downloads/pixiv/do-not-scan"
+  ],
+  "language": "zh",
+  "database": ".pixiv-pbd-manager/artists.json",
+  "recommended_pbd_filename_rule": "pixiv/{user}-{user_id}/{id}-{title}",
+  "resolve_online": true,
+  "fuzzy_search": false,
+  "fuzzy_min_score": 0.35,
+  "ssl_fallback": true
+}
