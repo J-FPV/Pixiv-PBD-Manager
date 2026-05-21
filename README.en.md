@@ -30,7 +30,7 @@ Run these commands from this folder:
 
 ```powershell
 python -m pixiv_pbd_manager gui
-python -m pixiv_pbd_manager scan "D:\Downloads\pixiv"
+python -m pixiv_pbd_manager scan "C:\PixivDownloads"
 python -m pixiv_pbd_manager list
 python -m pixiv_pbd_manager open --limit 10
 ```
@@ -91,7 +91,7 @@ Do not set "browser user data" to your image download folder. Chrome/Edge create
 If an old folder looks like this:
 
 ```text
-D:\My_files\Drawings\参考图\96YOTTEA's illustrations／manga - pixiv\100187254_p0.jpg
+C:\PixivLibrary\ArtistName's illustrations／manga - pixiv\12345678_p0.jpg
 ```
 
 This folder has an artist name but no Pixiv artist ID. The GUI enables online resolution for no-ID Pixiv folders by default. During scanning, it uses artwork IDs from file names to query Pixiv, resolves the artist ID, then writes it into the database. Offline scanning can only mark these as name-only folders and cannot generate usable artist update pages.
@@ -99,10 +99,10 @@ This folder has an artist name but no Pixiv artist ID. The GUI enables online re
 If an old folder looks like this:
 
 ```text
-D:\My_files\Drawings\参考图\illus-一条レイ-赛璐璐-contrast color-dot\sample.jpg
+C:\PixivLibrary\illus-ArtistName-style-tag\12345678_p0.jpg
 ```
 
-Here, `一条レイ` is treated as a candidate artist name. When "Fuzzy-search artist names" is enabled, the app searches Pixiv users online and tries to match the artist ID. Because manually typed names may be inaccurate, this option is disabled by default; try a small folder set with a higher score threshold before scanning a large library.
+Here, `ArtistName` is treated as a candidate artist name. When "Fuzzy-search artist names" is enabled, the app searches Pixiv users online and tries to match the artist ID. Because manually typed names may be inaccurate, this option is disabled by default; try a small folder set with a higher score threshold before scanning a large library.
 
 ## SSL Certificate Fallback
 
@@ -195,16 +195,16 @@ DPAPI is not a silver bullet. The cookie can still be exposed when:
 
 ```powershell
 # Scan existing downloads and save artist IDs
-python -m pixiv_pbd_manager scan "D:\Downloads\pixiv"
+python -m pixiv_pbd_manager scan "C:\PixivDownloads"
 
 # Scan legacy folders and resolve Pixiv artist IDs from artwork IDs
-python -m pixiv_pbd_manager scan "D:\My_files\Drawings\参考图" --resolve-online
+python -m pixiv_pbd_manager scan "C:\PixivLibrary" --resolve-online
 
 # Enable fuzzy artist-name search for manual folders like illus-artist-tag
-python -m pixiv_pbd_manager scan "D:\My_files\Drawings\参考图" --resolve-online --fuzzy-search
+python -m pixiv_pbd_manager scan "C:\PixivLibrary" --resolve-online --fuzzy-search
 
 # Exclude subfolders while scanning; --exclude can be repeated
-python -m pixiv_pbd_manager scan "D:\My_files\Drawings\参考图" --exclude "D:\My_files\Drawings\参考图\anime"
+python -m pixiv_pbd_manager scan "C:\PixivLibrary" --exclude "C:\PixivLibrary\anime"
 
 # Check whether recorded artists have new artworks
 python -m pixiv_pbd_manager check
@@ -219,13 +219,13 @@ python -m pixiv_pbd_manager download
 python -m pixiv_pbd_manager download 123456 789012
 
 # Use a fallback output folder when save paths are missing
-python -m pixiv_pbd_manager download --output-root "D:\Downloads\pixiv"
+python -m pixiv_pbd_manager download --output-root "C:\PixivDownloads"
 
 # Use strict SSL verification without fallback retry
-python -m pixiv_pbd_manager scan "D:\My_files\Drawings\参考图" --resolve-online --no-ssl-fallback
+python -m pixiv_pbd_manager scan "C:\PixivLibrary" --resolve-online --no-ssl-fallback
 
 # Watch folders while PBD is downloading
-python -m pixiv_pbd_manager watch "D:\Downloads\pixiv" --interval 30
+python -m pixiv_pbd_manager watch "C:\PixivDownloads" --interval 30
 
 # Manually add an artist
 python -m pixiv_pbd_manager add 123456 --name "artist name"
@@ -252,7 +252,7 @@ To store it elsewhere, add `--db`:
 
 ```powershell
 python -m pixiv_pbd_manager --help
-python -m pixiv_pbd_manager scan --db "D:\Downloads\pixiv_artists.json" "D:\Downloads\pixiv"
+python -m pixiv_pbd_manager scan --db "C:\PixivData\pixiv_artists.json" "C:\PixivDownloads"
 ```
 
 ## Use A Specific Browser
@@ -266,7 +266,7 @@ python -m pixiv_pbd_manager open --browser "C:\Program Files\Google\Chrome\Appli
 If PBD is installed in a separate Chrome/Edge user data directory:
 
 ```powershell
-python -m pixiv_pbd_manager open --browser "C:\Program Files\Google\Chrome\Application\chrome.exe" --user-data-dir "D:\chrome-pixiv-profile"
+python -m pixiv_pbd_manager open --browser "C:\Program Files\Google\Chrome\Application\chrome.exe" --user-data-dir "C:\PixivBrowserProfile"
 ```
 
 ## Recognition Rules

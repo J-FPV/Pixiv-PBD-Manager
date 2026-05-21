@@ -841,7 +841,7 @@ class PixivPbdManagerApp(tk.Tk):
                         cookie=self._pixiv_cookie(),
                         allow_insecure_ssl_fallback=self.ssl_fallback_var.get(),
                     )
-                    if profile.name:
+                    if profile.name and profile.name != new_id:
                         db.artists[new_id].name = profile.name
                         self.log(self.t("artist_name_auto_updated", name=profile.name))
                 except PixivResolveError as exc:

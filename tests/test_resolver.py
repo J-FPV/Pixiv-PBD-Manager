@@ -3,7 +3,13 @@ import unittest
 import urllib.error
 from unittest.mock import patch
 
-from pixiv_pbd_manager.resolver import PixivResolveError, fetch_artwork_author, parse_user_name_from_profile_all, parse_user_search_html
+from pixiv_pbd_manager.resolver import (
+    PixivResolveError,
+    fetch_artwork_author,
+    fetch_user_profile,
+    parse_user_name_from_profile_all,
+    parse_user_search_html,
+)
 
 
 class FakeResponse:
@@ -48,6 +54,35 @@ class ResolverTests(unittest.TestCase):
         raw = {"body": {"illusts": {}}, "extraData": {"meta": {"title": "Artist Name - pixiv"}}}
 
         self.assertEqual(parse_user_name_from_profile_all(raw, "123456"), "Artist Name")
+
+    def test_parse_user_name_from_profile_all_rejects_numeric_fallback(self):
+        raw = {"body": {"illusts": {}}, "extraData": {"meta": {"title": "123456 - pixiv"}}}
+
+        self.assertEqual(parse_user_name_from_profile_all(raw, "123456"), "")
+
+    def test_fetch_user_profile_prefers_user_profile_endpoint_name(self):
+        calls = []
+
+        def fake_read(url, **_kwargs):
+            calls.append(url)
+            return ('{"error": false, "body": {"name": "Correct Artist"}}', False)
+
+        with patch("pixiv_pbd_manager.resolver.read_url_text_with_ssl_fallback", side_effect=fake_read):
+            profile = fetch_user_profile("123456")
+
+        self.assertEqual(profile.name, "Correct Artist")
+        self.assertEqual(len(calls), 1)
+
+    def test_fetch_user_profile_falls_back_when_profile_endpoint_has_no_name(self):
+        responses = [
+            ('{"error": false, "body": {"id": "123456"}}', False),
+            ('{"error": false, "body": {}, "extraData": {"meta": {"title": "Fallback Artist - pixiv"}}}', False),
+        ]
+
+        with patch("pixiv_pbd_manager.resolver.read_url_text_with_ssl_fallback", side_effect=responses):
+            profile = fetch_user_profile("123456")
+
+        self.assertEqual(profile.name, "Fallback Artist")
 
 
 if __name__ == "__main__":

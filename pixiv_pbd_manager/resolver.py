@@ -16,6 +16,7 @@ from .scanner import NameOnlyArtistHit
 
 
 PIXIV_AJAX_ILLUST_URL = "https://www.pixiv.net/ajax/illust/{illust_id}"
+PIXIV_USER_PROFILE_URL = "https://www.pixiv.net/ajax/user/{user_id}"
 PIXIV_USER_PROFILE_ALL_URL = "https://www.pixiv.net/ajax/user/{user_id}/profile/all"
 PIXIV_USER_SEARCH_URL = "https://www.pixiv.net/search/users?s_mode=s_usr&nick={keyword}&i=1&comment=&p=1"
 PIXIV_BROWSER_USER_AGENT = (
@@ -376,14 +377,28 @@ def parse_user_name_from_profile_all(raw: dict, user_id: str) -> str:
     body = raw.get("body") or {}
     for key in ("userName", "name"):
         value = body.get(key)
-        if value:
+        if value and str(value).strip() != str(user_id):
             return str(value)
 
     title = (((raw.get("extraData") or {}).get("meta") or {}).get("title") or "").strip()
     suffix = " - pixiv"
     if title.endswith(suffix):
         title = title[: -len(suffix)]
-    return title or str(user_id)
+    return title if title and title != str(user_id) else ""
+
+
+def parse_user_name_from_profile(raw: dict, user_id: str) -> str:
+    body = raw.get("body") or {}
+    nested_user = body.get("user") if isinstance(body.get("user"), dict) else {}
+    for value in (
+        body.get("name"),
+        body.get("userName"),
+        nested_user.get("name"),
+        nested_user.get("userName"),
+    ):
+        if value and str(value).strip() != str(user_id):
+            return str(value)
+    return parse_user_name_from_profile_all(raw, user_id)
 
 
 def fetch_user_profile(
@@ -393,24 +408,35 @@ def fetch_user_profile(
     cookie: str | None = None,
     allow_insecure_ssl_fallback: bool = True,
 ) -> PixivUserProfile:
-    url = PIXIV_USER_PROFILE_ALL_URL.format(user_id=user_id)
-    try:
-        raw_text, ssl_fallback_used = read_url_text_with_ssl_fallback(
-            url,
-            timeout=timeout,
-            cookie=cookie,
-            referer=f"https://www.pixiv.net/users/{user_id}/artworks",
-            accept="application/json, text/plain, */*",
-            allow_insecure_ssl_fallback=allow_insecure_ssl_fallback,
-        )
-    except (urllib.error.URLError, TimeoutError) as exc:
-        raise PixivResolveError(f"Pixiv profile request failed for artist {user_id}: {exc}") from exc
+    last_error: Exception | None = None
+    for url, parser in (
+        (PIXIV_USER_PROFILE_URL.format(user_id=user_id), parse_user_name_from_profile),
+        (PIXIV_USER_PROFILE_ALL_URL.format(user_id=user_id), parse_user_name_from_profile_all),
+    ):
+        try:
+            raw_text, ssl_fallback_used = read_url_text_with_ssl_fallback(
+                url,
+                timeout=timeout,
+                cookie=cookie,
+                referer=f"https://www.pixiv.net/users/{user_id}/artworks",
+                accept="application/json, text/plain, */*",
+                allow_insecure_ssl_fallback=allow_insecure_ssl_fallback,
+            )
+        except (urllib.error.URLError, TimeoutError) as exc:
+            last_error = exc
+            continue
 
-    try:
-        raw = json.loads(raw_text)
-    except json.JSONDecodeError as exc:
-        raise PixivResolveError(f"Pixiv profile request failed for artist {user_id}: invalid JSON") from exc
-    if raw.get("error"):
-        message = str(raw.get("message") or "").strip() or "API returned error"
-        raise PixivResolveError(f"Pixiv profile request failed for artist {user_id}: {message}")
-    return PixivUserProfile(id=str(user_id), name=parse_user_name_from_profile_all(raw, str(user_id)), ssl_fallback_used=ssl_fallback_used)
+        try:
+            raw = json.loads(raw_text)
+        except json.JSONDecodeError as exc:
+            last_error = exc
+            continue
+        if raw.get("error"):
+            last_error = PixivResolveError(str(raw.get("message") or "").strip() or "API returned error")
+            continue
+        name = parser(raw, str(user_id)).strip()
+        if name and name != str(user_id):
+            return PixivUserProfile(id=str(user_id), name=name, ssl_fallback_used=ssl_fallback_used)
+
+    detail = f": {last_error}" if last_error else ": no display name found"
+    raise PixivResolveError(f"Pixiv profile request failed for artist {user_id}{detail}")
