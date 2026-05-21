@@ -33,7 +33,20 @@ python -m pixiv_pbd_manager list
 python -m pixiv_pbd_manager open --limit 10
 ```
 
-Windows 下也可以双击 [launch_gui.bat](launch_gui.bat) 启动。
+Windows 下也可以双击 [launch_gui.bat](launch_gui.bat) 启动；或者打包成单文件 .exe 后双击运行（见下节）。
+
+## 构建独立 .exe
+
+如果不想每次都依赖源码 / Python 环境，可以打包成单文件 Windows 可执行文件：
+
+```powershell
+pip install pyinstaller          # 或: pip install -e .[build]
+python build_exe.py
+```
+
+生成的 `dist/PixivPbdManager.exe` 大约 10 MB，无控制台窗口，双击即可启动 GUI。把它和 `.pixiv-pbd-manager/`（数据库、Cookie、consent 等数据文件夹）一起复制到任何位置都能运行——exe 启动时会把工作目录切换到自身所在目录，所有数据始终落在 exe 旁边。
+
+需要重新构建时，再次运行 `python build_exe.py` 即可；脚本会自动清理上一次的 `build/`、`dist/` 与 `.spec` 产物。
 
 ## GUI 界面
 

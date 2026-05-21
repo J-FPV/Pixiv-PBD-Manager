@@ -35,7 +35,20 @@ python -m pixiv_pbd_manager list
 python -m pixiv_pbd_manager open --limit 10
 ```
 
-On Windows, you can also double-click [launch_gui.bat](launch_gui.bat).
+On Windows, you can also double-click [launch_gui.bat](launch_gui.bat), or build a single-file .exe and double-click that (see below).
+
+## Building a Standalone .exe
+
+If you would rather not run the GUI from source every time, you can package it into a single-file Windows executable:
+
+```powershell
+pip install pyinstaller          # or: pip install -e .[build]
+python build_exe.py
+```
+
+The resulting `dist/PixivPbdManager.exe` is about 10 MB and ships without a console window. Move it together with `.pixiv-pbd-manager/` (which holds the database, cookie, and consent files) to any location and it just works — when the exe starts it changes the working directory to its own folder, so all data files always end up next to the exe.
+
+To rebuild, rerun `python build_exe.py`; the script automatically cleans the previous `build/`, `dist/`, and `.spec` artifacts before building.
 
 ## GUI
 
