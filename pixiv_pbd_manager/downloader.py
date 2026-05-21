@@ -10,7 +10,12 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from urllib.parse import urlparse
 
-from .resolver import PixivResolveError, is_ssl_certificate_error, read_url_text_with_ssl_fallback
+from .resolver import (
+    PIXIV_BROWSER_USER_AGENT,
+    PixivResolveError,
+    is_ssl_certificate_error,
+    read_url_text_with_ssl_fallback,
+)
 
 
 PIXIV_ILLUST_PAGES_URL = "https://www.pixiv.net/ajax/illust/{work_id}/pages"
@@ -69,7 +74,8 @@ def fetch_artwork_pages(
     except json.JSONDecodeError as exc:
         raise PixivResolveError(f"Pixiv pages request failed for artwork {work_id}: invalid JSON") from exc
     if raw.get("error"):
-        raise PixivResolveError(f"Pixiv pages request failed for artwork {work_id}: API returned error")
+        message = str(raw.get("message") or "").strip() or "API returned error"
+        raise PixivResolveError(f"Pixiv pages request failed for artwork {work_id}: {message}")
 
     pages: list[PixivPage] = []
     for index, page in enumerate(raw.get("body") or []):
@@ -85,16 +91,15 @@ def download_binary(
     output: Path,
     *,
     referer: str,
-    pixiv_cookie: str | None = None,
     allow_insecure_ssl_fallback: bool = True,
 ) -> bool:
+    # Deliberately does NOT send the Pixiv session cookie. The i.pximg.net image CDN only
+    # checks Referer; forwarding PHPSESSID to it would leak the session to the CDN.
     headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) PixivPbdManager/0.1",
+        "User-Agent": PIXIV_BROWSER_USER_AGENT,
         "Accept": "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
         "Referer": referer,
     }
-    if pixiv_cookie:
-        headers["Cookie"] = pixiv_cookie
     request = urllib.request.Request(url, headers=headers)
 
     try:
@@ -142,7 +147,6 @@ def download_artwork(
                 page.original_url,
                 output,
                 referer=f"https://www.pixiv.net/artworks/{work_id}",
-                pixiv_cookie=pixiv_cookie,
                 allow_insecure_ssl_fallback=allow_insecure_ssl_fallback,
             )
             result.ssl_fallback_used = result.ssl_fallback_used or ssl_used

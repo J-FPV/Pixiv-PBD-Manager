@@ -7,7 +7,9 @@ import time
 from pathlib import Path
 
 from .browser import open_urls
+from .consent import is_cookie_consent_recorded, record_cookie_consent
 from .database import DEFAULT_DB, ArtistDatabase
+from .i18n import text
 from .models import utc_now
 from .operations import check_artist_updates, download_artist_updates, scan_into_database
 
@@ -23,7 +25,30 @@ def add_db_argument(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--db", default=str(DEFAULT_DB), help="artist database path")
 
 
+def add_cookie_arguments(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--pixiv-cookie", help="optional Pixiv cookie string for restricted artworks")
+    parser.add_argument(
+        "--accept-cookie-risk",
+        action="store_true",
+        help="accept the Pixiv cookie risk disclaimer; required when using --pixiv-cookie for the first time",
+    )
+
+
+def ensure_cookie_consent(args: argparse.Namespace) -> bool:
+    if not getattr(args, "pixiv_cookie", None):
+        return True
+    if is_cookie_consent_recorded():
+        return True
+    if getattr(args, "accept_cookie_risk", False):
+        record_cookie_consent()
+        return True
+    print(text("en", "consent_required_cli"), file=sys.stderr)
+    return False
+
+
 def cmd_scan(args: argparse.Namespace) -> int:
+    if not ensure_cookie_consent(args):
+        return 2
     roots = [Path(root) for root in args.roots]
     missing = [str(root) for root in roots if not root.exists()]
     if missing:
@@ -69,6 +94,8 @@ def cmd_scan(args: argparse.Namespace) -> int:
 
 
 def cmd_watch(args: argparse.Namespace) -> int:
+    if not ensure_cookie_consent(args):
+        return 2
     print("Watching download folder. Press Ctrl+C to stop.")
     try:
         while True:
@@ -181,6 +208,8 @@ def cmd_export(args: argparse.Namespace) -> int:
 
 
 def cmd_check(args: argparse.Namespace) -> int:
+    if not ensure_cookie_consent(args):
+        return 2
     try:
         result = check_artist_updates(
             Path(args.db),
@@ -209,6 +238,8 @@ def cmd_check(args: argparse.Namespace) -> int:
 
 
 def cmd_download(args: argparse.Namespace) -> int:
+    if not ensure_cookie_consent(args):
+        return 2
     try:
         result = download_artist_updates(
             Path(args.db),
@@ -255,7 +286,7 @@ def build_parser() -> argparse.ArgumentParser:
     scan.add_argument("--resolve-online", action="store_true", help="resolve artist ids from artwork ids using Pixiv")
     scan.add_argument("--resolve-limit", type=int, default=3, help="artwork ids to try per name-only folder")
     scan.add_argument("--resolve-delay", type=positive_float, default=0.8, help="seconds between Pixiv resolve requests")
-    scan.add_argument("--pixiv-cookie", help="optional Pixiv cookie string for restricted artworks")
+    add_cookie_arguments(scan)
     scan.add_argument("--no-ssl-fallback", action="store_true", help="do not retry with relaxed SSL verification on certificate errors")
     scan.add_argument("--fuzzy-search", action="store_true", help="search Pixiv users by name when artwork-id resolve cannot identify a folder")
     scan.add_argument("--fuzzy-min-score", type=float, default=0.35, help="minimum fuzzy search confidence from 0.0 to 1.0")
@@ -269,7 +300,7 @@ def build_parser() -> argparse.ArgumentParser:
     watch.add_argument("--resolve-online", action="store_true", help="resolve artist ids from artwork ids using Pixiv")
     watch.add_argument("--resolve-limit", type=int, default=3, help="artwork ids to try per name-only folder")
     watch.add_argument("--resolve-delay", type=positive_float, default=0.8, help="seconds between Pixiv resolve requests")
-    watch.add_argument("--pixiv-cookie", help="optional Pixiv cookie string for restricted artworks")
+    add_cookie_arguments(watch)
     watch.add_argument("--no-ssl-fallback", action="store_true", help="do not retry with relaxed SSL verification on certificate errors")
     watch.add_argument("--fuzzy-search", action="store_true", help="search Pixiv users by name when artwork-id resolve cannot identify a folder")
     watch.add_argument("--fuzzy-min-score", type=float, default=0.35, help="minimum fuzzy search confidence from 0.0 to 1.0")
@@ -305,7 +336,7 @@ def build_parser() -> argparse.ArgumentParser:
     check = subparsers.add_parser("check", help="check tracked artists for new Pixiv artworks")
     add_db_argument(check)
     check.add_argument("artist_ids", nargs="*", help="artist ids to check; default checks all")
-    check.add_argument("--pixiv-cookie", help="optional Pixiv cookie string for restricted artworks")
+    add_cookie_arguments(check)
     check.add_argument("--no-ssl-fallback", action="store_true", help="do not retry with relaxed SSL verification on certificate errors")
     check.set_defaults(func=cmd_check)
 
@@ -313,7 +344,7 @@ def build_parser() -> argparse.ArgumentParser:
     add_db_argument(download)
     download.add_argument("artist_ids", nargs="*", help="artist ids to download; default downloads all artists with updates")
     download.add_argument("--output-root", help="fallback output folder for artists without saved paths")
-    download.add_argument("--pixiv-cookie", help="optional Pixiv cookie string for restricted artworks")
+    add_cookie_arguments(download)
     download.add_argument("--no-ssl-fallback", action="store_true", help="do not retry with relaxed SSL verification on certificate errors")
     download.add_argument("--overwrite", action="store_true", help="overwrite existing files")
     download.add_argument("--delay", type=positive_float, default=0.3, help="seconds between image downloads")

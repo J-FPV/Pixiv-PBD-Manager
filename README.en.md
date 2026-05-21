@@ -57,7 +57,8 @@ Main GUI features:
 - Check whether recorded artists have new Pixiv artworks and show the count in the "New" column.
 - Directly download artworks listed as new without manually clicking PBD.
 - Show each detected artist's save path in the table.
-- Switch between Chinese and English in the top-right corner; the choice is saved automatically.
+- Switch between Chinese and English from the menu "Settings → Language"; the choice is saved automatically.
+- Use "Settings → Preferences..." to configure the browser, advanced scan options, SSL fallback, and open delay/limit — the less-frequently changed settings.
 - View, filter, and manually add artists.
 - Right-click an artist to edit the Pixiv artist ID; the app will try to update the artist name automatically.
 - Right-click an artist to edit the save path.
@@ -68,7 +69,7 @@ Main GUI features:
 
 ## Browser Profile Warning
 
-If your default browser is not the one with Powerful Pixiv Downloader installed, set the Chrome/Edge executable path and user data directory in the left-side "Browser" section.
+If your default browser is not the one with Powerful Pixiv Downloader installed, open the menu "Settings → Preferences..." and set the Chrome/Edge executable path and user data directory in the "Browser" section.
 
 Do not set "browser user data" to your image download folder. Chrome/Edge creates profile folders such as `Default`, `Safe Browsing`, `ShaderCache`, and `Webstore Downloads` there. The GUI blocks user-data folders inside download roots; if unsure, leave it blank to use the system default browser profile.
 
@@ -104,7 +105,7 @@ Direct download does not use Powerful Pixiv Downloader. It uses the app's own do
 https://www.pixiv.net/ajax/illust/{work_id}/pages
 ```
 
-It extracts each page's `urls.original` image URL, then downloads the files with Python. Download requests include the artwork page `Referer`, a browser-like `User-Agent`, and an optional Pixiv cookie.
+It extracts each page's `urls.original` image URL, then downloads the files with Python. Pixiv API requests include the artwork page `Referer`, a browser-style `User-Agent`, and an optional Pixiv cookie; image downloads from `i.pximg.net` carry **only the Referer — not the cookie** — so the session is not leaked to the image CDN.
 
 The direct downloader saves files to each artist's recorded save path. File names use:
 
@@ -122,6 +123,60 @@ Example:
 If an artist has no save path, the CLI can use `--output-root` as a fallback directory. In the GUI, it is best to scan existing folders first so the app can record save paths.
 
 Note: The direct downloader does not use PBD naming rules or filters. Public artworks usually download directly; login-only, age-restricted, or hidden artworks may require Pixiv cookies.
+
+## Pixiv Cookie & Privacy Risks
+
+Downloading restricted (R-18) artworks requires a Pixiv session cookie (typically `PHPSESSID`), entered in the GUI's "Pixiv login" panel or via the CLI's `--pixiv-cookie` flag. The account must also have R-18 viewing enabled in Pixiv settings, otherwise restricted works will not appear in the `/profile/all` listing even with a valid cookie.
+
+⚠️ **The cookie is as powerful as your password**. Please read the risks below before using it.
+
+### Explicit consent is required before using a cookie
+
+To prevent accidental misuse, cookie functionality is gated behind an explicit acceptance of the risk disclaimer:
+
+- **GUI**: tick the "I have read and accept the cookie risk disclaimer" checkbox. The first time you tick it a modal disclaimer pops up and you must click "I accept" before the cookie input field becomes editable. Un-ticking the checkbox clears the locally stored cookie.
+- **CLI**: when using `--pixiv-cookie` you must also pass `--accept-cookie-risk` once. The command refuses to run otherwise. Acceptance made in the GUI is reused by the CLI and vice versa.
+
+The acceptance record is stored in `.pixiv-pbd-manager/consent.json`. Deleting that file is equivalent to revoking consent, and you will be asked again the next time you try to use a cookie.
+
+### What the cookie can do
+
+Anyone holding a valid `PHPSESSID` can — without your password:
+
+- Read all of your private bookmarks, messages, purchase history, and follow list
+- Like, follow, comment, post or delete artworks, and change account info on your behalf
+- Operate Pixiv Booth / Fanbox purchases and patronage
+
+Pixiv's 2FA only triggers when logging in with the password; **it does not protect an already-active session**.
+
+### How the app stores it
+
+- **Windows**: encrypted via [DPAPI](https://learn.microsoft.com/en-us/windows/win32/seccrypto/cryptoapi-cryptography-and-data-protection-api) into `.pixiv-pbd-manager/cookie.bin`. **Only the current Windows user** can decrypt it; copies in backups or other accounts cannot.
+- **Non-Windows**: plain text in `.pixiv-pbd-manager/cookie.txt`, with `0600` permissions, relying on OS-level protection.
+- It is no longer written to `gui_settings.json`, so it does not get synced into Git or cloud drives.
+- `.pixiv-pbd-manager/` is already in the repository's `.gitignore`.
+
+### Network-level trade-offs
+
+- Cookies are sent only to `*.pixiv.net`. Image downloads from `i.pximg.net` **never include the cookie**, so the session is not leaked to the CDN.
+- HTTP requests use a `User-Agent` matching current Chrome, reducing the chance of being flagged as a scripted client.
+- Even so, high-frequency requests to `/ajax/illust/*/pages` and `/ajax/user/*/profile/all` may trigger rate-limits or CAPTCHA; in severe cases the account could be suspended. This violates Pixiv's terms of service, so use the tool moderately and configure `--delay` / `--resolve-delay` sensibly.
+
+### Where the cookie could still leak
+
+DPAPI is not a silver bullet. The cookie can still be exposed when:
+
+- Your Windows user account itself is compromised (DPAPI decrypts cleanly in that user's context)
+- The project folder is synced via OneDrive / Dropbox / etc. — the encrypted blob is decryptable by the same user, which is an unnecessary exposure surface
+- A forced password reset invalidates the DPAPI master key — the stored cookie becomes garbage and must be re-entered
+- Browser extensions, clipboard monitors, or screen recorders capture the plaintext cookie while pasting
+
+### Recommendations
+
+1. **Use a dedicated Pixiv account** for this tool, with R-18 enabled but no important data attached.
+2. **Revoke the session when done** — log into Pixiv on the web and end the session manually.
+3. **Do not place the project folder in a cloud-sync path** (OneDrive / Dropbox / etc.).
+4. **If you suspect a leak, revoke immediately** — logging out of all sessions on Pixiv invalidates every existing cookie.
 
 ## Common Commands
 

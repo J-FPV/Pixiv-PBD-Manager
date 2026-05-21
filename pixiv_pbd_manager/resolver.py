@@ -18,6 +18,10 @@ from .scanner import NameOnlyArtistHit
 PIXIV_AJAX_ILLUST_URL = "https://www.pixiv.net/ajax/illust/{illust_id}"
 PIXIV_USER_PROFILE_ALL_URL = "https://www.pixiv.net/ajax/user/{user_id}/profile/all"
 PIXIV_USER_SEARCH_URL = "https://www.pixiv.net/search/users?s_mode=s_usr&nick={keyword}&i=1&comment=&p=1"
+PIXIV_BROWSER_USER_AGENT = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36"
+)
 USER_LINK_PATTERN = re.compile(r"/users/(?P<id>\d+)")
 SCRIPT_JSON_PATTERN = re.compile(r"<script[^>]*type=[\"']application/json[\"'][^>]*>(?P<body>.*?)</script>", re.S | re.I)
 INLINE_USER_PATTERNS = [
@@ -75,7 +79,7 @@ def read_pixiv_json(
     context: ssl.SSLContext | None,
 ) -> dict:
     headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) PixivPbdManager/0.1",
+        "User-Agent": PIXIV_BROWSER_USER_AGENT,
         "Accept": "application/json, text/plain, */*",
         "Referer": f"https://www.pixiv.net/artworks/{illust_id}",
     }
@@ -97,7 +101,7 @@ def read_url_text(
     accept: str = "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
 ) -> str:
     headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) PixivPbdManager/0.1",
+        "User-Agent": PIXIV_BROWSER_USER_AGENT,
         "Accept": accept,
         "Referer": referer,
     }
@@ -354,7 +358,8 @@ def fetch_user_work_ids(
     except json.JSONDecodeError as exc:
         raise PixivResolveError(f"Pixiv update check failed for artist {user_id}: invalid JSON") from exc
     if raw.get("error"):
-        raise PixivResolveError(f"Pixiv update check failed for artist {user_id}: API returned error")
+        message = str(raw.get("message") or "").strip() or "API returned error"
+        raise PixivResolveError(f"Pixiv update check failed for artist {user_id}: {message}")
 
     body = raw.get("body") or {}
     work_ids: set[str] = set()
@@ -406,5 +411,6 @@ def fetch_user_profile(
     except json.JSONDecodeError as exc:
         raise PixivResolveError(f"Pixiv profile request failed for artist {user_id}: invalid JSON") from exc
     if raw.get("error"):
-        raise PixivResolveError(f"Pixiv profile request failed for artist {user_id}: API returned error")
+        message = str(raw.get("message") or "").strip() or "API returned error"
+        raise PixivResolveError(f"Pixiv profile request failed for artist {user_id}: {message}")
     return PixivUserProfile(id=str(user_id), name=parse_user_name_from_profile_all(raw, str(user_id)), ssl_fallback_used=ssl_fallback_used)

@@ -15,6 +15,12 @@ TEXT = {
         "database": "数据库",
         "choose": "选择",
         "language": "语言",
+        "settings_menu": "设置",
+        "language_menu": "语言",
+        "preferences_menu": "偏好设置...",
+        "preferences_title": "偏好设置",
+        "scan_options": "扫描选项",
+        "cancel": "取消",
         "download_folders": "下载目录",
         "add_folder": "添加目录",
         "remove": "移除",
@@ -34,6 +40,33 @@ TEXT = {
         "fuzzy_search": "模糊搜索作者名",
         "fuzzy_min_score": "匹配阈值",
         "ssl_fallback": "SSL 证书失败时自动重试",
+        "pixiv_login": "Pixiv 登录",
+        "pixiv_cookie_label": "Cookie",
+        "pixiv_cookie_hint": "下载限制级 (R-18) 作品需要 Pixiv Cookie；请先在账号设置中开启 R-18 浏览。可粘贴 PHPSESSID=xxxxx 或完整 Cookie 字符串。Windows 下会用 DPAPI 加密保存到 .pixiv-pbd-manager/cookie.bin，仅当前用户可解密。",
+        "show_cookie": "显示 Cookie",
+        "cookie_consent_label": "我已阅读并同意 Cookie 使用风险声明",
+        "view_disclaimer": "查看声明",
+        "disclaimer_title": "Pixiv Cookie 使用风险声明",
+        "disclaimer_body": (
+            "使用 Pixiv 会话 Cookie 等同于以你的身份登录 Pixiv。请确认你了解以下风险后再勾选同意：\n\n"
+            "1. 任何持有该 Cookie 的人都可以查看你的私密书签、私信、购买记录，并以你的身份点赞、关注、评论、修改账号信息。Pixiv 的二次验证 (2FA) 不会保护已经登录的会话。\n\n"
+            "2. 本工具会通过 Pixiv 接口请求 R-18 作品的下载地址。这种自动化访问违反 Pixiv 服务条款；频繁请求可能导致账号被冻结，相关责任由你自行承担。\n\n"
+            "3. Cookie 在 Windows 上会用 DPAPI 加密保存到 .pixiv-pbd-manager/cookie.bin，但若你的账号本身被入侵、项目目录被云盘同步、或粘贴时被剪贴板监视，Cookie 仍可能泄露。\n\n"
+            "4. 建议使用专用 Pixiv 小号，并在不再需要时主动注销该 session。\n\n"
+            "详细说明请参见 README 中的 \"Pixiv Cookie 与隐私风险\" 章节。\n\n"
+            "点击\"我同意\"即表示你已阅读并理解上述风险，自愿在自己的设备上使用 Cookie 功能，并对账号安全承担全部责任。"
+        ),
+        "disclaimer_accept": "我同意",
+        "disclaimer_decline": "取消",
+        "disclaimer_close": "关闭",
+        "consent_revoke_title": "撤回同意",
+        "consent_revoke_body": "撤回同意将清除已保存的 Cookie，受限作品将无法下载。确认撤回？",
+        "consent_accepted_log": "已记录 Cookie 使用风险同意。",
+        "consent_revoked_log": "已撤回 Cookie 使用同意，并清除本地 Cookie。",
+        "consent_required_cli": (
+            "未同意 Pixiv Cookie 使用风险声明，已拒绝使用 --pixiv-cookie。\n"
+            "请阅读 README 中的 \"Pixiv Cookie 与隐私风险\" 章节后，加上 --accept-cookie-risk 重试，或先在 GUI 中勾选同意。"
+        ),
         "browser": "浏览器",
         "program": "程序",
         "user_data": "用户数据",
@@ -146,6 +179,12 @@ TEXT = {
         "database": "Database",
         "choose": "Choose",
         "language": "Language",
+        "settings_menu": "Settings",
+        "language_menu": "Language",
+        "preferences_menu": "Preferences...",
+        "preferences_title": "Preferences",
+        "scan_options": "Scan options",
+        "cancel": "Cancel",
         "download_folders": "Download folders",
         "add_folder": "Add folder",
         "remove": "Remove",
@@ -165,6 +204,33 @@ TEXT = {
         "fuzzy_search": "Fuzzy-search artist names",
         "fuzzy_min_score": "Min score",
         "ssl_fallback": "Retry when SSL certificate check fails",
+        "pixiv_login": "Pixiv login",
+        "pixiv_cookie_label": "Cookie",
+        "pixiv_cookie_hint": "Required for restricted (R-18) artworks. Make sure your account has R-18 viewing enabled. Paste PHPSESSID=xxxxx or the full cookie header. On Windows it is encrypted with DPAPI into .pixiv-pbd-manager/cookie.bin and only the current user can decrypt it.",
+        "show_cookie": "Show cookie",
+        "cookie_consent_label": "I have read and accept the cookie risk disclaimer",
+        "view_disclaimer": "View disclaimer",
+        "disclaimer_title": "Pixiv Cookie Usage Disclaimer",
+        "disclaimer_body": (
+            "Using a Pixiv session cookie is equivalent to being logged into Pixiv as you. Please confirm you understand the following risks before accepting:\n\n"
+            "1. Anyone holding this cookie can read your private bookmarks, messages, and purchase history, and act as you (like, follow, comment, change account info). Pixiv 2FA does NOT protect an already-logged-in session.\n\n"
+            "2. This tool calls Pixiv APIs to fetch download URLs for R-18 works. Such automated access violates Pixiv's terms of service; frequent requests can result in account suspension, for which you are solely responsible.\n\n"
+            "3. On Windows the cookie is encrypted via DPAPI into .pixiv-pbd-manager/cookie.bin, but it can still leak if your account is compromised, if the project folder is synced to a cloud drive, or if a clipboard monitor captures the paste.\n\n"
+            "4. We recommend using a dedicated Pixiv account and revoking the session when no longer needed.\n\n"
+            "See the \"Pixiv Cookie & Privacy Risks\" section of the README for full details.\n\n"
+            "Clicking \"I accept\" indicates that you have read and understood these risks, voluntarily use the cookie feature on your own device, and accept full responsibility for the security of your account."
+        ),
+        "disclaimer_accept": "I accept",
+        "disclaimer_decline": "Cancel",
+        "disclaimer_close": "Close",
+        "consent_revoke_title": "Revoke consent",
+        "consent_revoke_body": "Revoking consent will clear the stored cookie and disable restricted-artwork downloads. Continue?",
+        "consent_accepted_log": "Cookie usage disclaimer accepted and recorded.",
+        "consent_revoked_log": "Cookie consent revoked and stored cookie cleared.",
+        "consent_required_cli": (
+            "Refusing to use --pixiv-cookie because the disclaimer has not been accepted.\n"
+            "Read the \"Pixiv Cookie & Privacy Risks\" section in the README and rerun with --accept-cookie-risk, or accept the disclaimer once in the GUI."
+        ),
         "browser": "Browser",
         "program": "Program",
         "user_data": "User data",

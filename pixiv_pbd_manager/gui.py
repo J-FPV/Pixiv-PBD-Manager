@@ -10,8 +10,10 @@ import tkinter as tk
 from tkinter import filedialog, messagebox, simpledialog, ttk
 
 from .browser import open_urls
+from .consent import is_cookie_consent_recorded, record_cookie_consent, revoke_cookie_consent
+from .cookie_store import clear_cookie, load_cookie, save_cookie
 from .database import DEFAULT_DB, ArtistDatabase
-from .i18n import LABEL_TO_LANGUAGE, LANGUAGE_LABELS, language_or_default, text
+from .i18n import LANGUAGE_LABELS, language_or_default, text
 from .models import ArtistRecord, utc_now
 from .operations import (
     DownloadUpdatesResult,
@@ -67,8 +69,20 @@ class PixivPbdManagerApp(tk.Tk):
         self.fuzzy_search_var = tk.BooleanVar(value=bool(self.settings.get("fuzzy_search", False)))
         self.fuzzy_min_score_var = tk.DoubleVar(value=float(self.settings.get("fuzzy_min_score", 0.35)))
         self.ssl_fallback_var = tk.BooleanVar(value=bool(self.settings.get("ssl_fallback", True)))
+        self.cookie_consent_var = tk.BooleanVar(value=is_cookie_consent_recorded())
+        legacy_cookie = self.settings.pop("pixiv_cookie", None)
+        if self.cookie_consent_var.get():
+            stored_cookie = load_cookie()
+            if legacy_cookie and not stored_cookie:
+                save_cookie(legacy_cookie)
+                stored_cookie = legacy_cookie
+        else:
+            clear_cookie()
+            stored_cookie = None
+        self.pixiv_cookie_var = tk.StringVar(value=stored_cookie or "")
+        self.show_cookie_var = tk.BooleanVar(value=False)
         self.search_var = tk.StringVar()
-        self.language_var = tk.StringVar(value=LANGUAGE_LABELS[self.language])
+        self.language_var = tk.StringVar(value=self.language)
         self.status_var = tk.StringVar(value=self.t("ready"))
         self.checked_artist_ids: set[str] = set()
         self.checkbox_images: dict[str, tk.PhotoImage] = {}
@@ -81,6 +95,7 @@ class PixivPbdManagerApp(tk.Tk):
         self.scan_button: ttk.Button
         self.watch_button: ttk.Button
         self.stop_watch_button: ttk.Button
+        self.pixiv_cookie_entry: ttk.Entry
 
         self._build_ui()
         self._load_download_roots()
@@ -119,6 +134,7 @@ class PixivPbdManagerApp(tk.Tk):
     def _build_ui(self) -> None:
         self.title(self.t("app_title"))
         self._create_checkbox_images()
+        self._build_menu()
         self.columnconfigure(0, weight=1)
         self.rowconfigure(1, weight=1)
 
@@ -129,16 +145,6 @@ class PixivPbdManagerApp(tk.Tk):
         ttk.Label(top, text=self.t("database")).grid(row=0, column=0, sticky="w")
         ttk.Entry(top, textvariable=self.db_var).grid(row=0, column=1, sticky="ew", padx=(8, 8))
         ttk.Button(top, text=self.t("choose"), command=self.choose_database).grid(row=0, column=2, sticky="e")
-        ttk.Label(top, text=self.t("language")).grid(row=0, column=3, sticky="e", padx=(16, 8))
-        language_box = ttk.Combobox(
-            top,
-            textvariable=self.language_var,
-            values=[LANGUAGE_LABELS["zh"], LANGUAGE_LABELS["en"]],
-            state="readonly",
-            width=10,
-        )
-        language_box.grid(row=0, column=4, sticky="e")
-        language_box.bind("<<ComboboxSelected>>", self.on_language_change)
 
         body = ttk.PanedWindow(self, orient=tk.HORIZONTAL)
         body.grid(row=1, column=0, sticky="nsew", padx=12, pady=(0, 8))
@@ -191,60 +197,55 @@ class PixivPbdManagerApp(tk.Tk):
         )
         ttk.Label(interval_row, text=self.t("seconds")).grid(row=0, column=2, sticky="w")
 
-        resolve_row = ttk.Frame(actions)
-        resolve_row.grid(row=3, column=0, columnspan=2, sticky="ew", pady=(10, 0))
-        resolve_row.columnconfigure(0, weight=1)
         ttk.Checkbutton(
-            resolve_row,
+            actions,
             text=self.t("resolve_online"),
             variable=self.resolve_online_var,
             command=self.save_current_settings,
-        ).grid(row=0, column=0, sticky="w")
-        ttk.Label(resolve_row, text=self.t("resolve_limit")).grid(row=0, column=1, sticky="e", padx=(8, 4))
-        ttk.Spinbox(resolve_row, from_=1, to=10, increment=1, textvariable=self.resolve_limit_var, width=6).grid(
-            row=0, column=2, sticky="e"
-        )
-
-        fuzzy_row = ttk.Frame(actions)
-        fuzzy_row.grid(row=4, column=0, columnspan=2, sticky="ew", pady=(8, 0))
-        fuzzy_row.columnconfigure(0, weight=1)
+        ).grid(row=3, column=0, columnspan=2, sticky="w", pady=(10, 0))
         ttk.Checkbutton(
-            fuzzy_row,
+            actions,
             text=self.t("fuzzy_search"),
             variable=self.fuzzy_search_var,
             command=self.save_current_settings,
-        ).grid(row=0, column=0, sticky="w")
-        ttk.Label(fuzzy_row, text=self.t("fuzzy_min_score")).grid(row=0, column=1, sticky="e", padx=(8, 4))
-        ttk.Spinbox(fuzzy_row, from_=0.1, to=1.0, increment=0.05, textvariable=self.fuzzy_min_score_var, width=6).grid(
-            row=0, column=2, sticky="e"
-        )
+        ).grid(row=4, column=0, columnspan=2, sticky="w", pady=(6, 0))
 
+        pixiv_login = ttk.LabelFrame(left, text=self.t("pixiv_login"), padding=10)
+        pixiv_login.grid(row=7, column=0, sticky="ew", pady=(12, 0))
+        pixiv_login.columnconfigure(1, weight=1)
         ttk.Checkbutton(
-            actions,
-            text=self.t("ssl_fallback"),
-            variable=self.ssl_fallback_var,
-            command=self.save_current_settings,
-        ).grid(row=5, column=0, columnspan=2, sticky="w", pady=(8, 0))
-
-        browser_box = ttk.LabelFrame(left, text=self.t("browser"), padding=10)
-        browser_box.grid(row=7, column=0, sticky="ew", pady=(12, 0))
-        browser_box.columnconfigure(1, weight=1)
-        ttk.Label(browser_box, text=self.t("program")).grid(row=0, column=0, sticky="w")
-        ttk.Entry(browser_box, textvariable=self.browser_var).grid(row=0, column=1, sticky="ew", padx=8)
-        ttk.Button(browser_box, text=self.t("choose"), command=self.choose_browser).grid(row=0, column=2)
-        ttk.Label(browser_box, text=self.t("user_data")).grid(row=1, column=0, sticky="w", pady=(8, 0))
-        ttk.Entry(browser_box, textvariable=self.user_data_dir_var).grid(row=1, column=1, sticky="ew", padx=8, pady=(8, 0))
-        ttk.Button(browser_box, text=self.t("choose"), command=self.choose_user_data_dir).grid(row=1, column=2, pady=(8, 0))
-        ttk.Button(browser_box, text=self.t("clear"), command=self.clear_user_data_dir).grid(row=1, column=3, padx=(6, 0), pady=(8, 0))
-
-        open_row = ttk.Frame(browser_box)
-        open_row.grid(row=2, column=0, columnspan=3, sticky="ew", pady=(10, 0))
-        open_row.columnconfigure(3, weight=1)
-        ttk.Label(open_row, text=self.t("open_delay")).grid(row=0, column=0, sticky="w")
-        ttk.Spinbox(open_row, from_=0, to=30, increment=0.5, textvariable=self.delay_var, width=7).grid(row=0, column=1, padx=(8, 4))
-        ttk.Label(open_row, text=self.t("seconds")).grid(row=0, column=2, sticky="w")
-        ttk.Label(open_row, text=self.t("open_limit")).grid(row=0, column=4, sticky="e", padx=(12, 4))
-        ttk.Spinbox(open_row, from_=1, to=9999, increment=1, textvariable=self.limit_var, width=7).grid(row=0, column=5, sticky="e")
+            pixiv_login,
+            text=self.t("cookie_consent_label"),
+            variable=self.cookie_consent_var,
+            command=self.on_cookie_consent_toggle,
+        ).grid(row=0, column=0, columnspan=2, sticky="w")
+        ttk.Button(
+            pixiv_login,
+            text=self.t("view_disclaimer"),
+            command=lambda: self._show_cookie_disclaimer(view_only=True),
+        ).grid(row=0, column=2, sticky="e")
+        ttk.Label(pixiv_login, text=self.t("pixiv_cookie_label")).grid(row=1, column=0, sticky="w", pady=(8, 0))
+        self.pixiv_cookie_entry = ttk.Entry(
+            pixiv_login,
+            textvariable=self.pixiv_cookie_var,
+            show="" if self.show_cookie_var.get() else "*",
+        )
+        self.pixiv_cookie_entry.grid(row=1, column=1, sticky="ew", padx=8, pady=(8, 0))
+        self.pixiv_cookie_entry.bind("<FocusOut>", lambda _event: self.save_current_settings(log_message=False))
+        ttk.Checkbutton(
+            pixiv_login,
+            text=self.t("show_cookie"),
+            variable=self.show_cookie_var,
+            command=self.toggle_cookie_visibility,
+        ).grid(row=1, column=2, sticky="e", pady=(8, 0))
+        ttk.Label(
+            pixiv_login,
+            text=self.t("pixiv_cookie_hint"),
+            wraplength=320,
+            foreground="#666666",
+            justify="left",
+        ).grid(row=2, column=0, columnspan=3, sticky="w", pady=(6, 0))
+        self.pixiv_cookie_entry.configure(state="normal" if self.cookie_consent_var.get() else "disabled")
 
         add_box = ttk.LabelFrame(left, text=self.t("manual_add"), padding=10)
         add_box.grid(row=8, column=0, sticky="ew", pady=(12, 0))
@@ -335,6 +336,93 @@ class PixivPbdManagerApp(tk.Tk):
     def _selected_artists(self) -> list[str]:
         return [str(item) for item in self.artist_tree.selection()]
 
+    def _pixiv_cookie(self) -> str | None:
+        if not is_cookie_consent_recorded():
+            return None
+        value = self.pixiv_cookie_var.get().strip()
+        return value or None
+
+    def toggle_cookie_visibility(self) -> None:
+        self.pixiv_cookie_entry.configure(show="" if self.show_cookie_var.get() else "*")
+
+    def _apply_cookie_consent_state(self, accepted: bool) -> None:
+        self.pixiv_cookie_entry.configure(state="normal" if accepted else "disabled")
+
+    def _show_cookie_disclaimer(self, *, view_only: bool = False) -> bool:
+        dialog = tk.Toplevel(self)
+        dialog.title(self.t("disclaimer_title"))
+        dialog.transient(self)
+        dialog.resizable(False, False)
+
+        body = tk.Text(dialog, wrap="word", width=70, height=18, padx=12, pady=10, borderwidth=0)
+        body.insert("1.0", self.t("disclaimer_body"))
+        body.configure(state="disabled")
+        body.pack(fill="both", expand=True, padx=12, pady=(12, 6))
+
+        outcome = {"accepted": False}
+        button_row = ttk.Frame(dialog)
+        button_row.pack(fill="x", padx=12, pady=(6, 12))
+
+        def on_accept() -> None:
+            outcome["accepted"] = True
+            dialog.destroy()
+
+        def on_decline() -> None:
+            outcome["accepted"] = False
+            dialog.destroy()
+
+        if view_only:
+            ttk.Button(button_row, text=self.t("disclaimer_close"), command=on_decline).pack(side="right")
+        else:
+            ttk.Button(button_row, text=self.t("disclaimer_decline"), command=on_decline).pack(side="right", padx=(6, 0))
+            ttk.Button(button_row, text=self.t("disclaimer_accept"), command=on_accept).pack(side="right")
+
+        dialog.protocol("WM_DELETE_WINDOW", on_decline)
+        dialog.update_idletasks()
+        try:
+            parent_x = self.winfo_rootx()
+            parent_y = self.winfo_rooty()
+            parent_w = self.winfo_width()
+            parent_h = self.winfo_height()
+            x = parent_x + max(0, (parent_w - dialog.winfo_width()) // 2)
+            y = parent_y + max(0, (parent_h - dialog.winfo_height()) // 2)
+            dialog.geometry(f"+{x}+{y}")
+        except tk.TclError:
+            pass
+        dialog.grab_set()
+        self.wait_window(dialog)
+        return outcome["accepted"]
+
+    def on_cookie_consent_toggle(self) -> None:
+        new_state = self.cookie_consent_var.get()
+        if new_state:
+            if is_cookie_consent_recorded():
+                self._apply_cookie_consent_state(True)
+                return
+            if self._show_cookie_disclaimer(view_only=False):
+                record_cookie_consent()
+                self._apply_cookie_consent_state(True)
+                self.log(self.t("consent_accepted_log"))
+            else:
+                self.cookie_consent_var.set(False)
+                self._apply_cookie_consent_state(False)
+            return
+
+        if not messagebox.askyesno(
+            self.t("consent_revoke_title"),
+            self.t("consent_revoke_body"),
+            parent=self,
+        ):
+            self.cookie_consent_var.set(True)
+            self._apply_cookie_consent_state(True)
+            return
+
+        revoke_cookie_consent()
+        self.pixiv_cookie_var.set("")
+        clear_cookie()
+        self._apply_cookie_consent_state(False)
+        self.log(self.t("consent_revoked_log"))
+
     def _target_artist_ids(self) -> list[str]:
         return sorted(self.checked_artist_ids) if self.checked_artist_ids else self._selected_artists()
 
@@ -378,20 +466,131 @@ class PixivPbdManagerApp(tk.Tk):
     def save_current_settings(self, *, log_message: bool = True) -> None:
         self.settings = self._save_settings_dict()
         save_settings(self.settings)
+        cookie_value = self.pixiv_cookie_var.get().strip()
+        if cookie_value and is_cookie_consent_recorded():
+            save_cookie(cookie_value)
+        else:
+            clear_cookie()
         if log_message and hasattr(self, "log_text"):
             self.log(self.t("settings_saved"))
 
     def on_language_change(self, _event=None) -> None:
-        self.language = LABEL_TO_LANGUAGE.get(self.language_var.get(), "zh")
+        self.language = language_or_default(self.language_var.get())
         self.status_var.set(self.t("ready"))
         self.settings = self._save_settings_dict()
         save_settings(self.settings)
         for child in self.winfo_children():
             child.destroy()
+        self.configure(menu="")
         self._build_ui()
         self._load_download_roots()
         self._load_exclude_roots()
         self.refresh_artists()
+
+    def _build_menu(self) -> None:
+        menubar = tk.Menu(self)
+        settings_menu = tk.Menu(menubar, tearoff=False)
+        language_submenu = tk.Menu(settings_menu, tearoff=False)
+        for code in ("zh", "en"):
+            language_submenu.add_radiobutton(
+                label=LANGUAGE_LABELS[code],
+                value=code,
+                variable=self.language_var,
+                command=self.on_language_change,
+            )
+        settings_menu.add_cascade(label=self.t("language_menu"), menu=language_submenu)
+        settings_menu.add_separator()
+        settings_menu.add_command(label=self.t("preferences_menu"), command=self.open_preferences)
+        menubar.add_cascade(label=self.t("settings_menu"), menu=settings_menu)
+        self.configure(menu=menubar)
+
+    def open_preferences(self) -> None:
+        snapshot = {
+            "browser": self.browser_var.get(),
+            "user_data_dir": self.user_data_dir_var.get(),
+            "delay": float(self.delay_var.get()),
+            "limit": int(self.limit_var.get()),
+            "resolve_limit": int(self.resolve_limit_var.get()),
+            "fuzzy_min_score": float(self.fuzzy_min_score_var.get()),
+            "ssl_fallback": bool(self.ssl_fallback_var.get()),
+        }
+
+        dialog = tk.Toplevel(self)
+        dialog.title(self.t("preferences_title"))
+        dialog.transient(self)
+        dialog.resizable(False, False)
+
+        container = ttk.Frame(dialog, padding=14)
+        container.grid(row=0, column=0, sticky="nsew")
+        container.columnconfigure(1, weight=1)
+
+        scan_box = ttk.LabelFrame(container, text=self.t("scan_options"), padding=10)
+        scan_box.grid(row=0, column=0, columnspan=3, sticky="ew")
+        scan_box.columnconfigure(1, weight=1)
+        ttk.Label(scan_box, text=self.t("resolve_limit")).grid(row=0, column=0, sticky="w")
+        ttk.Spinbox(scan_box, from_=1, to=10, increment=1, textvariable=self.resolve_limit_var, width=8).grid(
+            row=0, column=1, sticky="w", padx=(8, 0)
+        )
+        ttk.Label(scan_box, text=self.t("fuzzy_min_score")).grid(row=1, column=0, sticky="w", pady=(8, 0))
+        ttk.Spinbox(scan_box, from_=0.1, to=1.0, increment=0.05, textvariable=self.fuzzy_min_score_var, width=8).grid(
+            row=1, column=1, sticky="w", padx=(8, 0), pady=(8, 0)
+        )
+        ttk.Checkbutton(
+            scan_box,
+            text=self.t("ssl_fallback"),
+            variable=self.ssl_fallback_var,
+        ).grid(row=2, column=0, columnspan=2, sticky="w", pady=(10, 0))
+
+        browser_box = ttk.LabelFrame(container, text=self.t("browser"), padding=10)
+        browser_box.grid(row=1, column=0, columnspan=3, sticky="ew", pady=(12, 0))
+        browser_box.columnconfigure(1, weight=1)
+        ttk.Label(browser_box, text=self.t("program")).grid(row=0, column=0, sticky="w")
+        ttk.Entry(browser_box, textvariable=self.browser_var, width=42).grid(row=0, column=1, sticky="ew", padx=8)
+        ttk.Button(browser_box, text=self.t("choose"), command=self.choose_browser).grid(row=0, column=2)
+        ttk.Label(browser_box, text=self.t("user_data")).grid(row=1, column=0, sticky="w", pady=(8, 0))
+        ttk.Entry(browser_box, textvariable=self.user_data_dir_var, width=42).grid(row=1, column=1, sticky="ew", padx=8, pady=(8, 0))
+        ttk.Button(browser_box, text=self.t("choose"), command=self.choose_user_data_dir).grid(row=1, column=2, pady=(8, 0))
+        ttk.Button(browser_box, text=self.t("clear"), command=self.clear_user_data_dir).grid(row=1, column=3, padx=(6, 0), pady=(8, 0))
+        open_row = ttk.Frame(browser_box)
+        open_row.grid(row=2, column=0, columnspan=4, sticky="ew", pady=(10, 0))
+        ttk.Label(open_row, text=self.t("open_delay")).grid(row=0, column=0, sticky="w")
+        ttk.Spinbox(open_row, from_=0, to=30, increment=0.5, textvariable=self.delay_var, width=7).grid(row=0, column=1, padx=(8, 4))
+        ttk.Label(open_row, text=self.t("seconds")).grid(row=0, column=2, sticky="w")
+        ttk.Label(open_row, text=self.t("open_limit")).grid(row=0, column=3, sticky="w", padx=(16, 4))
+        ttk.Spinbox(open_row, from_=1, to=9999, increment=1, textvariable=self.limit_var, width=7).grid(row=0, column=4, sticky="w")
+
+        button_row = ttk.Frame(container)
+        button_row.grid(row=2, column=0, columnspan=3, sticky="e", pady=(14, 0))
+
+        def revert() -> None:
+            self.browser_var.set(snapshot["browser"])
+            self.user_data_dir_var.set(snapshot["user_data_dir"])
+            self.delay_var.set(snapshot["delay"])
+            self.limit_var.set(snapshot["limit"])
+            self.resolve_limit_var.set(snapshot["resolve_limit"])
+            self.fuzzy_min_score_var.set(snapshot["fuzzy_min_score"])
+            self.ssl_fallback_var.set(snapshot["ssl_fallback"])
+
+        def on_save() -> None:
+            self.save_current_settings(log_message=False)
+            dialog.destroy()
+
+        def on_cancel() -> None:
+            revert()
+            dialog.destroy()
+
+        ttk.Button(button_row, text=self.t("cancel"), command=on_cancel).pack(side="right", padx=(6, 0))
+        ttk.Button(button_row, text=self.t("save"), command=on_save).pack(side="right")
+        dialog.protocol("WM_DELETE_WINDOW", on_cancel)
+        dialog.update_idletasks()
+        try:
+            x = self.winfo_rootx() + max(0, (self.winfo_width() - dialog.winfo_width()) // 2)
+            y = self.winfo_rooty() + max(0, (self.winfo_height() - dialog.winfo_height()) // 2)
+            dialog.geometry(f"+{x}+{y}")
+        except tk.TclError:
+            pass
+        dialog.grab_set()
+        self.wait_window(dialog)
 
     def choose_database(self) -> None:
         path = filedialog.asksaveasfilename(
@@ -522,6 +721,7 @@ class PixivPbdManagerApp(tk.Tk):
             return
         exclude_roots = self._exclude_roots()
         self.save_current_settings()
+        pixiv_cookie = self._pixiv_cookie()
         self._run_worker(
             self.t("scan"),
             lambda: scan_into_database(
@@ -529,6 +729,7 @@ class PixivPbdManagerApp(tk.Tk):
                 self.db_path,
                 resolve_online=self.resolve_online_var.get(),
                 resolve_limit=self.resolve_limit_var.get(),
+                pixiv_cookie=pixiv_cookie,
                 allow_insecure_ssl_fallback=self.ssl_fallback_var.get(),
                 exclude_roots=exclude_roots,
                 fuzzy_search_names=self.fuzzy_search_var.get(),
@@ -554,6 +755,7 @@ class PixivPbdManagerApp(tk.Tk):
         ssl_fallback = self.ssl_fallback_var.get()
         fuzzy_search = self.fuzzy_search_var.get()
         fuzzy_min_score = float(self.fuzzy_min_score_var.get())
+        pixiv_cookie = self._pixiv_cookie()
 
         def target() -> None:
             self.message_queue.put(("status", self.t("watching")))
@@ -564,6 +766,7 @@ class PixivPbdManagerApp(tk.Tk):
                         db_path,
                         resolve_online=resolve_online,
                         resolve_limit=resolve_limit,
+                        pixiv_cookie=pixiv_cookie,
                         allow_insecure_ssl_fallback=ssl_fallback,
                         exclude_roots=exclude_roots,
                         fuzzy_search_names=fuzzy_search,
@@ -635,6 +838,7 @@ class PixivPbdManagerApp(tk.Tk):
                 try:
                     profile = fetch_user_profile(
                         new_id,
+                        cookie=self._pixiv_cookie(),
                         allow_insecure_ssl_fallback=self.ssl_fallback_var.get(),
                     )
                     if profile.name:
@@ -798,11 +1002,13 @@ class PixivPbdManagerApp(tk.Tk):
 
     def check_updates(self) -> None:
         selected = self._target_artist_ids()
+        pixiv_cookie = self._pixiv_cookie()
 
         def work() -> UpdateCheckResult:
             return check_artist_updates(
                 self.db_path,
                 artist_ids=selected or None,
+                pixiv_cookie=pixiv_cookie,
                 allow_insecure_ssl_fallback=self.ssl_fallback_var.get(),
                 progress_callback=self._progress_callback,
             )
@@ -819,10 +1025,13 @@ class PixivPbdManagerApp(tk.Tk):
             messagebox.showinfo(self.t("no_data_title"), self.t("no_updated_artists"))
             return
 
+        pixiv_cookie = self._pixiv_cookie()
+
         def work() -> DownloadUpdatesResult:
             return download_artist_updates(
                 self.db_path,
                 artist_ids=artist_ids,
+                pixiv_cookie=pixiv_cookie,
                 allow_insecure_ssl_fallback=self.ssl_fallback_var.get(),
                 progress_callback=self._progress_callback,
             )
