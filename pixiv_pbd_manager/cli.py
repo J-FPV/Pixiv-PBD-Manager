@@ -12,6 +12,7 @@ from .database import DEFAULT_DB, ArtistDatabase
 from .i18n import text
 from .models import utc_now
 from .operations import check_artist_updates, download_artist_updates, scan_into_database
+from .similar import find_similar_images, write_similar_report
 
 
 def positive_float(value: str) -> float:
@@ -216,6 +217,7 @@ def cmd_check(args: argparse.Namespace) -> int:
             artist_ids=args.artist_ids or None,
             pixiv_cookie=args.pixiv_cookie,
             allow_insecure_ssl_fallback=not args.no_ssl_fallback,
+            scan_local=args.scan_local,
         )
     except KeyError as exc:
         print(str(exc), file=sys.stderr)
@@ -249,6 +251,7 @@ def cmd_download(args: argparse.Namespace) -> int:
             allow_insecure_ssl_fallback=not args.no_ssl_fallback,
             overwrite=args.overwrite,
             delay_seconds=args.delay,
+            separate_restricted=args.separate_r18,
         )
     except KeyError as exc:
         print(str(exc), file=sys.stderr)
@@ -263,6 +266,47 @@ def cmd_download(args: argparse.Namespace) -> int:
     for error in result.errors:
         print(f"Download error: {error}", file=sys.stderr)
     return 0 if not result.errors else 1
+
+
+def cmd_similar(args: argparse.Namespace) -> int:
+    roots = [Path(root) for root in args.roots]
+    missing = [str(root) for root in roots if not root.exists()]
+    if missing:
+        print(f"Missing path(s): {', '.join(missing)}", file=sys.stderr)
+        return 2
+
+    try:
+        result = find_similar_images(
+            roots,
+            exclude_roots=[Path(path) for path in args.exclude],
+            threshold=args.threshold,
+        )
+    except RuntimeError as exc:
+        print(str(exc), file=sys.stderr)
+        return 2
+    print(f"Scanned image files: {result.files_seen}")
+    print(f"Indexed images: {result.indexed}")
+    print(f"Reused from index: {result.reused}")
+    print(f"Updated fingerprints: {result.changed}")
+    print(f"Similar groups: {len(result.groups)}")
+    print(f"Errors: {result.error_count}")
+    print(f"Index: {result.index_path.resolve()}")
+    for group in result.groups:
+        print(
+            f"Group {group.id}: {group.kind}, {len(group.entries)} file(s), "
+            f"best pHash={group.best_phash_distance}, dHash={group.best_dhash_distance}"
+        )
+        for entry in group.entries:
+            print(f"  {entry.resolution or '?'} {entry.size_bytes} bytes {entry.path}")
+    for error in result.errors:
+        print(f"Similar image error: {error}", file=sys.stderr)
+    if result.error_count > len(result.errors):
+        print(f"Similar image errors omitted: {result.error_count - len(result.errors)}", file=sys.stderr)
+    if args.output:
+        output = Path(args.output)
+        write_similar_report(result, output)
+        print(f"Wrote similar image report to {output.resolve()}")
+    return 0 if not result.error_count else 1
 
 
 def cmd_gui(_args: argparse.Namespace) -> int:
@@ -338,6 +382,11 @@ def build_parser() -> argparse.ArgumentParser:
     check.add_argument("artist_ids", nargs="*", help="artist ids to check; default checks all")
     add_cookie_arguments(check)
     check.add_argument("--no-ssl-fallback", action="store_true", help="do not retry with relaxed SSL verification on certificate errors")
+    check.add_argument(
+        "--scan-local",
+        action="store_true",
+        help="rescan each artist's saved folder (including subfolders) so works already on disk are not flagged as new",
+    )
     check.set_defaults(func=cmd_check)
 
     download = subparsers.add_parser("download", help="download new artworks recorded by update checks")
@@ -348,7 +397,24 @@ def build_parser() -> argparse.ArgumentParser:
     download.add_argument("--no-ssl-fallback", action="store_true", help="do not retry with relaxed SSL verification on certificate errors")
     download.add_argument("--overwrite", action="store_true", help="overwrite existing files")
     download.add_argument("--delay", type=positive_float, default=0.3, help="seconds between image downloads")
+    download.add_argument(
+        "--separate-r18",
+        action="store_true",
+        help="save R-18/R-18G works into a separate [R-18&R-18G] subfolder, like Powerful Pixiv Downloader",
+    )
     download.set_defaults(func=cmd_download)
+
+    similar = subparsers.add_parser("similar", help="find visually similar image files")
+    similar.add_argument("roots", nargs="+", help="image folder(s) to scan")
+    similar.add_argument("--exclude", action="append", default=[], help="folder to skip; can be repeated")
+    similar.add_argument(
+        "--threshold",
+        choices=["likely", "possible"],
+        default="likely",
+        help="similarity threshold; likely is stricter, possible finds more candidates",
+    )
+    similar.add_argument("--output", help="write a CSV report")
+    similar.set_defaults(func=cmd_similar)
 
     gui = subparsers.add_parser("gui", help="open the desktop GUI")
     gui.set_defaults(func=cmd_gui)

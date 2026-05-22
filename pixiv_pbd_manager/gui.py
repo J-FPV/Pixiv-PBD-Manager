@@ -1,8 +1,12 @@
 from __future__ import annotations
 
 import json
+import os
 import queue
+import subprocess
+import sys
 import threading
+import time
 from pathlib import Path
 from typing import Callable
 
@@ -24,9 +28,13 @@ from .operations import (
     scan_into_database,
 )
 from .resolver import PixivResolveError, fetch_user_profile
+from .similar import SimilarImageResult, find_similar_images as find_similar_image_groups
 
 
 DEFAULT_SETTINGS = Path(".pixiv-pbd-manager") / "gui_settings.json"
+LOG_MAX_LINES = 1000
+QUEUE_DRAIN_LIMIT = 100
+PROGRESS_LOG_INTERVAL_SECONDS = 0.35
 
 
 def load_settings(path: Path = DEFAULT_SETTINGS) -> dict:
@@ -84,13 +92,21 @@ class PixivPbdManagerApp(tk.Tk):
         self.search_var = tk.StringVar()
         self.language_var = tk.StringVar(value=self.language)
         self.status_var = tk.StringVar(value=self.t("ready"))
+        self.similar_summary_var = tk.StringVar(value=self.t("similar_idle"))
+        self.similar_threshold_var = tk.StringVar(value=self.settings.get("similar_threshold", "likely"))
         self.checked_artist_ids: set[str] = set()
         self.checkbox_images: dict[str, tk.PhotoImage] = {}
+        self._last_progress_log_at = 0.0
+        self._log_lines = 0
+        self._search_after_id: str | None = None
 
         self.root_listbox: tk.Listbox
         self.exclude_listbox: tk.Listbox
         self.artist_tree: ttk.Treeview
-        self.log_text: tk.Text
+        self.similar_tree: ttk.Treeview
+        self.log_text: tk.Listbox
+        self.notebook: ttk.Notebook
+        self.similar_tab: ttk.Frame
         self.context_menu: tk.Menu
         self.scan_button: ttk.Button
         self.watch_button: ttk.Button
@@ -153,7 +169,7 @@ class PixivPbdManagerApp(tk.Tk):
         left.columnconfigure(0, weight=1)
         left.rowconfigure(1, weight=1)
         left.rowconfigure(4, weight=1)
-        body.add(left, weight=1)
+        body.add(left, weight=0)
 
         ttk.Label(left, text=self.t("download_folders")).grid(row=0, column=0, sticky="w")
         self.root_listbox = tk.Listbox(left, height=6, activestyle="dotbox", exportselection=False)
@@ -255,17 +271,24 @@ class PixivPbdManagerApp(tk.Tk):
 
         right = ttk.Frame(body)
         right.columnconfigure(0, weight=1)
-        right.rowconfigure(1, weight=1)
-        right.rowconfigure(3, weight=1)
-        body.add(right, weight=4)
+        right.rowconfigure(0, weight=1)
+        body.add(right, weight=1)
 
-        toolbar = ttk.Frame(right)
+        self.notebook = ttk.Notebook(right)
+        self.notebook.grid(row=0, column=0, columnspan=2, sticky="nsew", pady=(0, 8))
+
+        artist_tab = ttk.Frame(self.notebook)
+        artist_tab.columnconfigure(0, weight=1)
+        artist_tab.rowconfigure(1, weight=1)
+        self.notebook.add(artist_tab, text=self.t("artists_tab"))
+
+        toolbar = ttk.Frame(artist_tab)
         toolbar.grid(row=0, column=0, sticky="ew", pady=(0, 8))
         toolbar.columnconfigure(1, weight=1)
         ttk.Label(toolbar, text=self.t("filter")).grid(row=0, column=0, sticky="w")
         search = ttk.Entry(toolbar, textvariable=self.search_var)
         search.grid(row=0, column=1, sticky="ew", padx=8)
-        search.bind("<KeyRelease>", lambda _event: self.refresh_artists())
+        search.bind("<KeyRelease>", self._schedule_refresh_artists)
         ttk.Button(toolbar, text=self.t("select_all"), command=self.select_all_visible_artists).grid(row=0, column=2, padx=(0, 6))
         ttk.Button(toolbar, text=self.t("clear_selection"), command=self.clear_checked_artists).grid(row=0, column=3, padx=(0, 6))
         ttk.Button(toolbar, text=self.t("check_updates"), command=self.check_updates).grid(row=0, column=4, padx=(0, 6))
@@ -276,7 +299,7 @@ class PixivPbdManagerApp(tk.Tk):
         ttk.Button(toolbar, text=self.t("copy_urls"), command=self.copy_urls).grid(row=0, column=9)
 
         columns = ("id", "name", "works", "new_works", "save_paths", "last_seen", "last_opened")
-        self.artist_tree = ttk.Treeview(right, columns=columns, show="tree headings", selectmode="extended")
+        self.artist_tree = ttk.Treeview(artist_tab, columns=columns, show="tree headings", selectmode="extended")
         self.artist_tree.heading("#0", text=self.t("checked"))
         self.artist_tree.heading("id", text=self.t("artist_id"))
         self.artist_tree.heading("name", text=self.t("artist_name"))
@@ -286,13 +309,13 @@ class PixivPbdManagerApp(tk.Tk):
         self.artist_tree.heading("last_seen", text=self.t("last_seen"))
         self.artist_tree.heading("last_opened", text=self.t("last_opened"))
         self.artist_tree.column("#0", width=62, anchor="center", stretch=False)
-        self.artist_tree.column("id", width=110, anchor="w")
-        self.artist_tree.column("name", width=180, anchor="w")
-        self.artist_tree.column("works", width=70, anchor="e")
-        self.artist_tree.column("new_works", width=70, anchor="e")
+        self.artist_tree.column("id", width=110, anchor="w", stretch=False)
+        self.artist_tree.column("name", width=180, anchor="w", stretch=False)
+        self.artist_tree.column("works", width=70, anchor="e", stretch=False)
+        self.artist_tree.column("new_works", width=70, anchor="e", stretch=False)
         self.artist_tree.column("save_paths", width=260, anchor="w")
-        self.artist_tree.column("last_seen", width=190, anchor="w")
-        self.artist_tree.column("last_opened", width=190, anchor="w")
+        self.artist_tree.column("last_seen", width=190, anchor="w", stretch=False)
+        self.artist_tree.column("last_opened", width=190, anchor="w", stretch=False)
         self.artist_tree.grid(row=1, column=0, sticky="nsew")
         self.artist_tree.bind("<Button-1>", self.on_artist_tree_click)
         self.artist_tree.bind("<Double-1>", self.open_double_clicked_artist)
@@ -303,21 +326,75 @@ class PixivPbdManagerApp(tk.Tk):
         self.context_menu.add_command(label=self.t("edit_artist_id"), command=self.edit_selected_artist_id)
         self.context_menu.add_command(label=self.t("edit_save_path"), command=self.edit_selected_save_path)
 
-        tree_scroll = ttk.Scrollbar(right, orient=tk.VERTICAL, command=self.artist_tree.yview)
+        tree_scroll = ttk.Scrollbar(artist_tab, orient=tk.VERTICAL, command=self.artist_tree.yview)
         tree_scroll.grid(row=1, column=1, sticky="ns")
         self.artist_tree.configure(yscrollcommand=tree_scroll.set)
 
+        self.similar_tab = ttk.Frame(self.notebook)
+        self.similar_tab.columnconfigure(0, weight=1)
+        self.similar_tab.rowconfigure(2, weight=1)
+        self.notebook.add(self.similar_tab, text=self.t("similar_tab"))
+
+        similar_toolbar = ttk.Frame(self.similar_tab)
+        similar_toolbar.grid(row=0, column=0, sticky="ew", pady=(0, 8))
+        similar_toolbar.columnconfigure(5, weight=1)
+        ttk.Label(similar_toolbar, text=self.t("similar_threshold")).grid(row=0, column=0, sticky="w")
+        ttk.Radiobutton(
+            similar_toolbar,
+            text=self.t("similar_threshold_likely"),
+            variable=self.similar_threshold_var,
+            value="likely",
+            command=self.save_current_settings,
+        ).grid(row=0, column=1, sticky="w", padx=(8, 0))
+        ttk.Radiobutton(
+            similar_toolbar,
+            text=self.t("similar_threshold_possible"),
+            variable=self.similar_threshold_var,
+            value="possible",
+            command=self.save_current_settings,
+        ).grid(row=0, column=2, sticky="w", padx=(8, 12))
+        ttk.Button(similar_toolbar, text=self.t("find_similar"), command=self.find_similar_images).grid(row=0, column=3, sticky="w")
+        ttk.Label(similar_toolbar, text=self.t("similar_hint"), foreground="#666666").grid(row=0, column=4, sticky="w", padx=(12, 0))
+
+        ttk.Label(self.similar_tab, textvariable=self.similar_summary_var, anchor="w", width=1).grid(
+            row=1, column=0, sticky="ew", pady=(0, 6)
+        )
+
+        similar_columns = ("kind", "count", "path", "resolution", "size")
+        self.similar_tree = ttk.Treeview(self.similar_tab, columns=similar_columns, show="tree headings")
+        self.similar_tree.heading("#0", text=self.t("similar_group"))
+        self.similar_tree.heading("kind", text=self.t("similar_kind"))
+        self.similar_tree.heading("count", text=self.t("similar_count"))
+        self.similar_tree.heading("path", text=self.t("similar_path"))
+        self.similar_tree.heading("resolution", text=self.t("similar_resolution"))
+        self.similar_tree.heading("size", text=self.t("similar_size"))
+        self.similar_tree.column("#0", width=110, anchor="w", stretch=False)
+        self.similar_tree.column("kind", width=110, anchor="w", stretch=False)
+        self.similar_tree.column("count", width=70, anchor="e", stretch=False)
+        self.similar_tree.column("path", width=520, anchor="w")
+        self.similar_tree.column("resolution", width=100, anchor="e", stretch=False)
+        self.similar_tree.column("size", width=90, anchor="e", stretch=False)
+        self.similar_tree.grid(row=2, column=0, sticky="nsew")
+        self.similar_tree.bind("<Double-1>", self.on_similar_double_click)
+
+        similar_scroll = ttk.Scrollbar(self.similar_tab, orient=tk.VERTICAL, command=self.similar_tree.yview)
+        similar_scroll.grid(row=2, column=1, sticky="ns")
+        self.similar_tree.configure(yscrollcommand=similar_scroll.set)
+
         ttk.Label(right, text=self.t("log")).grid(row=2, column=0, sticky="w", pady=(10, 4))
-        self.log_text = tk.Text(right, height=8, wrap="word")
-        self.log_text.grid(row=3, column=0, sticky="nsew")
+        self.log_text = tk.Listbox(right, height=6, activestyle="none", exportselection=False)
+        self.log_text.grid(row=3, column=0, sticky="ew")
         log_scroll = ttk.Scrollbar(right, orient=tk.VERTICAL, command=self.log_text.yview)
         log_scroll.grid(row=3, column=1, sticky="ns")
-        self.log_text.configure(yscrollcommand=log_scroll.set)
+        log_xscroll = ttk.Scrollbar(right, orient=tk.HORIZONTAL, command=self.log_text.xview)
+        log_xscroll.grid(row=4, column=0, sticky="ew")
+        self.log_text.configure(yscrollcommand=log_scroll.set, xscrollcommand=log_xscroll.set)
+        self._log_lines = 0
 
         bottom = ttk.Frame(self, padding=(12, 0, 12, 10))
         bottom.grid(row=2, column=0, sticky="ew")
         bottom.columnconfigure(0, weight=1)
-        ttk.Label(bottom, textvariable=self.status_var).grid(row=0, column=0, sticky="w")
+        ttk.Label(bottom, textvariable=self.status_var, anchor="w", width=1).grid(row=0, column=0, sticky="ew")
 
     def _load_download_roots(self) -> None:
         for item in self.settings.get("download_roots", []):
@@ -429,6 +506,15 @@ class PixivPbdManagerApp(tk.Tk):
     def _visible_artist_ids(self) -> list[str]:
         return [str(item) for item in self.artist_tree.get_children("")]
 
+    def _schedule_refresh_artists(self, _event=None) -> None:
+        if self._search_after_id is not None:
+            self.after_cancel(self._search_after_id)
+        self._search_after_id = self.after(180, self._run_scheduled_refresh)
+
+    def _run_scheduled_refresh(self) -> None:
+        self._search_after_id = None
+        self.refresh_artists()
+
     def select_all_visible_artists(self) -> None:
         artist_ids = self._visible_artist_ids()
         if not artist_ids:
@@ -461,6 +547,7 @@ class PixivPbdManagerApp(tk.Tk):
             "fuzzy_search": self.fuzzy_search_var.get(),
             "fuzzy_min_score": self.fuzzy_min_score_var.get(),
             "ssl_fallback": self.ssl_fallback_var.get(),
+            "similar_threshold": self.similar_threshold_var.get(),
         }
 
     def save_current_settings(self, *, log_message: bool = True) -> None:
@@ -475,8 +562,12 @@ class PixivPbdManagerApp(tk.Tk):
             self.log(self.t("settings_saved"))
 
     def on_language_change(self, _event=None) -> None:
+        if self._search_after_id is not None:
+            self.after_cancel(self._search_after_id)
+            self._search_after_id = None
         self.language = language_or_default(self.language_var.get())
         self.status_var.set(self.t("ready"))
+        self.similar_summary_var.set(self.t("similar_idle"))
         self.settings = self._save_settings_dict()
         save_settings(self.settings)
         for child in self.winfo_children():
@@ -688,6 +779,8 @@ class PixivPbdManagerApp(tk.Tk):
                 status = self.t("checking_updates")
             elif label == self.t("download_updated"):
                 status = self.t("downloading_updates")
+            elif label == self.t("find_similar"):
+                status = self.t("finding_similar")
             else:
                 status = f"{label}..."
             self.message_queue.put(("status", status))
@@ -699,10 +792,16 @@ class PixivPbdManagerApp(tk.Tk):
                 self.message_queue.put(("worker_done", (label, result)))
 
         self.current_task_label = label
+        self._last_progress_log_at = 0.0
         self.worker_thread = threading.Thread(target=target, daemon=True)
         self.worker_thread.start()
 
     def _progress_callback(self, key: str, payload: dict[str, object]) -> None:
+        if key.endswith("_files") or key.endswith("_artist") or key.endswith("_work"):
+            now = time.monotonic()
+            if now - self._last_progress_log_at < PROGRESS_LOG_INTERVAL_SECONDS:
+                return
+            self._last_progress_log_at = now
         self.message_queue.put(("progress", (key, payload)))
 
     def _validate_roots(self, roots: list[Path]) -> bool:
@@ -922,6 +1021,16 @@ class PixivPbdManagerApp(tk.Tk):
                 self.artist_tree.selection_add(artist_id)
         self.status_var.set(self.t("artist_count", count=len(artists)))
 
+    def _set_artist_checked_visual(self, artist_id: str) -> None:
+        if not self.artist_tree.exists(artist_id):
+            return
+        is_checked = artist_id in self.checked_artist_ids
+        self.artist_tree.item(
+            artist_id,
+            image=self.checkbox_images["checked" if is_checked else "unchecked"],
+            tags=("checked",) if is_checked else (),
+        )
+
     def on_artist_tree_click(self, event):
         region = self.artist_tree.identify_region(event.x, event.y)
         if region not in {"tree", "cell"}:
@@ -935,7 +1044,7 @@ class PixivPbdManagerApp(tk.Tk):
             self.checked_artist_ids.remove(item)
         else:
             self.checked_artist_ids.add(item)
-        self.refresh_artists()
+        self._set_artist_checked_visual(str(item))
         return "break"
 
     def open_double_clicked_artist(self, event):
@@ -1039,6 +1148,27 @@ class PixivPbdManagerApp(tk.Tk):
         self.save_current_settings()
         self._run_worker(self.t("download_updated"), work)
 
+    def find_similar_images(self) -> None:
+        roots = self._download_roots()
+        if not self._validate_roots(roots):
+            return
+        exclude_roots = self._exclude_roots()
+        threshold = self.similar_threshold_var.get() if self.similar_threshold_var.get() in {"likely", "possible"} else "likely"
+        self.similar_threshold_var.set(threshold)
+        self.notebook.select(self.similar_tab)
+        self.similar_summary_var.set(self.t("finding_similar"))
+        self.save_current_settings()
+
+        def work() -> SimilarImageResult:
+            return find_similar_image_groups(
+                roots,
+                exclude_roots=exclude_roots,
+                threshold=threshold,
+                progress_callback=self._progress_callback,
+            )
+
+        self._run_worker(self.t("find_similar"), work)
+
     def _current_or_all_urls(self) -> list[str]:
         db = ArtistDatabase.load(self.db_path)
         selected = self._target_artist_ids()
@@ -1117,7 +1247,90 @@ class PixivPbdManagerApp(tk.Tk):
             message += self.t("resolve_error_count", count=len(result.errors))
         return message
 
+    def _format_similar_result(self, result: SimilarImageResult) -> str:
+        return self.t(
+            "similar_result",
+            files=result.files_seen,
+            indexed=result.indexed,
+            reused=result.reused,
+            groups=len(result.groups),
+            errors=result.error_count,
+        )
+
+    def _format_size(self, size_bytes: int) -> str:
+        value = float(size_bytes)
+        for unit in ("B", "KB", "MB", "GB"):
+            if value < 1024 or unit == "GB":
+                return f"{value:.1f} {unit}" if unit != "B" else f"{int(value)} {unit}"
+            value /= 1024
+        return f"{size_bytes} B"
+
+    def _open_file_location(self, path_text: str) -> None:
+        path = Path(path_text)
+        try:
+            if os.name == "nt":
+                subprocess.Popen(["explorer", "/select,", str(path)])
+            elif sys.platform == "darwin":
+                subprocess.Popen(["open", "-R", str(path)])
+            else:
+                subprocess.Popen(["xdg-open", str(path.parent)])
+        except Exception as exc:  # noqa: BLE001
+            messagebox.showerror(self.t("format_error"), str(exc), parent=self)
+
+    def show_similar_results(self, result: SimilarImageResult) -> None:
+        self.notebook.select(self.similar_tab)
+        self.similar_tree.delete(*self.similar_tree.get_children())
+        self.similar_summary_var.set(self._format_similar_result(result))
+
+        if not result.groups:
+            self.similar_summary_var.set(f"{self._format_similar_result(result)}  {self.t('no_similar_images')}")
+            return
+
+        for group in result.groups:
+            group_iid = f"group-{group.id}"
+            self.similar_tree.insert(
+                "",
+                tk.END,
+                iid=group_iid,
+                text=self.t("similar_group_label", id=group.id),
+                values=(
+                    self.t(f"similar_kind_{group.kind}"),
+                    len(group.entries),
+                    self.t(
+                        "similar_best_distance",
+                        phash=group.best_phash_distance,
+                        dhash=group.best_dhash_distance,
+                    ),
+                    "",
+                    "",
+                ),
+                open=False,
+            )
+            for index, entry in enumerate(group.entries, 1):
+                self.similar_tree.insert(
+                    group_iid,
+                    tk.END,
+                    iid=f"file-{group.id}-{index}",
+                    text="",
+                    values=(
+                        "",
+                        "",
+                        entry.path,
+                        entry.resolution,
+                        self._format_size(entry.size_bytes),
+                    ),
+                )
+
+    def on_similar_double_click(self, event) -> None:
+        item = self.similar_tree.identify_row(event.y)
+        if not item or item.startswith("group-"):
+            return
+        values = self.similar_tree.item(item, "values")
+        if len(values) >= 3 and values[2]:
+            self._open_file_location(str(values[2]))
+
     def _handle_worker_done(self, label: str, result: object) -> None:
+        should_refresh = True
         if isinstance(result, ScanResult):
             self.log(self._format_scan_result(label, result))
             for error in result.resolve_errors:
@@ -1132,21 +1345,35 @@ class PixivPbdManagerApp(tk.Tk):
             self.log(self._format_download_result(result))
             for error in result.errors:
                 self.log(self.t("download_failed", error=error))
+        elif isinstance(result, SimilarImageResult):
+            self.log(self._format_similar_result(result))
+            for error in result.errors[:20]:
+                self.log(self.t("similar_failed", error=error))
+            if result.error_count > 20:
+                self.log(self.t("similar_errors_more", shown=min(20, len(result.errors)), total=result.error_count))
+            self.show_similar_results(result)
+            should_refresh = False
         else:
             self.log(self.t("task_done", label=label))
-        self.refresh_artists()
+        if should_refresh:
+            self.refresh_artists()
         self.status_var.set(self.t("ready"))
         self.current_task_label = None
 
     def _drain_queue(self) -> None:
+        processed = 0
+        has_more = False
         try:
-            while True:
+            while processed < QUEUE_DRAIN_LIMIT:
                 kind, payload = self.message_queue.get_nowait()
+                processed += 1
                 if kind == "status":
                     self.status_var.set(str(payload))
                 elif kind == "error":
                     self.log(self.t("error_prefix", error=payload))
                     self.status_var.set(self.t("task_failed"))
+                    if self.current_task_label == self.t("find_similar"):
+                        self.similar_summary_var.set(self.t("error_prefix", error=payload))
                     self.current_task_label = None
                     messagebox.showerror(self.t("task_failed"), str(payload))
                 elif kind == "worker_done":
@@ -1154,7 +1381,10 @@ class PixivPbdManagerApp(tk.Tk):
                     self._handle_worker_done(str(label), result)
                 elif kind == "progress":
                     key, values = payload  # type: ignore[misc]
-                    self.log(self.t(str(key), **values))
+                    progress_text = self.t(str(key), **values)
+                    self.log(progress_text)
+                    if str(key).startswith("progress_similar"):
+                        self.similar_summary_var.set(progress_text)
                 elif kind == "open_done":
                     self.log(self.t("browser_opened_background", count=payload))
                     self.refresh_artists()
@@ -1171,13 +1401,24 @@ class PixivPbdManagerApp(tk.Tk):
                     self.status_var.set(self.t("ready"))
                     self.current_task_label = None
                     self.log(self.t("watch_stopped"))
+            has_more = not self.message_queue.empty()
         except queue.Empty:
             pass
-        self.after(100, self._drain_queue)
+        self.after(10 if has_more else 100, self._drain_queue)
 
     def log(self, message: str) -> None:
-        self.log_text.insert(tk.END, f"{message}\n")
-        self.log_text.see(tk.END)
+        try:
+            lines = str(message).splitlines() or [""]
+            for line in lines:
+                self.log_text.insert(tk.END, line)
+            self._log_lines += len(lines)
+            if self._log_lines > LOG_MAX_LINES:
+                excess = self._log_lines - LOG_MAX_LINES
+                self.log_text.delete(0, excess - 1)
+                self._log_lines = LOG_MAX_LINES
+            self.log_text.see(tk.END)
+        except tk.TclError:
+            pass
 
     def _on_close(self) -> None:
         self.save_current_settings(log_message=False)

@@ -184,6 +184,52 @@ def fetch_artwork_author(
     return ResolvedArtist(id=artist_id, name=artist_name, work_id=str(illust_id), ssl_fallback_used=ssl_fallback_used)
 
 
+def fetch_artwork_xrestrict(
+    illust_id: str,
+    *,
+    timeout: float = 15.0,
+    cookie: str | None = None,
+    allow_insecure_ssl_fallback: bool = True,
+) -> tuple[int, bool]:
+    """Return ``(xRestrict, ssl_fallback_used)``.
+
+    ``xRestrict`` is 0 for all-ages, 1 for R-18, 2 for R-18G, and -1 when it
+    cannot be determined (network/auth error). A failure here must never abort a
+    download, so the unknown case is reported instead of raised.
+    """
+    ssl_fallback_used = False
+    try:
+        raw = read_pixiv_json(illust_id, timeout=timeout, cookie=cookie, context=None)
+    except urllib.error.URLError as exc:
+        retriable = (
+            allow_insecure_ssl_fallback
+            and not isinstance(exc, urllib.error.HTTPError)
+            and is_ssl_certificate_error(exc)
+        )
+        if not retriable:
+            return -1, ssl_fallback_used
+        ssl_fallback_used = True
+        try:
+            raw = read_pixiv_json(
+                illust_id,
+                timeout=timeout,
+                cookie=cookie,
+                context=ssl._create_unverified_context(),
+            )
+        except (urllib.error.URLError, TimeoutError, json.JSONDecodeError):
+            return -1, ssl_fallback_used
+    except (TimeoutError, json.JSONDecodeError):
+        return -1, ssl_fallback_used
+
+    if raw.get("error"):
+        return -1, ssl_fallback_used
+    body = raw.get("body") or {}
+    try:
+        return int(body.get("xRestrict", 0) or 0), ssl_fallback_used
+    except (TypeError, ValueError):
+        return -1, ssl_fallback_used
+
+
 def resolve_name_only_artist(
     hit: NameOnlyArtistHit,
     *,

@@ -6,7 +6,7 @@ Usage:
 Output:
     dist/PixivPbdManager.exe
 
-Requires PyInstaller (``pip install pyinstaller`` or ``pip install -e .[build]``).
+Requires project build dependencies (``pip install -e .[build]``).
 """
 
 from __future__ import annotations
@@ -38,9 +38,7 @@ def main() -> int:
         import PyInstaller  # noqa: F401
     except ImportError:
         print(
-            "PyInstaller is not installed. Run:\n"
-            "    pip install pyinstaller\n"
-            "or:\n"
+            "PyInstaller is not installed. Install the project build dependencies:\n"
             "    pip install -e .[build]",
             file=sys.stderr,
         )

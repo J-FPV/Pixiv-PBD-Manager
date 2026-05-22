@@ -29,11 +29,14 @@ This lets the scanner identify artists directly from folders like `Artist-Artist
 Run these commands from this folder:
 
 ```powershell
+pip install -e .
 python -m pixiv_pbd_manager gui
 python -m pixiv_pbd_manager scan "C:\PixivDownloads"
 python -m pixiv_pbd_manager list
 python -m pixiv_pbd_manager open --limit 10
 ```
+
+Requires Python 3.9 or newer.
 
 On Windows, you can also double-click [launch_gui.bat](launch_gui.bat), or build a single-file .exe and double-click that (see below).
 
@@ -42,13 +45,28 @@ On Windows, you can also double-click [launch_gui.bat](launch_gui.bat), or build
 If you would rather not run the GUI from source every time, you can package it into a single-file Windows executable:
 
 ```powershell
-pip install pyinstaller          # or: pip install -e .[build]
+pip install -e .[build]          # installs runtime dependencies and PyInstaller
 python build_exe.py
 ```
 
 The resulting `dist/PixivPbdManager.exe` is about 10 MB and ships without a console window. Move it together with `.pixiv-pbd-manager/` (which holds the database, cookie, and consent files) to any location and it just works — when the exe starts it changes the working directory to its own folder, so all data files always end up next to the exe.
 
 To rebuild, rerun `python build_exe.py`; the script automatically cleans the previous `build/`, `dist/`, and `.spec` artifacts before building.
+
+## Tauri + React Desktop GUI (Parallel Preview)
+
+The project now also includes a parallel Tauri + React + TypeScript GUI in [desktop](desktop/). It does not replace the existing Tkinter GUI; it reuses the same Python backend through the `python -m pixiv_pbd_manager.gui_api` JSON Lines subprocess interface.
+
+Development requires Node.js, npm, Rust, and Cargo. These tools still need to be fixed/installed on the current machine. Once available, run:
+
+```powershell
+pip install -e .
+cd desktop
+npm install
+npm run tauri:dev
+```
+
+If the Tauri UI cannot import `pixiv_pbd_manager`, set `Project root` in the Settings tab to the repository root.
 
 ## GUI
 
@@ -79,6 +97,7 @@ Main GUI features:
 - Update checks, opening updated artists, and direct downloads prioritize checked artists; if none are checked, the highlighted rows are used.
 - While a background scan, check, or download is running, you can still double-click an artist row to open that artist's browser page. Double-click opens only the clicked artist and ignores the checked list.
 - Export or copy artist artwork-page URLs.
+- Find similar images and review candidate duplicate groups across different names, formats, or resolutions.
 
 ## Browser Profile Warning
 
@@ -136,6 +155,29 @@ Example:
 If an artist has no save path, the CLI can use `--output-root` as a fallback directory. In the GUI, it is best to scan existing folders first so the app can record save paths.
 
 Note: The direct downloader does not use PBD naming rules or filters. Public artworks usually download directly; login-only, age-restricted, or hidden artworks may require Pixiv cookies.
+
+## Similar Image Detection
+
+Open the "Similar Images" tab in the GUI and click "Find similar" to scan the current download folders. The current exclude folders are reused, so skipped folders are not checked. Results are grouped as candidate duplicates, and double-clicking a file row opens its location. The app only reports results; it does not delete or move files automatically.
+
+The scanner handles `.jpg`, `.jpeg`, `.png`, `.webp`, `.bmp`, and `.gif`; animated GIF/WebP files use the first frame. For each image it stores file size, modified time, resolution, `sha256`, `pHash`, and `dHash`. The index is saved at:
+
+```text
+.pixiv-pbd-manager/image_index.json
+```
+
+Matching rules:
+
+- Same `sha256`: exact duplicate.
+- `pHash <= 6` and `dHash <= 10`: highly similar.
+- `pHash <= 10` and `dHash <= 14`: possibly similar.
+
+CLI examples:
+
+```powershell
+python -m pixiv_pbd_manager similar "C:\PixivLibrary"
+python -m pixiv_pbd_manager similar "C:\PixivLibrary" --threshold possible --output similar_report.csv
+```
 
 ## Pixiv Cookie & Privacy Risks
 
@@ -226,6 +268,9 @@ python -m pixiv_pbd_manager scan "C:\PixivLibrary" --resolve-online --no-ssl-fal
 
 # Watch folders while PBD is downloading
 python -m pixiv_pbd_manager watch "C:\PixivDownloads" --interval 30
+
+# Find similar images and export a CSV report
+python -m pixiv_pbd_manager similar "C:\PixivLibrary" --output similar_report.csv
 
 # Manually add an artist
 python -m pixiv_pbd_manager add 123456 --name "artist name"

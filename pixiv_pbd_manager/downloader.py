@@ -13,6 +13,7 @@ from urllib.parse import urlparse
 from .resolver import (
     PIXIV_BROWSER_USER_AGENT,
     PixivResolveError,
+    fetch_artwork_xrestrict,
     is_ssl_certificate_error,
     read_url_text_with_ssl_fallback,
 )
@@ -20,6 +21,7 @@ from .resolver import (
 
 PIXIV_ILLUST_PAGES_URL = "https://www.pixiv.net/ajax/illust/{work_id}/pages"
 SAFE_FILENAME_PATTERN = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
+RESTRICTED_SUBDIR = "[R-18&R-18G]"
 
 
 @dataclass(frozen=True)
@@ -122,11 +124,23 @@ def download_artwork(
     allow_insecure_ssl_fallback: bool = True,
     overwrite: bool = False,
     delay_seconds: float = 0.3,
+    separate_restricted: bool = False,
 ) -> ArtworkDownloadResult:
     result = ArtworkDownloadResult(work_id=str(work_id))
     target_dir.mkdir(parents=True, exist_ok=True)
 
     try:
+        if separate_restricted:
+            xrestrict, ssl_used = fetch_artwork_xrestrict(
+                str(work_id),
+                cookie=pixiv_cookie,
+                allow_insecure_ssl_fallback=allow_insecure_ssl_fallback,
+            )
+            result.ssl_fallback_used = result.ssl_fallback_used or ssl_used
+            if xrestrict in (1, 2):
+                target_dir = target_dir / RESTRICTED_SUBDIR
+                target_dir.mkdir(parents=True, exist_ok=True)
+
         pages, ssl_fallback_used = fetch_artwork_pages(
             str(work_id),
             pixiv_cookie=pixiv_cookie,

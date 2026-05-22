@@ -8,10 +8,22 @@ from .database import ArtistDatabase
 from .downloader import ArtworkDownloadResult, download_artwork
 from .models import utc_now
 from .resolver import PixivResolveError, fetch_user_work_ids, resolve_name_by_fuzzy_search, resolve_name_only_artist
-from .scanner import ScanSummary, scan_roots
+from .scanner import ScanSummary, extract_work_ids, iter_media_files, scan_roots
 
 
 ProgressCallback = Callable[[str, dict[str, object]], None]
+
+
+def collect_local_work_ids(save_paths: list[str]) -> set[str]:
+    """Scan an artist's saved folder(s) recursively and collect work ids on disk."""
+    ids: set[str] = set()
+    for raw in save_paths:
+        folder = Path(raw)
+        if not folder.exists():
+            continue
+        for path in iter_media_files(folder):
+            ids.update(extract_work_ids(path))
+    return ids
 
 
 def emit(progress_callback: ProgressCallback | None, key: str, **kwargs: object) -> None:
@@ -186,6 +198,7 @@ def check_artist_updates(
     artist_ids: list[str] | None = None,
     pixiv_cookie: str | None = None,
     allow_insecure_ssl_fallback: bool = True,
+    scan_local: bool = False,
     progress_callback: ProgressCallback | None = None,
 ) -> UpdateCheckResult:
     db = ArtistDatabase.load(db_path)
@@ -195,6 +208,10 @@ def check_artist_updates(
     emit(progress_callback, "progress_check_start", total=len(artists))
     for index, artist in enumerate(artists, 1):
         emit(progress_callback, "progress_check_artist", current=index, total=len(artists), artist=artist.name or artist.id)
+        if scan_local:
+            local_ids = collect_local_work_ids(artist.save_paths)
+            if local_ids:
+                artist.merge(work_ids=local_ids)
         try:
             remote = fetch_user_work_ids(
                 artist.id,
@@ -230,6 +247,7 @@ def download_artist_updates(
     allow_insecure_ssl_fallback: bool = True,
     overwrite: bool = False,
     delay_seconds: float = 0.3,
+    separate_restricted: bool = False,
     progress_callback: ProgressCallback | None = None,
 ) -> DownloadUpdatesResult:
     db = ArtistDatabase.load(db_path)
@@ -276,12 +294,20 @@ def download_artist_updates(
                 allow_insecure_ssl_fallback=allow_insecure_ssl_fallback,
                 overwrite=overwrite,
                 delay_seconds=delay_seconds,
+                separate_restricted=separate_restricted,
             )
             result.artwork_results.append(artwork_result)
             if artwork_result.ssl_fallback_used:
                 result.ssl_fallback_used += 1
             if artwork_result.error:
                 result.errors.append(f"{artist.id}/{work_id}: {artwork_result.error}")
+                emit(
+                    progress_callback,
+                    "progress_download_error",
+                    artist=artist.name or artist.id,
+                    work_id=work_id,
+                    error=artwork_result.error,
+                )
                 continue
             completed_work_ids.add(str(work_id))
             result.artworks += 1
