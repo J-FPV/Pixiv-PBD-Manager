@@ -6,6 +6,7 @@ import ssl
 import time
 import urllib.error
 import urllib.request
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from urllib.parse import urlparse
@@ -22,6 +23,7 @@ from .resolver import (
 PIXIV_ILLUST_PAGES_URL = "https://www.pixiv.net/ajax/illust/{work_id}/pages"
 SAFE_FILENAME_PATTERN = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
 RESTRICTED_SUBDIR = "[R-18&R-18G]"
+ProgressCallback = Callable[[str, dict[str, object]], None]
 
 
 @dataclass(frozen=True)
@@ -94,6 +96,7 @@ def download_binary(
     *,
     referer: str,
     allow_insecure_ssl_fallback: bool = True,
+    progress_callback: Callable[[int, int | None, float], None] | None = None,
 ) -> bool:
     # Deliberately does NOT send the Pixiv session cookie. The i.pximg.net image CDN only
     # checks Referer; forwarding PHPSESSID to it would leak the session to the CDN.
@@ -104,16 +107,43 @@ def download_binary(
     }
     request = urllib.request.Request(url, headers=headers)
 
+    def stream(context: ssl.SSLContext | None) -> None:
+        temp_output = output.with_name(f"{output.name}.part")
+        try:
+            with urllib.request.urlopen(request, timeout=30, context=context) as response:
+                raw_total = response.headers.get("Content-Length")
+                try:
+                    total = int(raw_total) if raw_total else None
+                except ValueError:
+                    total = None
+                downloaded = 0
+                started = time.monotonic()
+                with temp_output.open("wb") as handle:
+                    while True:
+                        chunk = response.read(256 * 1024)
+                        if not chunk:
+                            break
+                        handle.write(chunk)
+                        downloaded += len(chunk)
+                        elapsed = max(time.monotonic() - started, 0.001)
+                        if progress_callback:
+                            progress_callback(downloaded, total, downloaded / elapsed)
+                temp_output.replace(output)
+        except Exception:
+            try:
+                temp_output.unlink()
+            except OSError:
+                pass
+            raise
+
     try:
-        with urllib.request.urlopen(request, timeout=30) as response:
-            output.write_bytes(response.read())
-            return False
+        stream(None)
+        return False
     except urllib.error.URLError as exc:
         if not allow_insecure_ssl_fallback or not is_ssl_certificate_error(exc):
             raise
-        with urllib.request.urlopen(request, timeout=30, context=ssl._create_unverified_context()) as response:
-            output.write_bytes(response.read())
-            return True
+        stream(ssl._create_unverified_context())
+        return True
 
 
 def download_artwork(
@@ -125,6 +155,7 @@ def download_artwork(
     overwrite: bool = False,
     delay_seconds: float = 0.3,
     separate_restricted: bool = False,
+    progress_callback: ProgressCallback | None = None,
 ) -> ArtworkDownloadResult:
     result = ArtworkDownloadResult(work_id=str(work_id))
     target_dir.mkdir(parents=True, exist_ok=True)
@@ -157,14 +188,55 @@ def download_artwork(
             if output.exists() and not overwrite:
                 result.skipped_files.append(str(output))
                 continue
+            if progress_callback:
+                progress_callback(
+                    "progress_download_file_start",
+                    {
+                        "work_id": str(work_id),
+                        "page": page.index,
+                        "filename": filename,
+                        "downloaded_bytes": 0,
+                        "total_bytes": 0,
+                        "speed_bps": 0.0,
+                    },
+                )
+
+            def on_binary_progress(downloaded: int, total: int | None, speed_bps: float) -> None:
+                if progress_callback:
+                    progress_callback(
+                        "progress_download_file_progress",
+                        {
+                            "work_id": str(work_id),
+                            "page": page.index,
+                            "filename": filename,
+                            "downloaded_bytes": downloaded,
+                            "total_bytes": total or 0,
+                            "speed_bps": speed_bps,
+                        },
+                    )
+
             ssl_used = download_binary(
                 page.original_url,
                 output,
                 referer=f"https://www.pixiv.net/artworks/{work_id}",
                 allow_insecure_ssl_fallback=allow_insecure_ssl_fallback,
+                progress_callback=on_binary_progress,
             )
             result.ssl_fallback_used = result.ssl_fallback_used or ssl_used
             result.saved_files.append(str(output))
+            if progress_callback:
+                size = output.stat().st_size if output.exists() else 0
+                progress_callback(
+                    "progress_download_file_done",
+                    {
+                        "work_id": str(work_id),
+                        "page": page.index,
+                        "filename": filename,
+                        "downloaded_bytes": size,
+                        "total_bytes": size,
+                        "speed_bps": 0.0,
+                    },
+                )
             if delay_seconds > 0:
                 time.sleep(delay_seconds)
     except (OSError, urllib.error.URLError, PixivResolveError) as exc:

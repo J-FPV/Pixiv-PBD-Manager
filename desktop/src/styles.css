@@ -95,8 +95,8 @@ footer {
   display: flex;
   gap: 18px;
   align-items: center;
-  height: 34px;
-  padding: 0 14px;
+  min-height: 42px;
+  padding: 5px 14px;
   border-top: 1px solid var(--line);
   background: var(--surface);
   color: var(--muted);
@@ -140,9 +140,27 @@ footer {
   color: white;
 }
 
+.button.danger {
+  border-color: var(--danger);
+  background: var(--danger);
+  color: white;
+}
+
 .button.quiet {
   border-color: transparent;
   background: transparent;
+}
+
+.button:active:not(:disabled) {
+  background: #e7ecf1;
+}
+
+.button.primary:active:not(:disabled) {
+  background: var(--accent-strong);
+}
+
+.button.danger:active:not(:disabled) {
+  background: #9f2d2d;
 }
 
 .searchBox {
@@ -165,6 +183,59 @@ footer {
   border: 0;
   outline: 0;
   background: transparent;
+}
+
+.footerProgress {
+  flex: 1;
+  min-width: 260px;
+  display: grid;
+  gap: 4px;
+}
+
+.progressLine {
+  display: grid;
+  grid-template-columns: minmax(150px, 280px) minmax(180px, 1fr);
+  gap: 8px;
+  align-items: center;
+  min-width: 0;
+}
+
+.progressLabel {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.progressTrack {
+  position: relative;
+  height: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #dfe7ee;
+}
+
+.progressFill {
+  height: 100%;
+  width: 0;
+  border-radius: inherit;
+  background: var(--accent);
+  transition: width 120ms ease;
+}
+
+.progressTrack.indeterminate .progressFill {
+  position: absolute;
+  width: 35%;
+  animation: indeterminate-progress 1.2s infinite ease-in-out;
+}
+
+@keyframes indeterminate-progress {
+  0% {
+    left: -35%;
+  }
+  100% {
+    left: 100%;
+  }
 }
 
 .table {

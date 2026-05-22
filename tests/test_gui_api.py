@@ -7,11 +7,13 @@ import unittest
 from contextlib import redirect_stdout
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from unittest.mock import patch
 
 from PIL import Image
 
 from pixiv_pbd_manager import gui_api
 from pixiv_pbd_manager.database import ArtistDatabase
+from pixiv_pbd_manager.resolver import PixivUserProfile
 
 
 def invoke(command, payload=None):
@@ -139,6 +141,25 @@ class GuiApiTests(unittest.TestCase):
         self.assertEqual(events[-1]["type"], "result")
         self.assertEqual(events[-1]["payload"]["save_path"], str(save_path))
         self.assertEqual(db.artists["123456"].save_paths, [str(save_path.resolve())])
+
+    def test_artists_add_fetches_name_when_empty(self):
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            old_cwd = Path.cwd()
+            try:
+                os.chdir(root)
+                with patch(
+                    "pixiv_pbd_manager.gui_api.fetch_user_profile",
+                    return_value=PixivUserProfile(id="123456", name="Online Artist"),
+                ):
+                    exit_code, events = invoke("artists.add", {"artist_id": "123456", "name": ""})
+                db = ArtistDatabase.load(root / ".pixiv-pbd-manager" / "artists.json")
+            finally:
+                os.chdir(old_cwd)
+
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(events[-1]["payload"]["name"], "Online Artist")
+        self.assertEqual(db.artists["123456"].name, "Online Artist")
 
     def test_subprocess_outputs_utf8_json_for_cjk_and_emoji_artist_names(self):
         repo_root = Path(__file__).resolve().parents[1]

@@ -20,6 +20,7 @@ export interface AppSettings {
   scan_local_subfolders?: boolean;
   update_check_pages?: number;
   separate_r18?: boolean;
+  show_progress_percent?: boolean;
 }
 
 export interface SettingsPayload {

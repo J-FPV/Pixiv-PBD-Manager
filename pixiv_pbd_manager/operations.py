@@ -256,7 +256,9 @@ def download_artist_updates(
     artists = db.get_many(artist_ids or None)
     result = DownloadUpdatesResult()
     downloadable_artists = [artist for artist in artists if artist.new_work_ids]
-    emit(progress_callback, "progress_download_start", artists=len(downloadable_artists))
+    total_works = sum(len(artist.new_work_ids) for artist in downloadable_artists)
+    completed_works = 0
+    emit(progress_callback, "progress_download_start", artists=len(downloadable_artists), total_works=total_works)
 
     for artist_index, artist in enumerate(downloadable_artists, 1):
         if not artist.new_work_ids:
@@ -286,9 +288,15 @@ def download_artist_updates(
                 "progress_download_work",
                 current=work_index,
                 total=len(pending_work_ids),
+                global_current=completed_works + 1,
+                global_total=total_works,
                 artist=artist.name or artist.id,
                 work_id=work_id,
             )
+
+            def artwork_progress(key: str, payload: dict[str, object]) -> None:
+                emit(progress_callback, key, artist=artist.name or artist.id, **payload)
+
             artwork_result = download_artwork(
                 work_id,
                 save_path,
@@ -297,6 +305,7 @@ def download_artist_updates(
                 overwrite=overwrite,
                 delay_seconds=delay_seconds,
                 separate_restricted=separate_restricted,
+                progress_callback=artwork_progress,
             )
             result.artwork_results.append(artwork_result)
             if artwork_result.ssl_fallback_used:
@@ -310,12 +319,21 @@ def download_artist_updates(
                     work_id=work_id,
                     error=artwork_result.error,
                 )
-                continue
-            completed_work_ids.add(str(work_id))
-            result.artworks += 1
-            result.pages_saved += len(artwork_result.saved_files)
-            result.files_skipped += len(artwork_result.skipped_files)
-            artist_had_download = True
+            else:
+                completed_work_ids.add(str(work_id))
+                result.artworks += 1
+                result.pages_saved += len(artwork_result.saved_files)
+                result.files_skipped += len(artwork_result.skipped_files)
+                artist_had_download = True
+            completed_works += 1
+            emit(
+                progress_callback,
+                "progress_download_work_done",
+                global_done=completed_works,
+                global_total=total_works,
+                artist=artist.name or artist.id,
+                work_id=work_id,
+            )
 
         if completed_work_ids:
             artist.merge(work_ids=completed_work_ids, save_path=save_path)

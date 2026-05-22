@@ -4,6 +4,7 @@ import json
 import os
 import subprocess
 import sys
+import threading
 import traceback
 from pathlib import Path
 from typing import Any, Callable
@@ -30,6 +31,33 @@ DEFAULT_SETTINGS = Path(".pixiv-pbd-manager") / "gui_settings.json"
 SOURCE_ROOT = Path(__file__).resolve().parents[1]
 JsonDict = dict[str, Any]
 Emitter = Callable[[JsonDict], None]
+
+
+class TaskControl:
+    """Process-wide pause gate driven by stdin control messages.
+
+    The frontend writes ``{"control":"pause"}`` / ``{"control":"resume"}`` lines
+    to the subprocess stdin; a reader thread toggles this gate. Long-running
+    loops block on it at progress checkpoints so a paused task stops issuing new
+    work without holding open downloads.
+    """
+
+    def __init__(self) -> None:
+        self._resume = threading.Event()
+        self._resume.set()
+
+    def pause(self) -> None:
+        self._resume.clear()
+
+    def resume(self) -> None:
+        self._resume.set()
+
+    def wait_if_paused(self) -> None:
+        self._resume.wait()
+
+
+_CONTROL = TaskControl()
+_EMIT_LOCK = threading.Lock()
 
 
 def _load_json(path: Path) -> JsonDict:
@@ -211,17 +239,66 @@ def _similar_result_to_json(result: SimilarImageResult) -> JsonDict:
 
 def _emit(event: JsonDict) -> None:
     line = json.dumps(event, ensure_ascii=False) + "\n"
-    buffer = getattr(sys.stdout, "buffer", None)
-    if buffer is not None:
-        buffer.write(line.encode("utf-8"))
-        buffer.flush()
-    else:
-        sys.stdout.write(line)
-        sys.stdout.flush()
+    data = line.encode("utf-8")
+    with _EMIT_LOCK:
+        buffer = getattr(sys.stdout, "buffer", None)
+        if buffer is not None:
+            buffer.write(data)
+            buffer.flush()
+        else:
+            sys.stdout.write(line)
+            sys.stdout.flush()
+
+
+def _handle_control_line(raw: bytes, emit: Emitter) -> None:
+    try:
+        message = json.loads(raw.decode("utf-8", errors="replace").strip() or "{}")
+    except ValueError:
+        return
+    if not isinstance(message, dict):
+        return
+    action = message.get("control")
+    if action == "pause":
+        _CONTROL.pause()
+        emit({"type": "control", "state": "paused"})
+    elif action == "resume":
+        _CONTROL.resume()
+        emit({"type": "control", "state": "running"})
+
+
+def _start_control_reader(emit: Emitter) -> None:
+    # Read the raw stdin fd rather than sys.stdin.buffer: a daemon thread blocked
+    # inside a BufferedReader holds its lock, which makes interpreter shutdown
+    # abort with "_enter_buffered_busy". os.read touches no Python IO buffer, so
+    # the thread can be abandoned cleanly when the process exits.
+    try:
+        fd = sys.stdin.fileno()
+    except (AttributeError, OSError, ValueError):
+        return
+
+    def reader() -> None:
+        pending = b""
+        while True:
+            try:
+                chunk = os.read(fd, 4096)
+            except OSError:
+                return
+            if not chunk:
+                return
+            pending += chunk
+            while b"\n" in pending:
+                line, pending = pending.split(b"\n", 1)
+                _handle_control_line(line, emit)
+
+    threading.Thread(target=reader, daemon=True).start()
 
 
 def _progress(emit: Emitter) -> Callable[[str, dict[str, object]], None]:
     def callback(key: str, payload: dict[str, object]) -> None:
+        # Block here while paused, but never mid-file (avoid holding a CDN
+        # connection open); the high-frequency per-chunk key is exempt.
+        if "file_progress" not in key:
+            _CONTROL.wait_if_paused()
         emit({"type": "progress", "key": key, "payload": payload})
 
     return callback
@@ -294,10 +371,22 @@ def _command_artists_add(payload: JsonDict, _emit_event: Emitter) -> JsonDict:
         raise ValueError("Artist id must be digits")
     name = str(payload.get("name") or "").strip() or None
     save_path = str(payload.get("save_path") or "").strip() or None
+    if not name:
+        settings_ssl_fallback = bool(settings.get("ssl_fallback", True))
+        try:
+            profile = fetch_user_profile(
+                artist_id,
+                cookie=load_cookie(),
+                allow_insecure_ssl_fallback=settings_ssl_fallback,
+            )
+            if profile.name and profile.name != artist_id:
+                name = profile.name
+        except PixivResolveError:
+            pass
     db = ArtistDatabase.load(_db_path(payload, settings))
     changed = db.upsert(artist_id, name=name, source="manual", save_path=save_path)
     db.save()
-    return {"artist_id": artist_id, "changed": changed, "save_path": save_path or ""}
+    return {"artist_id": artist_id, "changed": changed, "name": name or "", "save_path": save_path or ""}
 
 
 def _command_artists_rename(payload: JsonDict, _emit_event: Emitter) -> JsonDict:
@@ -512,6 +601,7 @@ def main(argv: list[str] | None = None) -> int:
     if not isinstance(payload, dict):
         _emit({"type": "error", "command": command, "message": "Payload must be a JSON object"})
         return 2
+    _start_control_reader(_emit)
     return run_command(command, payload)
 
 

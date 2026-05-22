@@ -70,12 +70,13 @@ Main desktop features:
 - Show each detected artist's save path in the table.
 - Switch between Chinese and English in the Settings tab; the choice is saved automatically.
 - Use the Settings tab to configure directories, scan parsing, browser options, Pixiv cookies, SSL fallback, and open delay.
-- View, search, sort, and manually add artists; search matches artist IDs, names, and save paths/folder names.
+- View, search, sort, and manually add artists; search matches artist IDs, names, and save paths/folder names, and manual add can fetch the Pixiv display name automatically.
 - Right-click an artist to edit the Pixiv artist ID; the app will try to update the artist name automatically.
 - Right-click an artist to edit the save path.
 - Click the blue checkbox in the first table column to pick multiple artists, or use "Select all / Clear all".
 - Update checks, opening selected artists, and direct downloads operate on checked artists.
 - While a background scan, check, or download is running, you can still double-click an artist row to open that artist's browser page. Double-click opens only the clicked artist and ignores the checked list.
+- Long tasks show progress in the bottom status bar; downloads show total progress, current-image progress, and speed, with a red cancel button for the current task.
 - Copy artist artwork-page URLs.
 - Find similar images with custom scan/exclude folders and review candidate duplicate groups across different names, formats, or resolutions.
 

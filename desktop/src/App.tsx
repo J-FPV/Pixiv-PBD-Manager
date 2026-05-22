@@ -9,6 +9,7 @@ import {
   Image as ImageIcon,
   Key,
   List,
+  Pause,
   Pencil,
   Play,
   Plus,
@@ -18,7 +19,8 @@ import {
   Settings as SettingsIcon,
   SlidersHorizontal,
   Square,
-  Terminal
+  Terminal,
+  XCircle
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { MouseEvent as ReactMouseEvent, ReactNode } from "react";
@@ -26,13 +28,14 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 
 import {
   browsePath,
+  GuiApiCancelledError,
   getProjectRoot,
   getPythonCommand,
   runGuiApi,
   setProjectRoot,
   setPythonCommand
 } from "./api";
-import type { PathPickKind } from "./api";
+import type { PathPickKind, TaskControls } from "./api";
 import { t } from "./i18n";
 import type {
   ApiEvent,
@@ -68,7 +71,8 @@ const DEFAULT_SETTINGS: AppSettings = {
   similar_threshold: "likely",
   scan_local_subfolders: false,
   update_check_pages: 0,
-  separate_r18: false
+  separate_r18: false,
+  show_progress_percent: true
 };
 
 function splitLines(value: string): string[] {
@@ -108,6 +112,11 @@ function formatBytes(value: number): string {
   return `${value} B`;
 }
 
+function numberValue(value: unknown, fallback = 0): number {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
 function progressText(language: Language, event: ApiEvent): string | null {
   if (event.type === "error") {
     return `${t(language, "error")}: ${event.message}`;
@@ -133,11 +142,16 @@ function progressText(language: Language, event: ApiEvent): string | null {
     case "progress_check_found":
       return `Updates: ${p.artist} ${p.count}`;
     case "progress_download_start":
-      return `Downloading ${p.artists} artist(s)`;
+      return `Downloading ${p.artists} artist(s), ${p.total_works ?? 0} artwork(s)`;
     case "progress_download_artist":
       return `Downloading: ${p.current}/${p.total} ${p.artist}`;
     case "progress_download_work":
       return `Artwork: ${p.current}/${p.total} ${p.work_id}`;
+    case "progress_download_file_start":
+    case "progress_download_file_progress":
+    case "progress_download_file_done":
+    case "progress_download_work_done":
+      return null;
     case "progress_download_error":
       return `${t(language, "error")}: ${p.work_id} - ${p.error}`;
     case "progress_similar_start":
@@ -162,13 +176,48 @@ function Button({
   icon?: ReactNode;
   disabled?: boolean;
   onClick?: () => void;
-  variant?: "default" | "primary" | "quiet";
+  variant?: "default" | "primary" | "quiet" | "danger";
 }) {
   return (
     <button className={`button ${variant}`} disabled={disabled} onClick={onClick}>
       {icon}
       <span>{children}</span>
     </button>
+  );
+}
+
+interface ProgressLineState {
+  label: string;
+  current: number;
+  total: number;
+  indeterminate?: boolean;
+  speedBps?: number;
+}
+
+interface TaskProgressState {
+  main: ProgressLineState;
+  file?: ProgressLineState;
+}
+
+function ProgressLine({
+  line,
+  showPercent
+}: {
+  line: ProgressLineState;
+  showPercent: boolean;
+}) {
+  const percent = line.total > 0 ? Math.max(0, Math.min(100, (line.current / line.total) * 100)) : 0;
+  const speed = line.speedBps && line.speedBps > 0 ? ` · ${formatBytes(line.speedBps)}/s` : "";
+  const percentText = showPercent && !line.indeterminate && line.total > 0 ? ` ${percent.toFixed(0)}%` : "";
+  return (
+    <div className="progressLine">
+      <span className="progressLabel">
+        {line.label}{percentText}{speed}
+      </span>
+      <div className={`progressTrack ${line.indeterminate ? "indeterminate" : ""}`}>
+        <div className="progressFill" style={{ width: line.indeterminate ? undefined : `${percent}%` }} />
+      </div>
+    </div>
   );
 }
 
@@ -787,6 +836,16 @@ function SettingsView({
                   </div>
                 </label>
               </div>
+              <div className="checkColumn">
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={settings.show_progress_percent !== false}
+                    onChange={(event) => update("show_progress_percent", event.target.checked)}
+                  />
+                  <span>{t(language, "showProgressPercent")}</span>
+                </label>
+              </div>
             </div>
           ) : null}
 
@@ -1002,6 +1061,11 @@ export default function App() {
   const [filter, setFilter] = useState("");
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [runningTask, setRunningTask] = useState<string | null>(null);
+  const [taskProgress, setTaskProgress] = useState<TaskProgressState | null>(null);
+  const [paused, setPaused] = useState(false);
+  const cancelCurrentTaskRef = useRef<(() => void) | null>(null);
+  const pauseCurrentTaskRef = useRef<(() => void) | null>(null);
+  const resumeCurrentTaskRef = useRef<(() => void) | null>(null);
   const [status, setStatus] = useState("Ready");
   const [similarResult, setSimilarResult] = useState<SimilarResult | null>(null);
   const [expandedGroups, setExpandedGroups] = useState<Set<number>>(new Set());
@@ -1019,7 +1083,119 @@ export default function App() {
     setLogs((current) => [...current.slice(-999), { id: Date.now() + Math.random(), level, message }]);
   };
 
+  const updateTaskProgress = (event: ApiEvent) => {
+    if (event.type !== "progress") {
+      return;
+    }
+    const p = event.payload;
+    switch (event.key) {
+      case "progress_scan_start":
+        setTaskProgress({ main: { label: t(languageValue, "scan"), current: 0, total: 0, indeterminate: true } });
+        break;
+      case "progress_scan_files":
+        setTaskProgress({
+          main: {
+            label: `${t(languageValue, "scan")}: ${numberValue(p.files)} files`,
+            current: 0,
+            total: 0,
+            indeterminate: true
+          }
+        });
+        break;
+      case "progress_scan_done":
+        setTaskProgress({ main: { label: t(languageValue, "scan"), current: 1, total: 1 } });
+        break;
+      case "progress_resolve_artist":
+      case "progress_fuzzy_artist":
+        setTaskProgress({
+          main: {
+            label: `${t(languageValue, "scan")}: ${String(p.name ?? "")}`,
+            current: numberValue(p.current),
+            total: numberValue(p.total)
+          }
+        });
+        break;
+      case "progress_check_start":
+        setTaskProgress({
+          main: { label: t(languageValue, "checkUpdates"), current: 0, total: numberValue(p.total) }
+        });
+        break;
+      case "progress_check_artist":
+        setTaskProgress({
+          main: {
+            label: `${t(languageValue, "checkUpdates")}: ${String(p.artist ?? "")}`,
+            current: numberValue(p.current),
+            total: numberValue(p.total)
+          }
+        });
+        break;
+      case "progress_download_start":
+        setTaskProgress({
+          main: {
+            label: t(languageValue, "totalProgress"),
+            current: 0,
+            total: numberValue(p.total_works),
+            indeterminate: numberValue(p.total_works) === 0
+          }
+        });
+        break;
+      case "progress_download_work":
+        setTaskProgress((current) => ({
+          main: {
+            label: `${t(languageValue, "totalProgress")}: ${String(p.artist ?? "")}`,
+            current: Math.max(0, numberValue(p.global_current) - 1),
+            total: numberValue(p.global_total)
+          },
+          file: current?.file
+        }));
+        break;
+      case "progress_download_work_done":
+        setTaskProgress((current) => ({
+          main: {
+            label: t(languageValue, "totalProgress"),
+            current: numberValue(p.global_done),
+            total: numberValue(p.global_total)
+          },
+          file: current?.file
+        }));
+        break;
+      case "progress_download_file_start":
+      case "progress_download_file_progress":
+      case "progress_download_file_done":
+        setTaskProgress((current) => ({
+          main: current?.main || { label: t(languageValue, "totalProgress"), current: 0, total: 0, indeterminate: true },
+          file: {
+            label: `${t(languageValue, "currentFile")}: ${String(p.filename ?? p.work_id ?? "")}`,
+            current: numberValue(p.downloaded_bytes),
+            total: numberValue(p.total_bytes),
+            indeterminate: numberValue(p.total_bytes) === 0 && event.key !== "progress_download_file_done",
+            speedBps: numberValue(p.speed_bps)
+          }
+        }));
+        break;
+      case "progress_similar_start":
+        setTaskProgress({ main: { label: t(languageValue, "findSimilar"), current: 0, total: 0, indeterminate: true } });
+        break;
+      case "progress_similar_files":
+        setTaskProgress({
+          main: {
+            label: `${t(languageValue, "findSimilar")}: ${numberValue(p.files)} files`,
+            current: 0,
+            total: 0,
+            indeterminate: true
+          }
+        });
+        break;
+      case "progress_similar_done":
+        setTaskProgress({ main: { label: t(languageValue, "findSimilar"), current: 1, total: 1 } });
+        break;
+      default:
+        break;
+    }
+  };
+
   const handleEvent = (event: ApiEvent) => {
+    updateTaskProgress(event);
     const message = progressText(languageValue, event);
     if (message) {
       appendLog(event.type === "error" ? "error" : "info", message);
@@ -1077,22 +1253,51 @@ export default function App() {
     setSettings({ ...settings, language: value });
   };
 
-  const runTask = async (label: string, task: () => Promise<void>) => {
+  const runTask = async (
+    label: string,
+    task: (signal: AbortSignal, registerControls: (controls: TaskControls) => void) => Promise<void>
+  ) => {
     if (runningTask) {
       appendLog("warn", `${t(languageValue, "running")}: ${runningTask}`);
       return;
     }
+    const controller = new AbortController();
+    cancelCurrentTaskRef.current = () => controller.abort();
     setRunningTask(label);
+    setPaused(false);
+    setTaskProgress({ main: { label, current: 0, total: 0, indeterminate: true } });
     setStatus(`${t(languageValue, "running")}: ${label}`);
+    const registerControls = (controls: TaskControls) => {
+      pauseCurrentTaskRef.current = () => {
+        controls.pause();
+        setPaused(true);
+        setStatus(t(languageValue, "taskPaused"));
+      };
+      resumeCurrentTaskRef.current = () => {
+        controls.resume();
+        setPaused(false);
+        setStatus(`${t(languageValue, "running")}: ${label}`);
+      };
+    };
     try {
-      await task();
+      await task(controller.signal, registerControls);
       setStatus(t(languageValue, "ready"));
     } catch (error) {
+      if (error instanceof GuiApiCancelledError || controller.signal.aborted) {
+        appendLog("warn", t(languageValue, "taskCancelled"));
+        setStatus(t(languageValue, "taskCancelled"));
+        return;
+      }
       const message = error instanceof Error ? error.message : String(error);
       appendLog("error", message);
       setStatus(message);
     } finally {
+      cancelCurrentTaskRef.current = null;
+      pauseCurrentTaskRef.current = null;
+      resumeCurrentTaskRef.current = null;
+      setPaused(false);
       setRunningTask(null);
+      setTaskProgress(null);
     }
   };
 
@@ -1111,18 +1316,22 @@ export default function App() {
   const selectedIds = Array.from(selected);
 
   const scan = () =>
-    runTask(t(languageValue, "scan"), async () => {
-      const result = await runGuiApi<ScanResult>("scan.run", settings, handleEvent);
+    runTask(t(languageValue, "scan"), async (signal, registerControls) => {
+      const result = await runGuiApi<ScanResult>("scan.run", settings, handleEvent, {
+        signal,
+        onStart: registerControls
+      });
       appendLog("info", `Scan result: ${result.files_seen} files, ${result.artists} artists, ${result.changed} changed`);
       await loadArtists();
     });
 
   const checkUpdates = () =>
-    runTask(t(languageValue, "checkUpdates"), async () => {
+    runTask(t(languageValue, "checkUpdates"), async (signal, registerControls) => {
       const result = await runGuiApi<UpdateResult>(
         "updates.check",
         { ...settings, artist_ids: selectedIds },
-        handleEvent
+        handleEvent,
+        { signal, onStart: registerControls }
       );
       appendLog("info", `Updates: ${result.checked} checked, ${result.new_works} new works`);
       for (const err of result.errors) {
@@ -1132,11 +1341,12 @@ export default function App() {
     });
 
   const downloadUpdated = () =>
-    runTask(t(languageValue, "downloadUpdated"), async () => {
+    runTask(t(languageValue, "downloadUpdated"), async (signal, registerControls) => {
       const result = await runGuiApi<DownloadResult>(
         "updates.download",
         { ...settings, artist_ids: selectedIds },
-        handleEvent
+        handleEvent,
+        { signal, onStart: registerControls }
       );
       appendLog("info", `Downloaded: ${result.artworks} artworks, ${result.pages_saved} files`);
       for (const err of result.errors) {
@@ -1163,7 +1373,7 @@ export default function App() {
   };
 
   const findSimilar = () =>
-    runTask(t(languageValue, "findSimilar"), async () => {
+    runTask(t(languageValue, "findSimilar"), async (signal, registerControls) => {
       setActiveTab("similar");
       const threshold = settings.similar_threshold || "likely";
       const result = await runGuiApi<SimilarResult>(
@@ -1174,7 +1384,8 @@ export default function App() {
           roots: splitLines(similarRoots),
           exclude_roots: splitLines(similarExcludes)
         },
-        handleEvent
+        handleEvent,
+        { signal, onStart: registerControls }
       );
       setSimilarResult(result);
       setExpandedGroups(new Set());
@@ -1211,7 +1422,7 @@ export default function App() {
         { key: "save_path", label: t(languageValue, "savePath"), value: "", browse: "folder" }
       ],
       onSubmit: (values) =>
-        runTask(t(languageValue, "addArtist"), async () => {
+        runTask(t(languageValue, "addArtist"), async (signal) => {
           await runGuiApi(
             "artists.add",
             {
@@ -1220,7 +1431,8 @@ export default function App() {
               save_path: values.save_path,
               database: settings.database
             },
-            handleEvent
+            handleEvent,
+            { signal }
           );
           appendLog("info", `Added artist ${values.artist_id}`);
           await loadArtists();
@@ -1236,11 +1448,12 @@ export default function App() {
       title: t(languageValue, "editArtistId"),
       fields: [{ key: "new_id", label: t(languageValue, "artistId"), value: oldId }],
       onSubmit: (values) =>
-        runTask(t(languageValue, "editArtistId"), async () => {
+        runTask(t(languageValue, "editArtistId"), async (signal) => {
           const result = await runGuiApi<{ new_id: string; name: string }>(
             "artists.rename",
             { old_id: oldId, new_id: values.new_id, database: settings.database },
-            handleEvent
+            handleEvent,
+            { signal }
           );
           appendLog("info", `Renamed ${oldId} -> ${result.new_id}${result.name ? ` (${result.name})` : ""}`);
           setSelected(new Set([result.new_id]));
@@ -1287,7 +1500,7 @@ export default function App() {
   };
 
   const editSavePath = (artistId: string) =>
-    runTask(t(languageValue, "editSavePath"), async () => {
+    runTask(t(languageValue, "editSavePath"), async (signal) => {
       if (!artistId) {
         return;
       }
@@ -1298,7 +1511,8 @@ export default function App() {
       await runGuiApi(
         "artists.set_save_path",
         { artist_id: artistId, save_path: picked, database: settings.database },
-        handleEvent
+        handleEvent,
+        { signal }
       );
       appendLog("info", `Save path set for ${artistId}: ${picked}`);
       await loadArtists();
@@ -1419,6 +1633,30 @@ export default function App() {
         <span>{t(languageValue, "status")}: {status}</span>
         <span>{artists.length} artists</span>
         <span>{selected.size} selected</span>
+        {runningTask && taskProgress ? (
+          <div className="footerProgress">
+            <ProgressLine line={taskProgress.main} showPercent={settings.show_progress_percent !== false} />
+            {taskProgress.file ? (
+              <ProgressLine line={taskProgress.file} showPercent={settings.show_progress_percent !== false} />
+            ) : null}
+          </div>
+        ) : null}
+        {runningTask ? (
+          paused ? (
+            <Button icon={<Play size={16} />} onClick={() => resumeCurrentTaskRef.current?.()}>
+              {t(languageValue, "resumeTask")}
+            </Button>
+          ) : (
+            <Button icon={<Pause size={16} />} onClick={() => pauseCurrentTaskRef.current?.()}>
+              {t(languageValue, "pauseTask")}
+            </Button>
+          )
+        ) : null}
+        {runningTask ? (
+          <Button icon={<XCircle size={16} />} variant="danger" onClick={() => cancelCurrentTaskRef.current?.()}>
+            {t(languageValue, "cancelTask")}
+          </Button>
+        ) : null}
       </footer>
 
       {prompt ? <PromptModal language={languageValue} state={prompt} onClose={() => setPrompt(null)} /> : null}

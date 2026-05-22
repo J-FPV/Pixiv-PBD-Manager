@@ -7,6 +7,7 @@ from pixiv_pbd_manager.downloader import (
     RESTRICTED_SUBDIR,
     PixivPage,
     download_artwork,
+    download_binary,
     extension_from_url,
     fetch_artwork_pages,
     safe_filename,
@@ -46,6 +47,39 @@ class DownloaderTests(unittest.TestCase):
                 fetch_artwork_pages("12345")
 
         self.assertIn("作品が見つかりません", str(ctx.exception))
+
+    def test_download_binary_reports_progress_and_writes_file(self):
+        class FakeImageResponse:
+            headers = {"Content-Length": "6"}
+
+            def __init__(self):
+                self.chunks = [b"abc", b"def", b""]
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+            def read(self, _size):
+                return self.chunks.pop(0)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            output = Path(tmp) / "image.jpg"
+            events = []
+            with patch("urllib.request.urlopen", return_value=FakeImageResponse()):
+                ssl_used = download_binary(
+                    "https://i.pximg.net/x.jpg",
+                    output,
+                    referer="https://www.pixiv.net/artworks/1",
+                    progress_callback=lambda downloaded, total, speed: events.append((downloaded, total, speed)),
+                )
+
+            self.assertFalse(ssl_used)
+            self.assertEqual(output.read_bytes(), b"abcdef")
+            self.assertEqual(events[-1][0], 6)
+            self.assertEqual(events[-1][1], 6)
+            self.assertGreater(events[-1][2], 0)
 
     def test_download_artwork_routes_restricted_into_subfolder(self):
         page = PixivPage(index=0, original_url="https://i.pximg.net/x_p0.jpg")
