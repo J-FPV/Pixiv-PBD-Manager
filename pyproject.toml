@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "pixiv-pbd-manager"
 version = "0.1.0"
-description = "Track Pixiv artists and open their pages for Powerful Pixiv Downloader."
+description = "Track Pixiv artists, check updates, download artworks, and find similar images."
 requires-python = ">=3.9"
 dependencies = [
     "Pillow>=10.0",
@@ -21,5 +21,4 @@ exclude = ["desktop*"]
 
 [project.scripts]
 pixiv-pbd-manager = "pixiv_pbd_manager.cli:main"
-pixiv-pbd-gui = "pixiv_pbd_manager.gui:main"
 pixiv-pbd-api = "pixiv_pbd_manager.gui_api:main"

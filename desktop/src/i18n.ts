@@ -83,6 +83,7 @@ const zh = {
   showCookie: "显示",
   hideCookie: "隐藏",
   unsafeUserDataDir: "浏览器用户数据目录不能位于下载目录内，已忽略该选择。",
+  cookieRevoked: "已撤回 Cookie 同意并清除本地 Cookie",
   disclaimerTitle: "Pixiv Cookie 使用风险声明",
   disclaimerBody:
     "使用 Pixiv 会话 Cookie 等同于以你的身份登录 Pixiv。请确认你了解以下风险后再勾选同意：\n\n" +
@@ -177,6 +178,7 @@ const en: typeof zh = {
   showCookie: "Show",
   hideCookie: "Hide",
   unsafeUserDataDir: "The browser user data folder cannot be inside a download folder; the selection was ignored.",
+  cookieRevoked: "Cookie consent revoked and local cookie cleared",
   disclaimerTitle: "Pixiv Cookie Usage Disclaimer",
   disclaimerBody:
     "Using a Pixiv session cookie is equivalent to being logged into Pixiv as you. Please confirm you understand the following risks before accepting:\n\n" +

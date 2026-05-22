@@ -30,7 +30,6 @@ Run these commands from this folder:
 
 ```powershell
 pip install -e .
-python -m pixiv_pbd_manager gui
 python -m pixiv_pbd_manager scan "C:\PixivDownloads"
 python -m pixiv_pbd_manager list
 python -m pixiv_pbd_manager open --limit 10
@@ -38,26 +37,11 @@ python -m pixiv_pbd_manager open --limit 10
 
 Requires Python 3.9 or newer.
 
-On Windows, you can also double-click [launch_gui.bat](launch_gui.bat), or build a single-file .exe and double-click that (see below).
+## Desktop GUI
 
-## Building a Standalone .exe
+The primary desktop GUI is Tauri + React + TypeScript in [desktop](desktop/). The old Tkinter GUI is frozen on a separate branch; main no longer maintains Tkinter entry points.
 
-If you would rather not run the GUI from source every time, you can package it into a single-file Windows executable:
-
-```powershell
-pip install -e .[build]          # installs runtime dependencies and PyInstaller
-python build_exe.py
-```
-
-The resulting `dist/PixivPbdManager.exe` is about 10 MB and ships without a console window. Move it together with `.pixiv-pbd-manager/` (which holds the database, cookie, and consent files) to any location and it just works — when the exe starts it changes the working directory to its own folder, so all data files always end up next to the exe.
-
-To rebuild, rerun `python build_exe.py`; the script automatically cleans the previous `build/`, `dist/`, and `.spec` artifacts before building.
-
-## Tauri + React Desktop GUI (Parallel Preview)
-
-The project now also includes a parallel Tauri + React + TypeScript GUI in [desktop](desktop/). It does not replace the existing Tkinter GUI; it reuses the same Python backend through the `python -m pixiv_pbd_manager.gui_api` JSON Lines subprocess interface.
-
-Development requires Node.js, npm, Rust, and Cargo. These tools still need to be fixed/installed on the current machine. Once available, run:
+Development requires Node.js, npm, Rust, Cargo, and a Python environment where `pip install -e .` has been run from the repository root. The Tauri UI is still a development build: it launches `python -m pixiv_pbd_manager.gui_api` through the Tauri shell plugin, so it is not yet a Python-free end-user installer. The planned packaging path is a PyInstaller sidecar for the Python backend.
 
 ```powershell
 pip install -e .
@@ -68,40 +52,35 @@ npm run tauri:dev
 
 If the Tauri UI cannot import `pixiv_pbd_manager`, set `Project root` in the Settings tab to the repository root.
 
-## GUI
+Restart `npm run tauri:dev` after changing `desktop/src-tauri/`, Tauri plugins, or permission files. Pure frontend and Python backend changes usually hot reload.
 
-Start the desktop GUI:
-
-```powershell
-python -m pixiv_pbd_manager gui
-```
-
-Main GUI features:
+Main desktop features:
 
 - Choose the database location.
 - Add one or more download folders.
 - Add excluded folders so scans skip them.
 - Scan download folders and write artists into the database.
-- Start folder watching to detect new artists and artworks while downloading.
 - Resolve Pixiv folders that have artist names but no artist IDs.
 - Optionally enable fuzzy artist-name search for manual folders like `illus-artist-style-tag`.
 - Check whether recorded artists have new Pixiv artworks and show the count in the "New" column.
+- When checking updates, recursively scan artist save paths so artworks already saved in subfolders are not reported as new.
 - Directly download artworks listed as new without manually clicking PBD.
+- Optionally route R-18/R-18G downloads into a `[R-18&R-18G]` subfolder.
 - Show each detected artist's save path in the table.
-- Switch between Chinese and English from the menu "Settings → Language"; the choice is saved automatically.
-- Use "Settings → Preferences..." to configure the browser, advanced scan options, SSL fallback, and open delay/limit — the less-frequently changed settings.
+- Switch between Chinese and English in the Settings tab; the choice is saved automatically.
+- Use the Settings tab to configure directories, scan parsing, browser options, Pixiv cookies, SSL fallback, and open delay.
 - View, filter, and manually add artists.
 - Right-click an artist to edit the Pixiv artist ID; the app will try to update the artist name automatically.
 - Right-click an artist to edit the save path.
 - Click the blue checkbox in the first table column to pick multiple artists, or use "Select all / Clear all".
-- Update checks, opening updated artists, and direct downloads prioritize checked artists; if none are checked, the highlighted rows are used.
+- Update checks, opening selected artists, and direct downloads operate on checked artists.
 - While a background scan, check, or download is running, you can still double-click an artist row to open that artist's browser page. Double-click opens only the clicked artist and ignores the checked list.
-- Export or copy artist artwork-page URLs.
-- Find similar images and review candidate duplicate groups across different names, formats, or resolutions.
+- Copy artist artwork-page URLs; URL export currently writes to the Logs tab.
+- Find similar images with custom scan/exclude folders and review candidate duplicate groups across different names, formats, or resolutions.
 
 ## Browser Profile Warning
 
-If your default browser is not the one with Powerful Pixiv Downloader installed, open the menu "Settings → Preferences..." and set the Chrome/Edge executable path and user data directory in the "Browser" section.
+If your default browser is not the one with Powerful Pixiv Downloader installed, set the Chrome/Edge executable path and user data directory in the browser section of the Settings tab.
 
 Do not set "browser user data" to your image download folder. Chrome/Edge creates profile folders such as `Default`, `Safe Browsing`, `ShaderCache`, and `Webstore Downloads` there. The GUI blocks user-data folders inside download roots; if unsure, leave it blank to use the system default browser profile.
 
@@ -152,13 +131,17 @@ Example:
 12345678_p1.png
 ```
 
+When checking updates, you can enable "Scan artist subfolders when checking updates". The app first recursively reads artwork IDs already present under each artist's save path, then compares them with Pixiv's remote list, so works already saved in subfolders are not reported as new.
+
 If an artist has no save path, the CLI can use `--output-root` as a fallback directory. In the GUI, it is best to scan existing folders first so the app can record save paths.
 
 Note: The direct downloader does not use PBD naming rules or filters. Public artworks usually download directly; login-only, age-restricted, or hidden artworks may require Pixiv cookies.
 
+Settings can also route R-18/R-18G works into a `[R-18&R-18G]` subfolder. When enabled, the downloader checks each artwork's `xRestrict` value first; restricted works are saved under `[R-18&R-18G]` inside the artist folder, while all-ages works stay in the artist folder root. Restricted artwork failures are reported per artwork in the log.
+
 ## Similar Image Detection
 
-Open the "Similar Images" tab in the GUI and click "Find similar" to scan the current download folders. The current exclude folders are reused, so skipped folders are not checked. Results are grouped as candidate duplicates, and double-clicking a file row opens its location. The app only reports results; it does not delete or move files automatically.
+Open the "Similar Images" tab in the GUI and optionally enter dedicated scan and exclude folders. If left empty, the current download folders and exclude folders are used. Click "Find similar" to scan, review candidate duplicate groups, and double-click a file row to reveal it. The app only reports results; it does not delete or move files automatically. Broken or unreadable images are counted as errors and the first errors are written to the log.
 
 The scanner handles `.jpg`, `.jpeg`, `.png`, `.webp`, `.bmp`, and `.gif`; animated GIF/WebP files use the first frame. For each image it stores file size, modified time, resolution, `sha256`, `pHash`, and `dHash`. The index is saved at:
 
@@ -251,11 +234,17 @@ python -m pixiv_pbd_manager scan "C:\PixivLibrary" --exclude "C:\PixivLibrary\an
 # Check whether recorded artists have new artworks
 python -m pixiv_pbd_manager check
 
+# Before checking updates, rescan each artist save path recursively
+python -m pixiv_pbd_manager check --scan-local
+
 # Check only specified artists
 python -m pixiv_pbd_manager check 123456 789012
 
 # Download newly detected artworks
 python -m pixiv_pbd_manager download
+
+# Save R-18/R-18G new works into an [R-18&R-18G] subfolder
+python -m pixiv_pbd_manager download --separate-r18
 
 # Download updates for specified artists
 python -m pixiv_pbd_manager download 123456 789012

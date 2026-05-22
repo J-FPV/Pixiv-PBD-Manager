@@ -1,6 +1,8 @@
 import io
 import json
 import os
+import subprocess
+import sys
 import unittest
 from contextlib import redirect_stdout
 from pathlib import Path
@@ -55,6 +57,28 @@ class GuiApiTests(unittest.TestCase):
         self.assertEqual(list_code, 0)
         self.assertEqual(list_events[-1]["payload"]["artists"], [])
 
+    def test_cookie_revoke_clears_cookie_immediately(self):
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            old_cwd = Path.cwd()
+            try:
+                os.chdir(root)
+                save_code, _save_events = invoke(
+                    "settings.save",
+                    {"settings": {}, "cookie_consent": True, "pixiv_cookie": "PHPSESSID=secret"},
+                )
+                revoke_code, revoke_events = invoke("cookie.revoke")
+                cookie_bin_exists = (root / ".pixiv-pbd-manager" / "cookie.bin").exists()
+                cookie_txt_exists = (root / ".pixiv-pbd-manager" / "cookie.txt").exists()
+            finally:
+                os.chdir(old_cwd)
+
+        self.assertEqual(save_code, 0)
+        self.assertEqual(revoke_code, 0)
+        self.assertFalse(revoke_events[-1]["payload"]["cookie_consent"])
+        self.assertFalse(cookie_bin_exists)
+        self.assertFalse(cookie_txt_exists)
+
     def test_project_root_resolves_from_tauri_nested_directory(self):
         with TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -94,6 +118,54 @@ class GuiApiTests(unittest.TestCase):
         self.assertEqual(payload["project_root"], str(root.resolve()))
         self.assertEqual(payload["db_path"], str((db_dir / "artists.json").resolve()))
         self.assertEqual(payload["artists"][0]["id"], "123456")
+
+    def test_subprocess_outputs_utf8_json_for_cjk_and_emoji_artist_names(self):
+        repo_root = Path(__file__).resolve().parents[1]
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            data_dir = root / ".pixiv-pbd-manager"
+            data_dir.mkdir()
+            (data_dir / "gui_settings.json").write_text(
+                json.dumps({"database": ".pixiv-pbd-manager/artists.json"}),
+                encoding="utf-8",
+            )
+            (data_dir / "artists.json").write_text(
+                json.dumps(
+                    {
+                        "version": 1,
+                        "artists": {
+                            "123456": {
+                                "id": "123456",
+                                "name": "一条レイ ✨",
+                                "work_ids": ["987654"],
+                            }
+                        },
+                    },
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+            env = os.environ.copy()
+            env["PYTHONPATH"] = str(repo_root) + os.pathsep + env.get("PYTHONPATH", "")
+            completed = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "pixiv_pbd_manager.gui_api",
+                    "artists.list",
+                    json.dumps({"project_root": str(root)}),
+                ],
+                cwd=root,
+                env=env,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=False,
+            )
+
+        stderr = completed.stderr.decode("utf-8", errors="replace")
+        self.assertEqual(completed.returncode, 0, stderr)
+        events = [json.loads(line) for line in completed.stdout.decode("utf-8").splitlines()]
+        self.assertEqual(events[-1]["payload"]["artists"][0]["name"], "一条レイ ✨")
 
     def test_scan_run_emits_progress_and_result(self):
         with TemporaryDirectory() as tmp:

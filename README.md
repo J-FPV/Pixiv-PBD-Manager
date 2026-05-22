@@ -28,34 +28,18 @@ pixiv/{user}-{user_id}/{id}-{title}
 
 ```powershell
 pip install -e .
-python -m pixiv_pbd_manager gui
 python -m pixiv_pbd_manager scan "C:\PixivDownloads"
 python -m pixiv_pbd_manager list
 python -m pixiv_pbd_manager open --limit 10
 ```
 
-需要 Python 3.9 或更新版本。你当前的 Python 3.9.23 可以直接使用。
+需要 Python 3.9 或更新版本。
 
-Windows 下也可以双击 [launch_gui.bat](launch_gui.bat) 启动；或者打包成单文件 .exe 后双击运行（见下节）。
+## 桌面界面
 
-## 构建独立 .exe
+主桌面界面是 Tauri + React + TypeScript，位于 [desktop](desktop/)。旧 Tkinter GUI 已冻结在单独分支，main 分支不再维护 Tkinter 入口。
 
-如果不想每次都依赖源码 / Python 环境，可以打包成单文件 Windows 可执行文件：
-
-```powershell
-pip install -e .[build]          # 安装运行依赖和 PyInstaller
-python build_exe.py
-```
-
-生成的 `dist/PixivPbdManager.exe` 大约 10 MB，无控制台窗口，双击即可启动 GUI。把它和 `.pixiv-pbd-manager/`（数据库、Cookie、consent 等数据文件夹）一起复制到任何位置都能运行——exe 启动时会把工作目录切换到自身所在目录，所有数据始终落在 exe 旁边。
-
-需要重新构建时，再次运行 `python build_exe.py` 即可；脚本会自动清理上一次的 `build/`、`dist/` 与 `.spec` 产物。
-
-## Tauri + React 桌面界面（并行预览版）
-
-项目现在也包含一个并行的 Tauri + React + TypeScript GUI，位于 [desktop](desktop/)。它不会替换现有 Tkinter GUI，而是通过 `python -m pixiv_pbd_manager.gui_api` 这个 JSON Lines 子进程接口复用同一套 Python 后端逻辑。
-
-开发运行需要先安装 Node.js、npm、Rust 和 Cargo；当前机器上这些工具链还需要单独修复。环境可用后运行：
+开发运行需要先安装 Node.js、npm、Rust、Cargo，并在仓库根目录执行过 `pip install -e .`。当前 Tauri 界面仍是开发版：它会通过 Tauri shell 插件启动 `python -m pixiv_pbd_manager.gui_api`，所以还不是不依赖 Python 的最终安装包。稳定后计划再用 PyInstaller sidecar 打包 Python 后端。
 
 ```powershell
 pip install -e .
@@ -66,13 +50,7 @@ npm run tauri:dev
 
 如果 Tauri 界面无法导入 `pixiv_pbd_manager`，在 Settings 页把 `Project root` 设为本仓库根目录。
 
-## GUI 界面
-
-启动桌面界面：
-
-```powershell
-python -m pixiv_pbd_manager gui
-```
+如果修改了 `desktop/src-tauri/`、Tauri 插件或权限配置，需要重启 `npm run tauri:dev`；纯前端和 Python 后端改动通常可以热重载。
 
 主要功能：
 
@@ -80,26 +58,27 @@ python -m pixiv_pbd_manager gui
 - 添加一个或多个下载目录。
 - 添加排除目录，扫描时跳过这些文件夹。
 - 扫描下载目录并写入作者库。
-- 开启定时监控，边下载边自动识别新作者和新作品。
 - 在线解析只有作者名、没有作者 ID 的 Pixiv 文件夹。
 - 可选开启作者名模糊搜索，适合 `illus-作者名-风格标签` 这类手动目录。
 - 检查已记录作者是否有 Pixiv 新作品，并在“可下载”列显示数量。
+- 检查更新时可递归扫描艺术家保存路径，避免子文件夹里的已保存作品被误判为新作品。
 - 直接下载“可下载”列里的新作品，无需手动点击 PBD。
+- 可选把 R-18 / R-18G 新作品保存到 `[R-18&R-18G]` 子文件夹。
 - 表格显示扫描到的艺术家保存路径。
-- 通过菜单栏 "设置 → 语言" 切换中文 / English，选择会自动保存。
-- 通过 "设置 → 偏好设置..." 配置浏览器、扫描进阶选项、SSL 兼容、打开间隔/上限等不常用项。
+- 在设置页切换中文 / English。
+- 在设置页配置目录、扫描解析、浏览器、Pixiv Cookie、SSL 兼容、打开间隔等选项。
 - 查看、筛选、手动添加作者。
 - 右键作者可以手动修改 Pixiv 作者 ID，修改后会尝试自动更新作者名。
 - 右键作者可以手动修改保存路径。
 - 点击表格第一列的蓝色勾选框可以勾选多个作者，也可以用“全选 / 取消全选”批量切换。
-- 检查更新、打开有更新、直接下载更新会优先处理勾选作者；没有勾选时才使用当前高亮选中的行。
+- 检查更新、打开选中、直接下载更新会处理勾选作者。
 - 后台扫描、检查或下载运行时，仍然可以双击作者行打开该作者的浏览器页面；双击只打开被点击的作者，不受勾选列表影响。
-- 导出或复制作者作品页 URL。
-- 查找相似图片，按疑似重复组展示不同文件名、格式或分辨率的同图版本。
+- 复制作者作品页 URL；导出 URL 当前会写入日志。
+- 查找相似图片，可自定义扫描/排除目录，按疑似重复组展示不同文件名、格式或分辨率的同图版本。
 
 ## 浏览器设置提醒
 
-如果默认浏览器不是安装了 Powerful Pixiv Downloader 的浏览器，可以通过菜单 “设置 → 偏好设置...” 在”浏览器”区指定 Chrome/Edge 的 exe 路径和用户数据目录。
+如果默认浏览器不是安装了 Powerful Pixiv Downloader 的浏览器，可以在 Settings 页的浏览器相关设置里指定 Chrome/Edge 的 exe 路径和用户数据目录。
 
 “浏览器用户数据目录”不要选择图片下载目录。Chrome/Edge 会在用户数据目录里创建 `Default`、`Safe Browsing`、`ShaderCache`、`Webstore Downloads` 等浏览器配置文件夹。GUI 会阻止把它设在下载目录内部；不确定时保持为空即可使用系统默认浏览器配置。
 
@@ -137,6 +116,8 @@ https://www.pixiv.net/ajax/illust/{work_id}/pages
 
 软件会从返回结果里取每一页的 `urls.original` 原图地址，再用 Python 下载文件。请求 Pixiv 接口时会带 `Referer`、浏览器风格 `User-Agent` 和可选 Pixiv Cookie；从 `i.pximg.net` 下载图片时**只带 Referer，不带 Cookie**，避免把会话泄露给图片 CDN。
 
+检查更新时可以开启“扫描艺术家文件夹的子文件夹”，软件会先递归读取该艺术家保存路径下已有的作品 ID，再与 Pixiv 远端列表比较，避免已经保存在子文件夹里的作品被误判为新作品。
+
 直接下载器会保存到数据库记录的艺术家保存路径。文件名使用：
 
 ```text
@@ -154,9 +135,11 @@ https://www.pixiv.net/ajax/illust/{work_id}/pages
 
 注意：直接下载器不使用 PBD 的命名规则和过滤器。公开作品通常可以直接下载；登录、年龄限制或不可见作品可能需要提供 Pixiv cookie。
 
+设置里可以开启“限制级作品单独存入 [R-18&R-18G] 子文件夹”。开启后，下载器会先查询作品的 `xRestrict` 标记，R-18 / R-18G 作品会保存到该艺术家目录下的 `[R-18&R-18G]` 子文件夹，普通作品仍保存在艺术家目录根部。限制级作品下载失败时，日志会逐条显示具体作品 ID 和失败原因。
+
 ## 相似图片检测
 
-GUI 中打开“相似图片”选项卡，点击“查找相似图片”会扫描当前下载目录，并使用当前排除目录跳过不需要检查的文件夹。结果按疑似重复组展示，双击结果里的文件行可以打开文件所在位置。软件只展示结果，不会自动删除或移动文件。
+GUI 中打开“相似图片”选项卡，可以单独填写相似图片扫描目录和排除目录；如果留空，则默认使用当前下载目录和当前排除目录。点击“查找相似图片”后，结果按疑似重复组展示，双击结果里的文件行可以打开文件所在位置。软件只展示结果，不会自动删除或移动文件；损坏图片或无法读取的文件会计入错误，并在日志中显示前若干条错误。
 
 相似图片检测会处理 `.jpg`、`.jpeg`、`.png`、`.webp`、`.bmp`、`.gif`；GIF/WebP 动图使用首帧。它会为每张图记录文件大小、修改时间、分辨率、`sha256`、`pHash` 和 `dHash`，索引保存在：
 
@@ -249,11 +232,17 @@ python -m pixiv_pbd_manager scan "C:\PixivLibrary" --exclude "C:\PixivLibrary\an
 # 检查已记录作者是否有新作品
 python -m pixiv_pbd_manager check
 
+# 检查更新前递归扫描每个作者保存路径，避免子文件夹里的作品被误判为新作
+python -m pixiv_pbd_manager check --scan-local
+
 # 只检查指定作者
 python -m pixiv_pbd_manager check 123456 789012
 
 # 下载检查出的新作品
 python -m pixiv_pbd_manager download
+
+# 将 R-18/R-18G 新作品保存到艺术家目录下的 [R-18&R-18G] 子文件夹
+python -m pixiv_pbd_manager download --separate-r18
 
 # 下载指定作者的新作品
 python -m pixiv_pbd_manager download 123456 789012

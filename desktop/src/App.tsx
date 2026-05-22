@@ -701,7 +701,10 @@ function SettingsView({
                 </label>
                 <label>
                   <span>{t(language, "pythonCommand")}</span>
-                  <input value={pythonCommand} onChange={(event) => setPythonCommandValue(event.target.value)} />
+                  <select value={pythonCommand === "py" ? "py" : "python"} onChange={(event) => setPythonCommandValue(event.target.value)}>
+                    <option value="python">python</option>
+                    <option value="py">py</option>
+                  </select>
                 </label>
                 <label className="full">
                   <span>{t(language, "projectRoot")}</span>
@@ -1112,6 +1115,9 @@ export default function App() {
       setSimilarResult(result);
       setExpandedGroups(new Set());
       appendLog("info", `Similar result: ${result.files_seen} files, ${result.groups.length} groups`);
+      for (const err of result.errors) {
+        appendLog("error", err);
+      }
     });
 
   const revealFile = async (path: string) => {
@@ -1178,10 +1184,18 @@ export default function App() {
       setDisclaimer("accept");
       return;
     }
-    setCookieConsent(next);
     if (!next) {
-      setPixivCookie("");
+      void runGuiApi<SettingsPayload>("cookie.revoke", {}, handleEvent)
+        .then((payload) => {
+          applySettingsPayload(payload);
+          appendLog("info", t(languageValue, "cookieRevoked"));
+        })
+        .catch((error) => {
+          appendLog("error", error instanceof Error ? error.message : String(error));
+        });
+      return;
     }
+    setCookieConsent(next);
   };
 
   const acceptDisclaimer = () => {

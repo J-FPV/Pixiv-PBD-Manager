@@ -309,12 +309,6 @@ def cmd_similar(args: argparse.Namespace) -> int:
     return 0 if not result.error_count else 1
 
 
-def cmd_gui(_args: argparse.Namespace) -> int:
-    from .gui import main as gui_main
-
-    return gui_main()
-
-
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="pixiv-pbd-manager",
@@ -415,9 +409,6 @@ def build_parser() -> argparse.ArgumentParser:
     )
     similar.add_argument("--output", help="write a CSV report")
     similar.set_defaults(func=cmd_similar)
-
-    gui = subparsers.add_parser("gui", help="open the desktop GUI")
-    gui.set_defaults(func=cmd_gui)
 
     return parser
 

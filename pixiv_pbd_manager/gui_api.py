@@ -271,6 +271,12 @@ def _command_settings_save(payload: JsonDict, _emit_event: Emitter) -> JsonDict:
     return _settings_result(settings, payload)
 
 
+def _command_cookie_revoke(payload: JsonDict, _emit_event: Emitter) -> JsonDict:
+    revoke_cookie_consent()
+    clear_cookie()
+    return _settings_result(_load_settings_for_payload(payload), payload)
+
+
 def _command_artists_list(payload: JsonDict, _emit_event: Emitter) -> JsonDict:
     settings = _load_settings_for_payload(payload)
     db = ArtistDatabase.load(_db_path(payload, settings))
@@ -459,6 +465,7 @@ def _command_file_reveal(payload: JsonDict, _emit_event: Emitter) -> JsonDict:
 COMMANDS: dict[str, Callable[[JsonDict, Emitter], JsonDict]] = {
     "settings.get": _command_settings_get,
     "settings.save": _command_settings_save,
+    "cookie.revoke": _command_cookie_revoke,
     "artists.list": _command_artists_list,
     "artists.add": _command_artists_add,
     "artists.rename": _command_artists_rename,

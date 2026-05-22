@@ -25,11 +25,11 @@ export function setProjectRoot(value: string): void {
 }
 
 export function getPythonCommand(): string {
-  return localStorage.getItem(PYTHON_COMMAND_KEY) || "python";
+  return localStorage.getItem(PYTHON_COMMAND_KEY) === "py" ? "py" : "python";
 }
 
 export function setPythonCommand(value: string): void {
-  localStorage.setItem(PYTHON_COMMAND_KEY, value || "python");
+  localStorage.setItem(PYTHON_COMMAND_KEY, value === "py" ? "py" : "python");
 }
 
 export async function runGuiApi<T>(

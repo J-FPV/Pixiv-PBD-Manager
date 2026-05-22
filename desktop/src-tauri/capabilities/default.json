@@ -13,27 +13,30 @@
         {
           "name": "python",
           "cmd": "python",
-          "args": true
+          "args": [
+            "-m",
+            "pixiv_pbd_manager.gui_api",
+            {
+              "validator": "^(?:settings\\.get|settings\\.save|artists\\.list|artists\\.add|artists\\.rename|artists\\.set_save_path|scan\\.run|updates\\.check|updates\\.download|similar\\.run|browser\\.open|export\\.urls|file\\.reveal|cookie\\.revoke)$"
+            },
+            {
+              "validator": ".+"
+            }
+          ]
         },
         {
           "name": "py",
           "cmd": "py",
-          "args": true
-        }
-      ]
-    },
-    {
-      "identifier": "shell:allow-execute",
-      "allow": [
-        {
-          "name": "python",
-          "cmd": "python",
-          "args": true
-        },
-        {
-          "name": "py",
-          "cmd": "py",
-          "args": true
+          "args": [
+            "-m",
+            "pixiv_pbd_manager.gui_api",
+            {
+              "validator": "^(?:settings\\.get|settings\\.save|artists\\.list|artists\\.add|artists\\.rename|artists\\.set_save_path|scan\\.run|updates\\.check|updates\\.download|similar\\.run|browser\\.open|export\\.urls|file\\.reveal|cookie\\.revoke)$"
+            },
+            {
+              "validator": ".+"
+            }
+          ]
         }
       ]
     }
