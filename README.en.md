@@ -70,7 +70,7 @@ Main desktop features:
 - Show each detected artist's save path in the table.
 - Switch between Chinese and English in the Settings tab; the choice is saved automatically.
 - Use the Settings tab to configure directories, scan parsing, browser options, Pixiv cookies, SSL fallback, and open delay.
-- View, filter, and manually add artists.
+- View, search, sort, and manually add artists; search matches artist IDs, names, and save paths/folder names.
 - Right-click an artist to edit the Pixiv artist ID; the app will try to update the artist name automatically.
 - Right-click an artist to edit the save path.
 - Click the blue checkbox in the first table column to pick multiple artists, or use "Select all / Clear all".

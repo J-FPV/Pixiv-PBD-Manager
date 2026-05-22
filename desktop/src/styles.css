@@ -205,6 +205,49 @@ footer {
   font-weight: 600;
 }
 
+.headerButton {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  min-width: 0;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font-weight: inherit;
+  text-align: left;
+}
+
+.headerButton.numericHeader {
+  justify-content: flex-end;
+}
+
+.headerButton span:first-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sortArrow {
+  display: inline-flex;
+  justify-content: center;
+  width: 14px;
+  margin-left: 4px;
+  color: transparent;
+  font-size: 10px;
+  line-height: 1;
+}
+
+.sortArrow.active {
+  color: var(--muted);
+}
+
+.headerButton:hover .sortArrow {
+  color: var(--muted);
+}
+
 .virtualList {
   min-height: 0;
   overflow: auto;

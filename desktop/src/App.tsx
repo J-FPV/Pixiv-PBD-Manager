@@ -276,6 +276,9 @@ function DisclaimerModal({
   );
 }
 
+type ArtistSortKey = "id" | "name" | "works" | "new_works";
+type SortDirection = "asc" | "desc";
+
 function ArtistsView({
   language,
   artists,
@@ -316,21 +319,72 @@ function ArtistsView({
   openArtist: (id: string) => void;
 }) {
   const [menu, setMenu] = useState<{ x: number; y: number; artistId: string } | null>(null);
+  const [sortKey, setSortKey] = useState<ArtistSortKey>("id");
+  const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
 
   const openMenu = (event: ReactMouseEvent, artistId: string) => {
     event.preventDefault();
     setMenu({ x: event.clientX, y: event.clientY, artistId });
   };
+  const changeSort = (key: ArtistSortKey) => {
+    if (sortKey === key) {
+      setSortDirection((current) => (current === "asc" ? "desc" : "asc"));
+      return;
+    }
+    setSortKey(key);
+    setSortDirection("asc");
+  };
+  const sortHeader = (key: ArtistSortKey, label: string, align: "left" | "right" = "left") => (
+    <button className={`headerButton ${align === "right" ? "numericHeader" : ""}`} onClick={() => changeSort(key)}>
+      <span>{label}</span>
+      <span className={`sortArrow ${sortKey === key ? "active" : ""}`}>
+        {sortKey === key ? (sortDirection === "asc" ? "▲" : "▼") : ""}
+      </span>
+    </button>
+  );
   const parentRef = useRef<HTMLDivElement>(null);
   const visibleArtists = useMemo(() => {
     const keyword = filter.trim().toLowerCase();
-    if (!keyword) {
-      return artists;
+    const filtered = keyword
+      ? artists.filter((artist) => {
+          const savePathText = artist.save_paths.join(" ").toLowerCase();
+          const folderNames = artist.save_paths
+            .map((path) => path.split(/[\\/]/).filter(Boolean).pop() || "")
+            .join(" ")
+            .toLowerCase();
+          return (
+            artist.id.includes(keyword) ||
+            artist.name.toLowerCase().includes(keyword) ||
+            savePathText.includes(keyword) ||
+            folderNames.includes(keyword)
+          );
+        })
+      : artists;
+    const direction = sortDirection === "asc" ? 1 : -1;
+    return [...filtered].sort((left, right) => {
+      let result = 0;
+      if (sortKey === "id") {
+        result = left.id.localeCompare(right.id, undefined, { numeric: true });
+      } else if (sortKey === "name") {
+        result = left.name.localeCompare(right.name, undefined, { numeric: true, sensitivity: "base" });
+      } else if (sortKey === "works") {
+        result = left.works - right.works;
+      } else {
+        result = left.new_works - right.new_works;
+      }
+      if (result === 0) {
+        result = left.id.localeCompare(right.id, undefined, { numeric: true });
+      }
+      return result * direction;
+    });
+  }, [artists, filter, sortDirection, sortKey]);
+
+  useEffect(() => {
+    if (parentRef.current) {
+      parentRef.current.scrollTop = 0;
     }
-    return artists.filter(
-      (artist) => artist.id.includes(keyword) || artist.name.toLowerCase().includes(keyword)
-    );
-  }, [artists, filter]);
+  }, [filter, sortDirection, sortKey]);
+
   const virtualizer = useVirtualizer({
     count: visibleArtists.length,
     getScrollElement: () => parentRef.current,
@@ -343,7 +397,7 @@ function ArtistsView({
       <div className="toolbar">
         <div className="searchBox">
           <Search size={16} />
-          <input value={filter} onChange={(event) => setFilter(event.target.value)} placeholder={t(language, "filter")} />
+          <input value={filter} onChange={(event) => setFilter(event.target.value)} placeholder={t(language, "search")} />
         </div>
         <Button icon={<CheckSquare size={16} />} onClick={selectAll}>
           {t(language, "selectAll")}
@@ -374,10 +428,10 @@ function ArtistsView({
       <div className="table artistsTable">
         <div className="tableHeader">
           <span />
-          <span>{t(language, "artistId")}</span>
-          <span>{t(language, "artistName")}</span>
-          <span>{t(language, "works")}</span>
-          <span>{t(language, "newWorks")}</span>
+          {sortHeader("id", t(language, "artistId"))}
+          {sortHeader("name", t(language, "artistName"))}
+          {sortHeader("works", t(language, "works"), "right")}
+          {sortHeader("new_works", t(language, "newWorks"), "right")}
           <span>{t(language, "savePaths")}</span>
           <span>{t(language, "lastSeen")}</span>
         </div>
