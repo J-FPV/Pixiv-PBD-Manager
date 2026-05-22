@@ -64,6 +64,7 @@ Main desktop features:
 - Optionally enable fuzzy artist-name search for manual folders like `illus-artist-style-tag`.
 - Check whether recorded artists have new Pixiv artworks and show the count in the "New" column.
 - When checking updates, recursively scan artist save paths so artworks already saved in subfolders are not reported as new.
+- Optionally check only the newest N artwork pages on each artist profile; 0 checks all works.
 - Directly download artworks listed as new without manually clicking PBD.
 - Optionally route R-18/R-18G downloads into a `[R-18&R-18G]` subfolder.
 - Show each detected artist's save path in the table.
@@ -75,7 +76,7 @@ Main desktop features:
 - Click the blue checkbox in the first table column to pick multiple artists, or use "Select all / Clear all".
 - Update checks, opening selected artists, and direct downloads operate on checked artists.
 - While a background scan, check, or download is running, you can still double-click an artist row to open that artist's browser page. Double-click opens only the clicked artist and ignores the checked list.
-- Copy artist artwork-page URLs; URL export currently writes to the Logs tab.
+- Copy artist artwork-page URLs.
 - Find similar images with custom scan/exclude folders and review candidate duplicate groups across different names, formats, or resolutions.
 
 ## Browser Profile Warning
@@ -236,6 +237,9 @@ python -m pixiv_pbd_manager check
 
 # Before checking updates, rescan each artist save path recursively
 python -m pixiv_pbd_manager check --scan-local
+
+# Check only the newest 2 artwork pages per artist
+python -m pixiv_pbd_manager check --max-pages 2
 
 # Check only specified artists
 python -m pixiv_pbd_manager check 123456 789012

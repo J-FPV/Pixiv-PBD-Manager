@@ -22,6 +22,13 @@ def positive_float(value: str) -> float:
     return parsed
 
 
+def nonnegative_int(value: str) -> int:
+    parsed = int(value)
+    if parsed < 0:
+        raise argparse.ArgumentTypeError("must be >= 0")
+    return parsed
+
+
 def add_db_argument(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--db", default=str(DEFAULT_DB), help="artist database path")
 
@@ -218,6 +225,7 @@ def cmd_check(args: argparse.Namespace) -> int:
             pixiv_cookie=args.pixiv_cookie,
             allow_insecure_ssl_fallback=not args.no_ssl_fallback,
             scan_local=args.scan_local,
+            max_pages=args.max_pages if args.max_pages > 0 else None,
         )
     except KeyError as exc:
         print(str(exc), file=sys.stderr)
@@ -380,6 +388,12 @@ def build_parser() -> argparse.ArgumentParser:
         "--scan-local",
         action="store_true",
         help="rescan each artist's saved folder (including subfolders) so works already on disk are not flagged as new",
+    )
+    check.add_argument(
+        "--max-pages",
+        type=nonnegative_int,
+        default=0,
+        help="check only the newest N Pixiv artwork pages per artist; 0 checks all works",
     )
     check.set_defaults(func=cmd_check)
 

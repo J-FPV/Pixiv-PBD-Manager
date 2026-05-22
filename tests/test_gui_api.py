@@ -11,6 +11,7 @@ from tempfile import TemporaryDirectory
 from PIL import Image
 
 from pixiv_pbd_manager import gui_api
+from pixiv_pbd_manager.database import ArtistDatabase
 
 
 def invoke(command, payload=None):
@@ -119,6 +120,26 @@ class GuiApiTests(unittest.TestCase):
         self.assertEqual(payload["db_path"], str((db_dir / "artists.json").resolve()))
         self.assertEqual(payload["artists"][0]["id"], "123456")
 
+    def test_artists_add_can_store_save_path(self):
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            save_path = root / "artist-folder"
+            old_cwd = Path.cwd()
+            try:
+                os.chdir(root)
+                exit_code, events = invoke(
+                    "artists.add",
+                    {"artist_id": "123456", "name": "Artist", "save_path": str(save_path)},
+                )
+                db = ArtistDatabase.load(root / ".pixiv-pbd-manager" / "artists.json")
+            finally:
+                os.chdir(old_cwd)
+
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(events[-1]["type"], "result")
+        self.assertEqual(events[-1]["payload"]["save_path"], str(save_path))
+        self.assertEqual(db.artists["123456"].save_paths, [str(save_path.resolve())])
+
     def test_subprocess_outputs_utf8_json_for_cjk_and_emoji_artist_names(self):
         repo_root = Path(__file__).resolve().parents[1]
         with TemporaryDirectory() as tmp:
@@ -218,7 +239,7 @@ class GuiApiTests(unittest.TestCase):
         self.assertEqual(exit_code, 2)
         self.assertEqual(events[-1]["type"], "error")
 
-    def test_update_download_export_and_browser_commands_return_results(self):
+    def test_update_download_and_browser_commands_return_results(self):
         with TemporaryDirectory() as tmp:
             root = Path(tmp)
             db_path = root / ".pixiv-pbd-manager" / "artists.json"
@@ -228,7 +249,6 @@ class GuiApiTests(unittest.TestCase):
                 for command, payload in (
                     ("updates.check", {"db_path": str(db_path), "artist_ids": []}),
                     ("updates.download", {"db_path": str(db_path), "artist_ids": []}),
-                    ("export.urls", {"db_path": str(db_path), "artist_ids": []}),
                     ("browser.open", {"urls": []}),
                 ):
                     with self.subTest(command=command):

@@ -18,6 +18,7 @@ export interface AppSettings {
   ssl_fallback?: boolean;
   similar_threshold?: SimilarThreshold;
   scan_local_subfolders?: boolean;
+  update_check_pages?: number;
   separate_r18?: boolean;
 }
 

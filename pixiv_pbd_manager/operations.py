@@ -199,6 +199,7 @@ def check_artist_updates(
     pixiv_cookie: str | None = None,
     allow_insecure_ssl_fallback: bool = True,
     scan_local: bool = False,
+    max_pages: int | None = None,
     progress_callback: ProgressCallback | None = None,
 ) -> UpdateCheckResult:
     db = ArtistDatabase.load(db_path)
@@ -217,6 +218,7 @@ def check_artist_updates(
                 artist.id,
                 cookie=pixiv_cookie,
                 allow_insecure_ssl_fallback=allow_insecure_ssl_fallback,
+                max_pages=max_pages,
             )
         except PixivResolveError as exc:
             result.errors.append(str(exc))

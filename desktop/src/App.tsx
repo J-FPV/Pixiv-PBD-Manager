@@ -18,8 +18,7 @@ import {
   Settings as SettingsIcon,
   SlidersHorizontal,
   Square,
-  Terminal,
-  Upload
+  Terminal
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { MouseEvent as ReactMouseEvent, ReactNode } from "react";
@@ -68,6 +67,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   ssl_fallback: true,
   similar_threshold: "likely",
   scan_local_subfolders: false,
+  update_check_pages: 0,
   separate_r18: false
 };
 
@@ -176,6 +176,7 @@ interface PromptField {
   key: string;
   label: string;
   value: string;
+  browse?: PathPickKind;
 }
 
 interface PromptState {
@@ -201,16 +202,32 @@ function PromptModal({ language, state, onClose }: { language: Language; state: 
         {state.fields.map((field, index) => (
           <label key={field.key}>
             <span>{field.label}</span>
-            <input
-              autoFocus={index === 0}
-              value={values[field.key] ?? ""}
-              onChange={(event) => setValues((current) => ({ ...current, [field.key]: event.target.value }))}
-              onKeyDown={(event) => {
-                if (event.key === "Enter") {
-                  submit();
-                }
-              }}
-            />
+            <div className={field.browse ? "pathRow" : undefined}>
+              <input
+                autoFocus={index === 0}
+                value={values[field.key] ?? ""}
+                onChange={(event) => setValues((current) => ({ ...current, [field.key]: event.target.value }))}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    submit();
+                  }
+                }}
+              />
+              {field.browse ? (
+                <button
+                  type="button"
+                  className="button browseButton"
+                  onClick={async () => {
+                    const picked = await browsePath(field.browse!);
+                    if (picked) {
+                      setValues((current) => ({ ...current, [field.key]: picked }));
+                    }
+                  }}
+                >
+                  {t(language, "browse")}
+                </button>
+              ) : null}
+            </div>
           </label>
         ))}
         <div className="modalActions">
@@ -273,7 +290,6 @@ function ArtistsView({
   checkUpdates,
   downloadUpdated,
   openSelected,
-  exportUrls,
   copyUrls,
   addArtist,
   editArtistId,
@@ -293,7 +309,6 @@ function ArtistsView({
   checkUpdates: () => void;
   downloadUpdated: () => void;
   openSelected: () => void;
-  exportUrls: () => void;
   copyUrls: () => void;
   addArtist: () => void;
   editArtistId: (id: string) => void;
@@ -334,7 +349,7 @@ function ArtistsView({
           {t(language, "selectAll")}
         </Button>
         <Button icon={<Square size={16} />} onClick={clearAll}>
-          {t(language, "clearAll")}
+          {t(language, "clearAll")}{selected.size ? ` (${selected.size})` : ""}
         </Button>
         <Button icon={<Play size={16} />} disabled={busy} onClick={scan} variant="primary">
           {t(language, "scan")}
@@ -350,9 +365,6 @@ function ArtistsView({
         </Button>
         <Button icon={<Copy size={16} />} onClick={copyUrls}>
           {t(language, "copyUrls")}
-        </Button>
-        <Button icon={<Upload size={16} />} onClick={exportUrls}>
-          {t(language, "exportUrls")}
         </Button>
         <Button icon={<Plus size={16} />} onClick={addArtist}>
           {t(language, "addArtist")}
@@ -819,7 +831,17 @@ function SettingsView({
                     onChange={(event) => update("fuzzy_min_score", Number(event.target.value))}
                   />
                 </label>
+                <label>
+                  <span>{t(language, "updateCheckPages")}</span>
+                  <input
+                    type="number"
+                    min="0"
+                    value={settings.update_check_pages ?? 0}
+                    onChange={(event) => update("update_check_pages", Math.max(0, Number(event.target.value) || 0))}
+                  />
+                </label>
               </div>
+              <p className="fieldHint">{t(language, "updateCheckPagesHint")}</p>
             </div>
           ) : null}
 
@@ -1086,18 +1108,6 @@ export default function App() {
     }
   };
 
-  const exportUrls = async () => {
-    const result = await runGuiApi<{ urls: string[]; count: number }>(
-      "export.urls",
-      { ...settings, artist_ids: selectedIds },
-      handleEvent
-    );
-    appendLog("info", `Exported ${result.count} URL(s)`);
-    for (const url of result.urls.slice(0, 5)) {
-      appendLog("info", url);
-    }
-  };
-
   const findSimilar = () =>
     runTask(t(languageValue, "findSimilar"), async () => {
       setActiveTab("similar");
@@ -1143,13 +1153,19 @@ export default function App() {
       title: t(languageValue, "addArtist"),
       fields: [
         { key: "artist_id", label: t(languageValue, "artistId"), value: "" },
-        { key: "name", label: t(languageValue, "artistName"), value: "" }
+        { key: "name", label: t(languageValue, "artistName"), value: "" },
+        { key: "save_path", label: t(languageValue, "savePath"), value: "", browse: "folder" }
       ],
       onSubmit: (values) =>
         runTask(t(languageValue, "addArtist"), async () => {
           await runGuiApi(
             "artists.add",
-            { artist_id: values.artist_id, name: values.name, database: settings.database },
+            {
+              artist_id: values.artist_id,
+              name: values.name,
+              save_path: values.save_path,
+              database: settings.database
+            },
             handleEvent
           );
           appendLog("info", `Added artist ${values.artist_id}`);
@@ -1299,7 +1315,6 @@ export default function App() {
             checkUpdates={checkUpdates}
             downloadUpdated={downloadUpdated}
             openSelected={openSelected}
-            exportUrls={exportUrls}
             copyUrls={copyUrls}
             addArtist={addArtist}
             editArtistId={editArtistId}

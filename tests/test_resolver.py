@@ -4,10 +4,12 @@ import urllib.error
 from unittest.mock import patch
 
 from pixiv_pbd_manager.resolver import (
+    PIXIV_PROFILE_WORKS_PER_PAGE,
     PixivResolveError,
     fetch_artwork_author,
     fetch_user_profile,
     parse_user_name_from_profile_all,
+    parse_user_work_ids_from_profile_all,
     parse_user_search_html,
 )
 
@@ -59,6 +61,21 @@ class ResolverTests(unittest.TestCase):
         raw = {"body": {"illusts": {}}, "extraData": {"meta": {"title": "123456 - pixiv"}}}
 
         self.assertEqual(parse_user_name_from_profile_all(raw, "123456"), "")
+
+    def test_parse_user_work_ids_can_limit_to_newest_profile_pages(self):
+        raw = {
+            "body": {
+                "illusts": {str(work_id): {} for work_id in range(100, 160)},
+                "manga": {"220": {}, "221": {}},
+            }
+        }
+
+        work_ids = parse_user_work_ids_from_profile_all(raw, max_pages=1)
+
+        self.assertEqual(len(work_ids), PIXIV_PROFILE_WORKS_PER_PAGE)
+        self.assertIn("221", work_ids)
+        self.assertIn("159", work_ids)
+        self.assertNotIn("100", work_ids)
 
     def test_fetch_user_profile_prefers_user_profile_endpoint_name(self):
         calls = []

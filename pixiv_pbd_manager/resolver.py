@@ -19,6 +19,7 @@ PIXIV_AJAX_ILLUST_URL = "https://www.pixiv.net/ajax/illust/{illust_id}"
 PIXIV_USER_PROFILE_URL = "https://www.pixiv.net/ajax/user/{user_id}"
 PIXIV_USER_PROFILE_ALL_URL = "https://www.pixiv.net/ajax/user/{user_id}/profile/all"
 PIXIV_USER_SEARCH_URL = "https://www.pixiv.net/search/users?s_mode=s_usr&nick={keyword}&i=1&comment=&p=1"
+PIXIV_PROFILE_WORKS_PER_PAGE = 48
 PIXIV_BROWSER_USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
     "(KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36"
@@ -65,6 +66,25 @@ class PixivUserProfile:
 
 class PixivResolveError(RuntimeError):
     pass
+
+
+def parse_user_work_ids_from_profile_all(raw: dict, max_pages: int | None = None) -> set[str]:
+    body = raw.get("body") or {}
+    work_ids: set[str] = set()
+    for key in ("illusts", "manga"):
+        value = body.get(key) or {}
+        if isinstance(value, dict):
+            candidates = value.keys()
+        elif isinstance(value, list):
+            candidates = value
+        else:
+            continue
+        work_ids.update(str(work_id) for work_id in candidates if str(work_id).isdigit())
+
+    ordered = sorted(work_ids, key=lambda value: int(value), reverse=True)
+    if max_pages and max_pages > 0:
+        ordered = ordered[: max_pages * PIXIV_PROFILE_WORKS_PER_PAGE]
+    return set(ordered)
 
 
 def is_ssl_certificate_error(exc: BaseException) -> bool:
@@ -386,6 +406,7 @@ def fetch_user_work_ids(
     timeout: float = 15.0,
     cookie: str | None = None,
     allow_insecure_ssl_fallback: bool = True,
+    max_pages: int | None = None,
 ) -> PixivUserWorks:
     url = PIXIV_USER_PROFILE_ALL_URL.format(user_id=user_id)
     try:
@@ -408,14 +429,7 @@ def fetch_user_work_ids(
         message = str(raw.get("message") or "").strip() or "API returned error"
         raise PixivResolveError(f"Pixiv update check failed for artist {user_id}: {message}")
 
-    body = raw.get("body") or {}
-    work_ids: set[str] = set()
-    for key in ("illusts", "manga"):
-        value = body.get(key) or {}
-        if isinstance(value, dict):
-            work_ids.update(str(work_id) for work_id in value.keys() if str(work_id).isdigit())
-        elif isinstance(value, list):
-            work_ids.update(str(work_id) for work_id in value if str(work_id).isdigit())
+    work_ids = parse_user_work_ids_from_profile_all(raw, max_pages=max_pages)
     return PixivUserWorks(user_id=str(user_id), work_ids=work_ids, ssl_fallback_used=ssl_fallback_used)
 
 

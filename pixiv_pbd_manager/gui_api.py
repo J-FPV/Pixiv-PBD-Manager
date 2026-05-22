@@ -293,10 +293,11 @@ def _command_artists_add(payload: JsonDict, _emit_event: Emitter) -> JsonDict:
     if not artist_id.isdigit():
         raise ValueError("Artist id must be digits")
     name = str(payload.get("name") or "").strip() or None
+    save_path = str(payload.get("save_path") or "").strip() or None
     db = ArtistDatabase.load(_db_path(payload, settings))
-    changed = db.upsert(artist_id, name=name, source="manual")
+    changed = db.upsert(artist_id, name=name, source="manual", save_path=save_path)
     db.save()
-    return {"artist_id": artist_id, "changed": changed}
+    return {"artist_id": artist_id, "changed": changed, "save_path": save_path or ""}
 
 
 def _command_artists_rename(payload: JsonDict, _emit_event: Emitter) -> JsonDict:
@@ -359,12 +360,14 @@ def _command_scan_run(payload: JsonDict, emit_event: Emitter) -> JsonDict:
 
 def _command_updates_check(payload: JsonDict, emit_event: Emitter) -> JsonDict:
     settings = _load_settings_for_payload(payload)
+    update_check_pages = _int(payload, "update_check_pages", _int(settings, "update_check_pages", 0))
     result = check_artist_updates(
         _db_path(payload, settings),
         artist_ids=[str(item) for item in payload.get("artist_ids") or []] or None,
         pixiv_cookie=payload.get("pixiv_cookie") or load_cookie(),
         allow_insecure_ssl_fallback=_bool(payload, "ssl_fallback", bool(settings.get("ssl_fallback", True))),
         scan_local=_bool(payload, "scan_local_subfolders", bool(settings.get("scan_local_subfolders", False))),
+        max_pages=update_check_pages if update_check_pages > 0 else None,
         progress_callback=_progress(emit_event),
     )
     return _update_result_to_json(result)
@@ -434,20 +437,6 @@ def _command_browser_open(payload: JsonDict, _emit_event: Emitter) -> JsonDict:
     return {"opened": len(urls)}
 
 
-def _command_export_urls(payload: JsonDict, _emit_event: Emitter) -> JsonDict:
-    settings = _load_settings_for_payload(payload)
-    db = ArtistDatabase.load(_db_path(payload, settings))
-    artist_ids = [str(item) for item in payload.get("artist_ids") or []]
-    urls = [artist.pixiv_url for artist in db.get_many(artist_ids or None)]
-    output = payload.get("output")
-    if output:
-        output_path = Path(str(output))
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-        output_path.write_text("\n".join(urls) + ("\n" if urls else ""), encoding="utf-8")
-        return {"urls": urls, "count": len(urls), "output": str(output_path)}
-    return {"urls": urls, "count": len(urls)}
-
-
 def _command_file_reveal(payload: JsonDict, _emit_event: Emitter) -> JsonDict:
     path_text = str(payload.get("path") or "").strip()
     if not path_text:
@@ -475,7 +464,6 @@ COMMANDS: dict[str, Callable[[JsonDict, Emitter], JsonDict]] = {
     "updates.download": _command_updates_download,
     "similar.run": _command_similar_run,
     "browser.open": _command_browser_open,
-    "export.urls": _command_export_urls,
     "file.reveal": _command_file_reveal,
 }
 

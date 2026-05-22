@@ -101,6 +101,21 @@ class GuiBackendTests(unittest.TestCase):
             self.assertEqual(result.new_works, 2)
             self.assertEqual(set(db.artists["123456"].new_work_ids), {"102", "103"})
 
+    def test_check_artist_updates_passes_max_pages(self):
+        with TemporaryDirectory() as tmp:
+            db_path = Path(tmp) / "artists.json"
+            db = ArtistDatabase.load(db_path)
+            db.upsert("123456", name="Artist", work_ids={"100"})
+            db.save()
+
+            with patch(
+                "pixiv_pbd_manager.operations.fetch_user_work_ids",
+                return_value=PixivUserWorks(user_id="123456", work_ids={"100", "101"}),
+            ) as fetch:
+                check_artist_updates(db_path, max_pages=2)
+
+            self.assertEqual(fetch.call_args.kwargs["max_pages"], 2)
+
     def test_check_artist_updates_reports_progress(self):
         with TemporaryDirectory() as tmp:
             db_path = Path(tmp) / "artists.json"
