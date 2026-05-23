@@ -67,6 +67,15 @@ class ArtistDatabase:
             return [self.artists[artist_id] for artist_id in artist_ids]
         return [self.artists[artist_id] for artist_id in sorted(self.artists, key=lambda value: (len(value), value))]
 
+    def remove_many(self, artist_ids: list[str]) -> list[str]:
+        removed: list[str] = []
+        for artist_id in artist_ids:
+            artist_id = str(artist_id).strip()
+            if artist_id and artist_id in self.artists:
+                del self.artists[artist_id]
+                removed.append(artist_id)
+        return removed
+
     def rename_artist_id(self, old_id: str, new_id: str) -> bool:
         old_id = str(old_id).strip()
         new_id = str(new_id).strip()

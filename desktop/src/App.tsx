@@ -21,6 +21,7 @@ import {
   SlidersHorizontal,
   Square,
   Terminal,
+  Trash2,
   UserPlus,
   XCircle
 } from "lucide-react";
@@ -375,6 +376,13 @@ interface PromptState {
   onSubmit: (values: Record<string, string>) => void;
 }
 
+interface ConfirmState {
+  title: string;
+  body: string;
+  confirmLabel: string;
+  onConfirm: () => void | Promise<void>;
+}
+
 function PromptModal({ language, state, onClose }: { language: Language; state: PromptState; onClose: () => void }) {
   const [values, setValues] = useState<Record<string, string>>(() =>
     Object.fromEntries(state.fields.map((field) => [field.key, field.value]))
@@ -424,6 +432,28 @@ function PromptModal({ language, state, onClose }: { language: Language; state: 
           <Button onClick={onClose}>{t(language, "cancel")}</Button>
           <Button variant="primary" onClick={submit}>
             {t(language, "ok")}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ConfirmModal({ language, state, onClose }: { language: Language; state: ConfirmState; onClose: () => void }) {
+  const confirm = () => {
+    onClose();
+    void state.onConfirm();
+  };
+
+  return (
+    <div className="modalOverlay" onClick={onClose}>
+      <div className="modal confirmModal" onClick={(event) => event.stopPropagation()}>
+        <h3>{state.title}</h3>
+        <div className="confirmBody">{state.body}</div>
+        <div className="modalActions">
+          <Button onClick={onClose}>{t(language, "cancel")}</Button>
+          <Button variant="danger" onClick={confirm}>
+            {state.confirmLabel}
           </Button>
         </div>
       </div>
@@ -643,6 +673,7 @@ function ArtistsView({
   downloadUpdated,
   openSelected,
   copyUrls,
+  removeSelectedArtists,
   addArtist,
   editArtistId,
   editSavePath,
@@ -663,6 +694,7 @@ function ArtistsView({
   downloadUpdated: () => void;
   openSelected: () => void;
   copyUrls: () => void;
+  removeSelectedArtists: () => void;
   addArtist: () => void;
   editArtistId: (id: string) => void;
   editSavePath: (id: string) => void;
@@ -778,6 +810,10 @@ function ArtistsView({
         </Button>
         <Button icon={<ExternalLink size={16} />} onClick={openSelected}>
           {t(language, "openSelected")}
+        </Button>
+        <span className="toolbarSpacer" />
+        <Button icon={<Trash2 size={16} />} disabled={busy || selected.size === 0} onClick={removeSelectedArtists} variant="danger">
+          {t(language, "removeSelectedArtists")}{selected.size ? ` (${selected.size})` : ""}
         </Button>
       </div>
 
@@ -1647,14 +1683,28 @@ export default function App() {
     loadJson<UnmatchedFolder[]>(UNMATCHED_CACHE_KEY, [])
   );
   const [prompt, setPrompt] = useState<PromptState | null>(null);
+  const [confirm, setConfirm] = useState<ConfirmState | null>(null);
   const [disclaimer, setDisclaimer] = useState<"accept" | "view" | null>(null);
   const [scanPreview, setScanPreview] = useState<ScanPreviewPayload | null>(null);
+  const [toastMessage, setToastMessage] = useState("");
+  const toastTimerRef = useRef<number | null>(null);
 
   const languageValue = settings.language || language;
   const busy = runningTask !== null;
 
   const appendLog = (level: LogEntry["level"], message: string) => {
     setLogs((current) => [...current.slice(-999), { id: Date.now() + Math.random(), level, message }]);
+  };
+
+  const showToast = (message: string) => {
+    setToastMessage(message);
+    if (toastTimerRef.current !== null) {
+      window.clearTimeout(toastTimerRef.current);
+    }
+    toastTimerRef.current = window.setTimeout(() => {
+      setToastMessage("");
+      toastTimerRef.current = null;
+    }, 2400);
   };
 
   const updateTaskProgress = (event: ApiEvent) => {
@@ -1965,6 +2015,15 @@ export default function App() {
     persistJson(SIMILAR_RESULT_CACHE_KEY, similarResult);
   }, [similarResult]);
 
+  useEffect(
+    () => () => {
+      if (toastTimerRef.current !== null) {
+        window.clearTimeout(toastTimerRef.current);
+      }
+    },
+    []
+  );
+
   const setLanguage = (value: Language) => {
     setLanguageState(value);
     setSettings({ ...settings, language: value });
@@ -2210,10 +2269,47 @@ export default function App() {
     }
     try {
       await navigator.clipboard.writeText(text);
-      appendLog("info", `${t(languageValue, "copiedUrls")}: ${chosen.length}`);
+      const message = `${t(languageValue, "copiedUrls")}: ${chosen.length}`;
+      appendLog("info", message);
+      showToast(message);
     } catch (error) {
       appendLog("error", error instanceof Error ? error.message : String(error));
     }
+  };
+
+  const removeSelectedArtists = () => {
+    if (!selectedIds.length) {
+      appendLog("warn", t(languageValue, "noSelection"));
+      return;
+    }
+    const ids = [...selectedIds];
+    const names = artists
+      .filter((artist) => selected.has(artist.id))
+      .slice(0, 8)
+      .map((artist) => `${artist.name || artist.id} (${artist.id})`);
+    const more = ids.length > names.length ? `\n... +${ids.length - names.length}` : "";
+    setConfirm({
+      title: t(languageValue, "removeSelectedArtists"),
+      body: `${t(languageValue, "confirmRemoveArtists")}\n\n${names.join("\n")}${more}`,
+      confirmLabel: t(languageValue, "removeSelectedArtists"),
+      onConfirm: async () => {
+        try {
+          const result = await runGuiApi<{ removed: number; artist_ids: string[] }>(
+            "artists.remove",
+            { artist_ids: ids, database: settings.database },
+            handleEvent
+          );
+          const removed = new Set(result.artist_ids);
+          setSelected((current) => new Set([...current].filter((id) => !removed.has(id))));
+          const message = `${t(languageValue, "removedArtists")}: ${result.removed}`;
+          appendLog("info", message);
+          showToast(message);
+          await loadArtists();
+        } catch (error) {
+          appendLog("error", error instanceof Error ? error.message : String(error));
+        }
+      }
+    });
   };
 
   const addArtist = () => {
@@ -2388,6 +2484,7 @@ export default function App() {
             downloadUpdated={downloadUpdated}
             openSelected={openSelected}
             copyUrls={copyUrls}
+            removeSelectedArtists={removeSelectedArtists}
             addArtist={addArtist}
             editArtistId={editArtistId}
             editSavePath={editSavePath}
@@ -2479,6 +2576,7 @@ export default function App() {
       </footer>
 
       {prompt ? <PromptModal language={languageValue} state={prompt} onClose={() => setPrompt(null)} /> : null}
+      {confirm ? <ConfirmModal language={languageValue} state={confirm} onClose={() => setConfirm(null)} /> : null}
       {disclaimer ? (
         <DisclaimerModal
           language={languageValue}
@@ -2494,6 +2592,12 @@ export default function App() {
           onApply={applyScanChanges}
           onCancel={() => setScanPreview(null)}
         />
+      ) : null}
+      {toastMessage ? (
+        <div className="toast" role="status">
+          <CheckSquare size={17} />
+          <span>{toastMessage}</span>
+        </div>
       ) : null}
     </div>
   );

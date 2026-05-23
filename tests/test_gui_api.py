@@ -190,6 +190,28 @@ class GuiApiTests(unittest.TestCase):
         self.assertEqual(db.artists["123456"].save_paths, [str(folder.resolve())])
         self.assertEqual(db.artists["123456"].work_ids, ["987654"])
 
+    def test_artists_remove_deletes_selected_records(self):
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            old_cwd = Path.cwd()
+            try:
+                os.chdir(root)
+                db = ArtistDatabase.load(root / ".pixiv-pbd-manager" / "artists.json")
+                db.upsert("111", name="First")
+                db.upsert("222", name="Second")
+                db.save()
+
+                exit_code, events = invoke("artists.remove", {"artist_ids": ["111", "333"]})
+                db = ArtistDatabase.load(root / ".pixiv-pbd-manager" / "artists.json")
+            finally:
+                os.chdir(old_cwd)
+
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(events[-1]["payload"]["removed"], 1)
+        self.assertEqual(events[-1]["payload"]["artist_ids"], ["111"])
+        self.assertNotIn("111", db.artists)
+        self.assertIn("222", db.artists)
+
     def test_subprocess_outputs_utf8_json_for_cjk_and_emoji_artist_names(self):
         repo_root = Path(__file__).resolve().parents[1]
         with TemporaryDirectory() as tmp:

@@ -22,7 +22,7 @@
             "-m",
             "pixiv_pbd_manager.gui_api",
             {
-              "validator": "^(?:settings\\.get|settings\\.save|artists\\.list|artists\\.add|artists\\.assign_folder|artists\\.rename|artists\\.set_save_path|scan\\.run|scan\\.preview|scan\\.apply|updates\\.check|updates\\.download|similar\\.run|browser\\.open|file\\.reveal|image\\.thumbnail|cookie\\.revoke)$"
+              "validator": "^(?:settings\\.get|settings\\.save|artists\\.list|artists\\.add|artists\\.assign_folder|artists\\.remove|artists\\.rename|artists\\.set_save_path|scan\\.run|scan\\.preview|scan\\.apply|updates\\.check|updates\\.download|similar\\.run|browser\\.open|file\\.reveal|image\\.thumbnail|cookie\\.revoke)$"
             },
             {
               "validator": ".+"
@@ -36,7 +36,7 @@
             "-m",
             "pixiv_pbd_manager.gui_api",
             {
-              "validator": "^(?:settings\\.get|settings\\.save|artists\\.list|artists\\.add|artists\\.assign_folder|artists\\.rename|artists\\.set_save_path|scan\\.run|scan\\.preview|scan\\.apply|updates\\.check|updates\\.download|similar\\.run|browser\\.open|file\\.reveal|image\\.thumbnail|cookie\\.revoke)$"
+              "validator": "^(?:settings\\.get|settings\\.save|artists\\.list|artists\\.add|artists\\.assign_folder|artists\\.remove|artists\\.rename|artists\\.set_save_path|scan\\.run|scan\\.preview|scan\\.apply|updates\\.check|updates\\.download|similar\\.run|browser\\.open|file\\.reveal|image\\.thumbnail|cookie\\.revoke)$"
             },
             {
               "validator": ".+"

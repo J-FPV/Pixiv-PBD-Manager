@@ -120,6 +120,10 @@ footer {
   padding: 2px;
 }
 
+.toolbarSpacer {
+  flex: 1 0 12px;
+}
+
 .button {
   display: inline-flex;
   gap: 7px;
@@ -774,6 +778,33 @@ footer {
   gap: 8px;
 }
 
+.toast {
+  position: fixed;
+  right: 18px;
+  bottom: 58px;
+  z-index: 70;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: min(360px, calc(100vw - 36px));
+  min-height: 38px;
+  padding: 0 13px;
+  border: 1px solid #b8dfcf;
+  border-radius: 7px;
+  background: #e9f7f1;
+  color: var(--accent-strong);
+  box-shadow: 0 10px 28px rgba(20, 30, 40, 0.18);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.toast span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .consentRow {
   display: flex;
   align-items: center;
@@ -783,6 +814,16 @@ footer {
 
 .disclaimerModal {
   width: min(560px, 92vw);
+}
+
+.confirmModal {
+  width: min(520px, 92vw);
+}
+
+.confirmBody {
+  white-space: pre-wrap;
+  color: var(--text);
+  line-height: 1.55;
 }
 
 .disclaimerBody {

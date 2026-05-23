@@ -48,6 +48,18 @@ class DatabaseTests(unittest.TestCase):
             self.assertTrue(changed)
             self.assertEqual(db.artists["111"].save_paths, [str(second.resolve())])
 
+    def test_remove_many_deletes_existing_artists(self):
+        with TemporaryDirectory() as tmp:
+            db = ArtistDatabase.load(Path(tmp) / "artists.json")
+            db.upsert("111", name="First")
+            db.upsert("222", name="Second")
+
+            removed = db.remove_many(["111", "333"])
+
+            self.assertEqual(removed, ["111"])
+            self.assertNotIn("111", db.artists)
+            self.assertIn("222", db.artists)
+
 
 if __name__ == "__main__":
     unittest.main()

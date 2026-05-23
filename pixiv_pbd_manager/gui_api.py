@@ -497,6 +497,16 @@ def _command_artists_assign_folder(payload: JsonDict, _emit_event: Emitter) -> J
     }
 
 
+def _command_artists_remove(payload: JsonDict, _emit_event: Emitter) -> JsonDict:
+    settings = _load_settings_for_payload(payload)
+    artist_ids = [str(item).strip() for item in payload.get("artist_ids") or [] if str(item).strip()]
+    db = ArtistDatabase.load(_db_path(payload, settings))
+    removed = db.remove_many(artist_ids)
+    if removed:
+        db.save()
+    return {"removed": len(removed), "artist_ids": removed}
+
+
 def _command_artists_rename(payload: JsonDict, _emit_event: Emitter) -> JsonDict:
     settings = _load_settings_for_payload(payload)
     old_id = str(payload.get("old_id") or "").strip()
@@ -741,6 +751,7 @@ COMMANDS: dict[str, Callable[[JsonDict, Emitter], JsonDict]] = {
     "artists.list": _command_artists_list,
     "artists.add": _command_artists_add,
     "artists.assign_folder": _command_artists_assign_folder,
+    "artists.remove": _command_artists_remove,
     "artists.rename": _command_artists_rename,
     "artists.set_save_path": _command_artists_set_save_path,
     "scan.run": _command_scan_run,
