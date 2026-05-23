@@ -6,7 +6,7 @@ import os
 import subprocess
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 from ...browser import open_urls
 from ...database import ArtistDatabase
@@ -52,39 +52,19 @@ def open_browser(payload: JsonDict, _emit_event: Emitter) -> JsonDict:
 
 
 def _windows_open_folder(path: Path) -> None:
-    os.startfile(str(path))  # type: ignore[attr-defined]
+    _windows_shell_execute(str(path))
 
 
-def _windows_select_path(path: Path) -> None:
+def _windows_shell_execute(file: str, parameters: Optional[str] = None) -> None:
     import ctypes
-    from ctypes import wintypes
 
-    shell32 = ctypes.OleDLL("shell32")
-    ole32 = ctypes.OleDLL("ole32")
-    pidl = ctypes.c_void_p()
-    attributes = wintypes.ULONG(0)
+    result = ctypes.windll.shell32.ShellExecuteW(None, "open", file, parameters, None, 1)
+    if result <= 32:
+        raise OSError(f"ShellExecuteW failed for {file}: code {result}")
 
-    shell32.SHParseDisplayName.argtypes = [
-        wintypes.LPCWSTR,
-        ctypes.c_void_p,
-        ctypes.POINTER(ctypes.c_void_p),
-        wintypes.ULONG,
-        ctypes.POINTER(wintypes.ULONG),
-    ]
-    shell32.SHParseDisplayName.restype = ctypes.c_long
-    shell32.SHOpenFolderAndSelectItems.argtypes = [ctypes.c_void_p, wintypes.UINT, ctypes.c_void_p, wintypes.DWORD]
-    shell32.SHOpenFolderAndSelectItems.restype = ctypes.c_long
-    ole32.CoTaskMemFree.argtypes = [ctypes.c_void_p]
 
-    result = shell32.SHParseDisplayName(str(path), None, ctypes.byref(pidl), 0, ctypes.byref(attributes))
-    if result != 0 or not pidl:
-        raise OSError(f"SHParseDisplayName failed for {path}: HRESULT {result}")
-    try:
-        result = shell32.SHOpenFolderAndSelectItems(pidl, 0, None, 0)
-        if result != 0:
-            raise OSError(f"SHOpenFolderAndSelectItems failed for {path}: HRESULT {result}")
-    finally:
-        ole32.CoTaskMemFree(pidl)
+def _windows_reveal_file(path: Path) -> None:
+    _windows_shell_execute("explorer.exe", f'/select,"{path}"')
 
 
 def _nearest_existing_parent(path: Path) -> Path | None:
@@ -114,7 +94,7 @@ def reveal_file(payload: JsonDict, _emit_event: Emitter) -> JsonDict:
         # Reveal a file by selecting it inside its parent folder.
         if os.name == "nt":
             try:
-                _windows_select_path(path)
+                _windows_reveal_file(path)
                 selected = True
             except OSError:
                 _windows_open_folder(path.parent)

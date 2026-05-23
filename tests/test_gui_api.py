@@ -367,7 +367,7 @@ class GuiApiTests(unittest.TestCase):
         self.assertTrue(payload["data_url"].startswith("data:image/"))
 
     @unittest.skipUnless(os.name == "nt", "Windows explorer argument regression")
-    def test_file_reveal_uses_windows_shell_selection_api(self):
+    def test_file_reveal_uses_shell_execute_explorer_select_argument(self):
         with TemporaryDirectory() as tmp:
             root = Path(tmp)
             image_path = root / "sample image.jpg"
@@ -375,7 +375,7 @@ class GuiApiTests(unittest.TestCase):
             old_cwd = Path.cwd()
             try:
                 os.chdir(root)
-                with patch("pixiv_pbd_manager.gui_api.commands.files._windows_select_path") as select_path:
+                with patch("pixiv_pbd_manager.gui_api.commands.files._windows_shell_execute") as shell_execute:
                     exit_code, events = invoke("file.reveal", {"path": str(image_path)})
             finally:
                 os.chdir(old_cwd)
@@ -383,7 +383,7 @@ class GuiApiTests(unittest.TestCase):
         self.assertEqual(exit_code, 0)
         self.assertEqual(events[-1]["payload"]["opened"], True)
         self.assertEqual(events[-1]["payload"]["selected"], True)
-        select_path.assert_called_once_with(image_path.resolve())
+        shell_execute.assert_called_once_with("explorer.exe", f'/select,"{image_path.resolve()}"')
 
     @unittest.skipUnless(os.name == "nt", "Windows missing-path fallback")
     def test_file_reveal_missing_file_opens_existing_parent_on_windows(self):
@@ -393,7 +393,7 @@ class GuiApiTests(unittest.TestCase):
             old_cwd = Path.cwd()
             try:
                 os.chdir(root)
-                with patch("pixiv_pbd_manager.gui_api.commands.files._windows_open_folder") as open_folder:
+                with patch("pixiv_pbd_manager.gui_api.commands.files._windows_shell_execute") as shell_execute:
                     exit_code, events = invoke("file.reveal", {"path": str(missing)})
             finally:
                 os.chdir(old_cwd)
@@ -401,7 +401,7 @@ class GuiApiTests(unittest.TestCase):
         self.assertEqual(exit_code, 0)
         self.assertEqual(events[-1]["payload"]["opened"], True)
         self.assertEqual(events[-1]["payload"]["selected"], False)
-        open_folder.assert_called_once_with(root.resolve())
+        shell_execute.assert_called_once_with(str(root.resolve()))
 
     def test_unknown_command_outputs_error_event(self):
         exit_code, events = invoke("missing.command")
