@@ -49,7 +49,7 @@ import {
 import { joinLines, splitLines } from "./utils/paths";
 import { loadJson, persistJson } from "./utils/storage";
 import { normalizedUiState } from "./utils/uiState";
-import { applyProgressEvent, progressText } from "./utils/progressEvents";
+import { describeProgressEvent } from "./utils/progressEvents";
 import { useTaskRunner } from "./hooks/useTaskRunner";
 import { useWindowStatePersistence } from "./hooks/useWindowStatePersistence";
 import { ArtistsView } from "./components/ArtistsView";
@@ -135,11 +135,13 @@ export default function App() {
   };
 
   const handleEvent = (event: ApiEvent) => {
-    applyProgressEvent(languageValue, setTaskProgress, event);
-    const message = progressText(languageValue, event);
-    if (message) {
-      appendLog(event.type === "error" ? "error" : "info", message);
-      setStatus(message);
+    const { logText, progressUpdate } = describeProgressEvent(languageValue, event);
+    if (progressUpdate) {
+      setTaskProgress(progressUpdate);
+    }
+    if (logText) {
+      appendLog(event.type === "error" ? "error" : "info", logText);
+      setStatus(logText);
     }
   };
 
