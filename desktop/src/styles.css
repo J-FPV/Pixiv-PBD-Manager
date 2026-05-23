@@ -335,13 +335,13 @@ body.col-resizing .colHandle::after {
   background: var(--accent, #2563eb);
 }
 
-body.col-resizing {
-  cursor: col-resize !important;
+.colResizeOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  cursor: col-resize;
   user-select: none;
-}
-
-body.col-resizing * {
-  cursor: col-resize !important;
+  background: transparent;
 }
 
 .unmatchedRow:hover {

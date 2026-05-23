@@ -85,7 +85,7 @@ export function ArtistsView({
   const [menu, setMenu] = useState<{ x: number; y: number; artistId: string } | null>(null);
   const [sortKey, setSortKey] = useState<ArtistSortKey>("id");
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
-  const { gridTemplate, leftHandle, rightHandle } = useColumnWidths<ArtistColumn>(
+  const { gridTemplate, leftHandle, rightHandle, overlay } = useColumnWidths<ArtistColumn>(
     ARTISTS_COL_WIDTHS_KEY,
     ARTIST_COLUMNS,
   );
@@ -292,6 +292,7 @@ export function ArtistsView({
           </div>
         </div>
       ) : null}
+      {overlay}
     </section>
   );
 }

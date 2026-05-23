@@ -38,7 +38,7 @@ export function UnmatchedView({
     estimateSize: () => 42,
     overscan: 14
   });
-  const { gridTemplate, leftHandle, rightHandle } = useColumnWidths<UnmatchedColumn>(
+  const { gridTemplate, leftHandle, rightHandle, overlay } = useColumnWidths<UnmatchedColumn>(
     UNMATCHED_COL_WIDTHS_KEY,
     UNMATCHED_COLUMNS,
   );
@@ -104,6 +104,7 @@ export function UnmatchedView({
           )}
         </div>
       </div>
+      {overlay}
     </section>
   );
 }

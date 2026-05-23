@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { MouseEvent as ReactMouseEvent } from "react";
+import { createElement, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { PointerEvent as ReactPointerEvent, ReactNode } from "react";
 import { loadJson, persistJson } from "../utils/storage";
 
 export type ColumnDef<K extends string> = {
@@ -10,7 +10,7 @@ export type ColumnDef<K extends string> = {
 };
 
 export type ColumnHandleProps = {
-  onMouseDown: (event: ReactMouseEvent) => void;
+  onPointerDown: (event: ReactPointerEvent<HTMLElement>) => void;
   onDoubleClick: () => void;
 };
 
@@ -41,51 +41,70 @@ export function useColumnWidths<K extends string>(
     const saved = loadJson<Partial<Record<K, number>>>(storageKey, {});
     return { ...defaults, ...saved } as Record<K, number>;
   });
+  const [resizing, setResizing] = useState(false);
 
   useEffect(() => {
     persistJson(storageKey, widths);
   }, [storageKey, widths]);
 
-  const dragRef = useRef<{ key: K; startX: number; startWidth: number; sign: number } | null>(null);
+  // widthsRef lets makeHandle read the latest widths without depending on them,
+  // so the handle props don't churn on every mousemove during a drag.
+  const widthsRef = useRef(widths);
+  useEffect(() => {
+    widthsRef.current = widths;
+  }, [widths]);
 
   const makeHandle = useCallback(
     (key: K, side: "left" | "right"): ColumnHandleProps => ({
-      onMouseDown: (event: ReactMouseEvent) => {
+      onPointerDown: (event: ReactPointerEvent<HTMLElement>) => {
+        if (event.button !== 0) return; // primary button only
         event.preventDefault();
         event.stopPropagation();
-        dragRef.current = {
-          key,
-          startX: event.clientX,
-          startWidth: widths[key] ?? defaults[key] ?? min,
-          sign: side === "right" ? 1 : -1,
+        const target = event.currentTarget;
+        target.setPointerCapture(event.pointerId);
+        const startX = event.clientX;
+        const startWidth = widthsRef.current[key] ?? defaults[key] ?? min;
+        const sign = side === "right" ? 1 : -1;
+
+        let rafId: number | null = null;
+        let latestX = startX;
+        const flush = () => {
+          rafId = null;
+          const delta = (latestX - startX) * sign;
+          const next = Math.max(min, startWidth + delta);
+          setWidths((current) => (current[key] === next ? current : { ...current, [key]: next }));
         };
-        const onMove = (moveEvent: MouseEvent) => {
-          if (!dragRef.current) return;
-          const delta = (moveEvent.clientX - dragRef.current.startX) * dragRef.current.sign;
-          const next = Math.max(min, dragRef.current.startWidth + delta);
-          setWidths((current) => ({ ...current, [dragRef.current!.key]: next }));
+        const onMove = (moveEvent: PointerEvent) => {
+          latestX = moveEvent.clientX;
+          if (rafId === null) rafId = requestAnimationFrame(flush);
         };
-        const onUp = () => {
-          dragRef.current = null;
-          document.removeEventListener("mousemove", onMove);
-          document.removeEventListener("mouseup", onUp);
-          document.body.classList.remove("col-resizing");
+        const cleanup = (releaseEvent: PointerEvent) => {
+          if (rafId !== null) cancelAnimationFrame(rafId);
+          target.removeEventListener("pointermove", onMove);
+          target.removeEventListener("pointerup", cleanup);
+          target.removeEventListener("pointercancel", cleanup);
+          if (target.hasPointerCapture(releaseEvent.pointerId)) {
+            target.releasePointerCapture(releaseEvent.pointerId);
+          }
+          setResizing(false);
         };
-        document.body.classList.add("col-resizing");
-        document.addEventListener("mousemove", onMove);
-        document.addEventListener("mouseup", onUp);
+
+        setResizing(true);
+        target.addEventListener("pointermove", onMove);
+        target.addEventListener("pointerup", cleanup);
+        target.addEventListener("pointercancel", cleanup);
       },
       onDoubleClick: () => {
         setWidths((current) => ({ ...current, [key]: defaults[key] }));
       },
     }),
-    [widths, defaults, min],
+    [defaults, min],
   );
 
   const rightHandle = useCallback(
     (key: K): ColumnHandleProps | null => {
       const idx = columns.findIndex((entry) => entry.key === key);
-      if (idx === -1 || idx >= columns.length - 1) return null; // last column has no right handle
+      if (idx === -1 || idx >= columns.length - 1) return null;
       if (!isResizable(columns[idx])) return null;
       return makeHandle(key, "right");
     },
@@ -95,12 +114,9 @@ export function useColumnWidths<K extends string>(
   const leftHandle = useCallback(
     (key: K): ColumnHandleProps | null => {
       const idx = columns.findIndex((entry) => entry.key === key);
-      if (idx <= 0) return null; // first column has no left handle
+      if (idx <= 0) return null;
       if (!isResizable(columns[idx])) return null;
-      // Only show a left handle when the previous column is FLEX — that's the
-      // only case where the boundary can actually move (the flex column absorbs
-      // the delta). A fixed non-resizable neighbor on the left would just shift
-      // this column's far edge, which looks like the wrong edge is moving.
+      // Only meaningful when the previous column is flex, so the flex absorbs the delta.
       if (!columns[idx - 1].flex) return null;
       return makeHandle(key, "left");
     },
@@ -112,5 +128,10 @@ export function useColumnWidths<K extends string>(
     [columns, widths],
   );
 
-  return { gridTemplate, leftHandle, rightHandle };
+  // Rendered while the user is dragging a handle. Sits above the entire app
+  // and shows a global col-resize cursor without forcing style recalc on every
+  // descendant (which WebView2 chokes on under sustained pointer churn).
+  const overlay: ReactNode = resizing ? createElement("div", { className: "colResizeOverlay" }) : null;
+
+  return { gridTemplate, leftHandle, rightHandle, overlay };
 }

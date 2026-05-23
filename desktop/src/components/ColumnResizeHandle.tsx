@@ -13,7 +13,7 @@ export function ColumnResizeHandle({
   return (
     <span
       className={`colHandle colHandle-${side}`}
-      onMouseDown={handle.onMouseDown}
+      onPointerDown={handle.onPointerDown}
       onDoubleClick={handle.onDoubleClick}
       onClick={stopClick}
       role="separator"

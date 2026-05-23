@@ -99,7 +99,7 @@ export function SimilarView({
     estimateSize: (index) => (rows[index]?.type === "entry" ? 76 : 42),
     overscan: 14
   });
-  const { gridTemplate, leftHandle, rightHandle } = useColumnWidths<SimilarColumn>(
+  const { gridTemplate, leftHandle, rightHandle, overlay } = useColumnWidths<SimilarColumn>(
     SIMILAR_COL_WIDTHS_KEY,
     SIMILAR_COLUMNS,
   );
@@ -288,6 +288,7 @@ export function SimilarView({
           revealFile={revealFile}
         />
       ) : null}
+      {overlay}
     </section>
   );
 }
