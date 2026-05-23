@@ -24,9 +24,20 @@ def invoke(command, payload=None):
     return exit_code, events
 
 
+def _isolate(directory) -> Path:
+    """Create the `.pixiv-pbd-manager/` marker inside ``directory`` so that
+    ``gui_api.resolve_base_dir`` treats it as a project root. Without this,
+    the resolver would fall through to the real ``%APPDATA%/PixivPbdManager/``
+    and the test would pollute the user's actual data."""
+    path = Path(directory)
+    (path / ".pixiv-pbd-manager").mkdir(exist_ok=True)
+    return path
+
+
 class GuiApiTests(unittest.TestCase):
     def test_settings_get_outputs_result_event(self):
         with TemporaryDirectory() as tmp:
+            _isolate(tmp)
             old_cwd = Path.cwd()
             try:
                 os.chdir(tmp)
@@ -41,7 +52,7 @@ class GuiApiTests(unittest.TestCase):
 
     def test_settings_save_and_artists_list(self):
         with TemporaryDirectory() as tmp:
-            root = Path(tmp)
+            root = _isolate(tmp)
             settings = {
                 "database": str(root / ".pixiv-pbd-manager" / "artists.json"),
                 "download_roots": [str(root / "images")],
@@ -62,7 +73,7 @@ class GuiApiTests(unittest.TestCase):
 
     def test_cookie_revoke_clears_cookie_immediately(self):
         with TemporaryDirectory() as tmp:
-            root = Path(tmp)
+            root = _isolate(tmp)
             old_cwd = Path.cwd()
             try:
                 os.chdir(root)
@@ -124,7 +135,7 @@ class GuiApiTests(unittest.TestCase):
 
     def test_artists_add_can_store_save_path(self):
         with TemporaryDirectory() as tmp:
-            root = Path(tmp)
+            root = _isolate(tmp)
             save_path = root / "artist-folder"
             old_cwd = Path.cwd()
             try:
@@ -144,7 +155,7 @@ class GuiApiTests(unittest.TestCase):
 
     def test_artists_add_fetches_name_when_empty(self):
         with TemporaryDirectory() as tmp:
-            root = Path(tmp)
+            root = _isolate(tmp)
             old_cwd = Path.cwd()
             try:
                 os.chdir(root)
@@ -163,7 +174,7 @@ class GuiApiTests(unittest.TestCase):
 
     def test_artists_assign_folder_records_save_path_and_local_work_ids(self):
         with TemporaryDirectory() as tmp:
-            root = Path(tmp)
+            root = _isolate(tmp)
             folder = root / "unmatched-folder"
             folder.mkdir()
             (folder / "987654_p0.jpg").write_bytes(b"fake")
@@ -192,7 +203,7 @@ class GuiApiTests(unittest.TestCase):
 
     def test_artists_remove_deletes_selected_records(self):
         with TemporaryDirectory() as tmp:
-            root = Path(tmp)
+            root = _isolate(tmp)
             old_cwd = Path.cwd()
             try:
                 os.chdir(root)
@@ -262,7 +273,7 @@ class GuiApiTests(unittest.TestCase):
 
     def test_scan_run_emits_progress_and_result(self):
         with TemporaryDirectory() as tmp:
-            root = Path(tmp)
+            root = _isolate(tmp)
             library = root / "library"
             artist_dir = library / "Artist-123456"
             artist_dir.mkdir(parents=True)
@@ -288,7 +299,7 @@ class GuiApiTests(unittest.TestCase):
 
     def test_similar_run_outputs_duplicate_groups(self):
         with TemporaryDirectory() as tmp:
-            root = Path(tmp)
+            root = _isolate(tmp)
             first = root / "first.png"
             second = root / "second.png"
             Image.new("RGB", (32, 32), "red").save(first)
@@ -335,7 +346,7 @@ class GuiApiTests(unittest.TestCase):
 
     def test_similar_run_can_skip_pixiv_page_pairs(self):
         with TemporaryDirectory() as tmp:
-            root = Path(tmp)
+            root = _isolate(tmp)
             first = root / "12345678_p0.png"
             second = root / "12345678_p1.png"
             Image.new("RGB", (32, 32), "red").save(first)
@@ -355,7 +366,7 @@ class GuiApiTests(unittest.TestCase):
 
     def test_image_thumbnail_outputs_data_url(self):
         with TemporaryDirectory() as tmp:
-            root = Path(tmp)
+            root = _isolate(tmp)
             image_path = root / "sample.png"
             Image.new("RGB", (48, 32), "red").save(image_path)
             old_cwd = Path.cwd()
@@ -373,7 +384,7 @@ class GuiApiTests(unittest.TestCase):
 
     def test_image_difference_outputs_data_url(self):
         with TemporaryDirectory() as tmp:
-            root = Path(tmp)
+            root = _isolate(tmp)
             first = root / "first.png"
             second = root / "second.png"
             Image.new("RGB", (48, 32), "red").save(first)
@@ -397,7 +408,7 @@ class GuiApiTests(unittest.TestCase):
     @unittest.skipUnless(os.name == "nt", "Windows explorer argument regression")
     def test_file_reveal_uses_shell_execute_explorer_select_argument(self):
         with TemporaryDirectory() as tmp:
-            root = Path(tmp)
+            root = _isolate(tmp)
             image_path = root / "sample image.jpg"
             image_path.write_bytes(b"fake")
             old_cwd = Path.cwd()
@@ -416,7 +427,7 @@ class GuiApiTests(unittest.TestCase):
     @unittest.skipUnless(os.name == "nt", "Windows missing-path fallback")
     def test_file_reveal_missing_file_opens_existing_parent_on_windows(self):
         with TemporaryDirectory() as tmp:
-            root = Path(tmp)
+            root = _isolate(tmp)
             missing = root / "missing image.jpg"
             old_cwd = Path.cwd()
             try:
@@ -439,7 +450,7 @@ class GuiApiTests(unittest.TestCase):
 
     def test_main_reads_payload_from_file(self):
         with TemporaryDirectory() as tmp:
-            root = Path(tmp)
+            root = _isolate(tmp)
             payload_file = root / "payload.json"
             payload_file.write_text(json.dumps({"settings": {}}), encoding="utf-8")
             buf = io.StringIO()
@@ -457,7 +468,7 @@ class GuiApiTests(unittest.TestCase):
 
     def test_main_reads_payload_from_stdin(self):
         with TemporaryDirectory() as tmp:
-            root = Path(tmp)
+            root = _isolate(tmp)
             buf = io.StringIO()
             old_cwd = Path.cwd()
             old_stdin = sys.stdin
@@ -486,7 +497,7 @@ class GuiApiTests(unittest.TestCase):
 
     def test_update_download_and_browser_commands_return_results(self):
         with TemporaryDirectory() as tmp:
-            root = Path(tmp)
+            root = _isolate(tmp)
             db_path = root / ".pixiv-pbd-manager" / "artists.json"
             old_cwd = Path.cwd()
             try:

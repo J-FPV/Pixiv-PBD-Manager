@@ -122,6 +122,23 @@ Run the GUI regression checklist in [manual-test-checklist.md](../zh/manual-test
 
 The current development build depends on the user's Python environment. The intended packaging path is to build the Python backend with PyInstaller as a Tauri sidecar, then ship a Tauri installer so end users do not need to install Python dependencies manually.
 
+## Data directory resolution
+
+The `.pixiv-pbd-manager/` state folder is located in priority order (see `pixiv_pbd_manager/paths.py`):
+
+1. `PIXIV_PBD_DATA_DIR` env var (points at the **parent** directory; the `.pixiv-pbd-manager/` subfolder is created inside it).
+2. The first existing `.pixiv-pbd-manager/` found by walking up from the current working directory.
+3. OS-standard user data directory:
+   - Windows: `%APPDATA%/PixivPbdManager/.pixiv-pbd-manager/`
+   - macOS:   `~/Library/Application Support/PixivPbdManager/.pixiv-pbd-manager/`
+   - Linux:   `$XDG_DATA_HOME/PixivPbdManager/.pixiv-pbd-manager/` (or `~/.local/share/...`)
+
+Developer flow (running `python -m pixiv_pbd_manager.gui_api ...` from the repo root): the walk-up finds the in-repo `.pixiv-pbd-manager/` and keeps data alongside the source. No change from the previous behaviour.
+
+End-user flow (launched from the Start Menu after a future installer): the walk-up finds no marker and falls through to the OS-standard location.
+
+**When writing IPC smokes:** a bare `os.chdir(/tmp/foo)` no longer falls back to cwd; it now reaches real APPDATA and pollutes user data. Either `mkdir <tmp>/.pixiv-pbd-manager` first, or set `PIXIV_PBD_DATA_DIR=<tmp>`. `tests/test_gui_api.py` uses an `_isolate()` helper.
+
 ## Maintenance Notes
 
 - IPC event keys are guarded by `pixiv_pbd_manager/events.py` and `desktop/src/events.ts`.

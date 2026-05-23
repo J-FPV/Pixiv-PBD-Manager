@@ -9,10 +9,17 @@ payload safely. Those helpers all live here.
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from typing import Any
 
-from ..paths import DATA_DIR, DEFAULT_DB, DEFAULT_GUI_SETTINGS as DEFAULT_SETTINGS_PATH
+from ..paths import (
+    DATA_DIR,
+    DATA_DIR_ENV_VAR,
+    DEFAULT_DB,
+    DEFAULT_GUI_SETTINGS as DEFAULT_SETTINGS_PATH,
+    _appdata_root,
+)
 from .runtime import JsonDict
 
 # ``DEFAULT_DB`` and ``DEFAULT_SETTINGS_PATH`` are re-exported from this module
@@ -53,6 +60,22 @@ def _nearest_project_root(path: Path) -> Path | None:
     return None
 
 
+def _user_data_fallback() -> Path:
+    """Return the base directory under which the legacy ``.pixiv-pbd-manager/``
+    subfolder lives in end-user (installed) mode. Honours the
+    ``PIXIV_PBD_DATA_DIR`` env var if set, else uses the OS-standard user data
+    directory. Creates the directory tree if needed.
+    """
+    env = os.environ.get(DATA_DIR_ENV_VAR)
+    if env:
+        base = Path(env).expanduser()
+    else:
+        base = _appdata_root()
+    base.mkdir(parents=True, exist_ok=True)
+    (base / DATA_DIR.name).mkdir(parents=True, exist_ok=True)
+    return base
+
+
 def resolve_base_dir(project_root: Any = None) -> Path:
     """Pick the directory that GUI command handlers should chdir into.
 
@@ -63,18 +86,27 @@ def resolve_base_dir(project_root: Any = None) -> Path:
     (installed user state). That walk-up is the whole point of this
     function.
 
-    Order of preference: the supplied ``project_root`` (or its closest
-    ancestor that looks like a project root), then the cwd's closest
-    project root, then the source root as last resort.
+    Order of preference:
+      1. The supplied ``project_root`` (or its closest ancestor that looks
+         like a project root).
+      2. The closest project root walking up from cwd.
+      3. The OS user data directory (``%APPDATA%/PixivPbdManager/`` on
+         Windows, equivalents elsewhere). Honours ``PIXIV_PBD_DATA_DIR``
+         env var as an override.
 
     **Gotcha for tests / smokes:** if you pass ``project_root=/tmp/foo``
     and ``/tmp/foo`` has neither marker, the walk-up will escape into
-    cwd and you'll silently hit the real ``.pixiv-pbd-manager/``. To
-    isolate a smoke, ``mkdir <tmp>/.pixiv-pbd-manager`` before calling.
+    cwd and you'll silently hit the OS user data directory (which then
+    persists between test runs). To isolate a smoke, ``mkdir
+    <tmp>/.pixiv-pbd-manager`` before calling, or set the
+    ``PIXIV_PBD_DATA_DIR`` env var.
     """
     if not project_root:
         cwd = Path.cwd().resolve()
-        return _nearest_project_root(cwd) or cwd
+        marker = _nearest_project_root(cwd)
+        if marker:
+            return marker
+        return _user_data_fallback()
 
     raw = Path(str(project_root)).expanduser()
     candidates = [raw if raw.is_absolute() else Path.cwd() / raw, Path.cwd(), SOURCE_ROOT]
@@ -83,7 +115,7 @@ def resolve_base_dir(project_root: Any = None) -> Path:
         root = _nearest_project_root(candidate)
         if root:
             return root
-    return SOURCE_ROOT
+    return _user_data_fallback()
 
 
 def base_dir(payload: JsonDict) -> Path:
