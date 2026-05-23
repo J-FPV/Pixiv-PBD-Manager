@@ -12,6 +12,16 @@ from pathlib import Path
 from .. import downloader, resolver
 from ..database import ArtistDatabase
 from ..downloader import ArtworkDownloadResult
+from ..events import (
+    PROGRESS_CHECK_ARTIST,
+    PROGRESS_CHECK_FOUND,
+    PROGRESS_CHECK_START,
+    PROGRESS_DOWNLOAD_ARTIST,
+    PROGRESS_DOWNLOAD_ERROR,
+    PROGRESS_DOWNLOAD_START,
+    PROGRESS_DOWNLOAD_WORK,
+    PROGRESS_DOWNLOAD_WORK_DONE,
+)
 from ..models import utc_now
 from ._shared import ProgressCallback, collect_local_work_ids, emit
 
@@ -57,9 +67,9 @@ def check_artist_updates(
     artists = db.get_many(artist_ids or None)
     result = UpdateCheckResult()
 
-    emit(progress_callback, "progress_check_start", total=len(artists))
+    emit(progress_callback, PROGRESS_CHECK_START, total=len(artists))
     for index, artist in enumerate(artists, 1):
-        emit(progress_callback, "progress_check_artist", current=index, total=len(artists), artist=artist.name or artist.id)
+        emit(progress_callback, PROGRESS_CHECK_ARTIST, current=index, total=len(artists), artist=artist.name or artist.id)
         if scan_local:
             local_ids = collect_local_work_ids(artist.save_paths)
             if local_ids:
@@ -81,7 +91,7 @@ def check_artist_updates(
         if artist.new_work_ids:
             result.artists_with_updates += 1
             result.new_works += len(artist.new_work_ids)
-            emit(progress_callback, "progress_check_found", artist=artist.name or artist.id, count=len(artist.new_work_ids))
+            emit(progress_callback, PROGRESS_CHECK_FOUND, artist=artist.name or artist.id, count=len(artist.new_work_ids))
 
     if result.checked:
         # Touch the records through their own fields; database save persists pending update state.
@@ -109,14 +119,14 @@ def download_artist_updates(
     downloadable_artists = [artist for artist in artists if artist.new_work_ids]
     total_works = sum(len(artist.new_work_ids) for artist in downloadable_artists)
     completed_works = 0
-    emit(progress_callback, "progress_download_start", artists=len(downloadable_artists), total_works=total_works)
+    emit(progress_callback, PROGRESS_DOWNLOAD_START, artists=len(downloadable_artists), total_works=total_works)
 
     for artist_index, artist in enumerate(downloadable_artists, 1):
         if not artist.new_work_ids:
             continue
         emit(
             progress_callback,
-            "progress_download_artist",
+            PROGRESS_DOWNLOAD_ARTIST,
             current=artist_index,
             total=len(downloadable_artists),
             artist=artist.name or artist.id,
@@ -136,7 +146,7 @@ def download_artist_updates(
         for work_index, work_id in enumerate(pending_work_ids, 1):
             emit(
                 progress_callback,
-                "progress_download_work",
+                PROGRESS_DOWNLOAD_WORK,
                 current=work_index,
                 total=len(pending_work_ids),
                 global_current=completed_works + 1,
@@ -165,7 +175,7 @@ def download_artist_updates(
                 result.errors.append(f"{artist.id}/{work_id}: {artwork_result.error}")
                 emit(
                     progress_callback,
-                    "progress_download_error",
+                    PROGRESS_DOWNLOAD_ERROR,
                     artist=artist.name or artist.id,
                     work_id=work_id,
                     error=artwork_result.error,
@@ -179,7 +189,7 @@ def download_artist_updates(
             completed_works += 1
             emit(
                 progress_callback,
-                "progress_download_work_done",
+                PROGRESS_DOWNLOAD_WORK_DONE,
                 global_done=completed_works,
                 global_total=total_works,
                 artist=artist.name or artist.id,

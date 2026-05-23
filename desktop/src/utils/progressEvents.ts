@@ -1,4 +1,29 @@
 import type { Dispatch, SetStateAction } from "react";
+import {
+  PROGRESS_CHECK_ARTIST,
+  PROGRESS_CHECK_FOUND,
+  PROGRESS_CHECK_START,
+  PROGRESS_DOWNLOAD_ARTIST,
+  PROGRESS_DOWNLOAD_ERROR,
+  PROGRESS_DOWNLOAD_FILE_DONE,
+  PROGRESS_DOWNLOAD_FILE_PROGRESS,
+  PROGRESS_DOWNLOAD_FILE_START,
+  PROGRESS_DOWNLOAD_START,
+  PROGRESS_DOWNLOAD_WORK,
+  PROGRESS_DOWNLOAD_WORK_DONE,
+  PROGRESS_FUZZY_ARTIST,
+  PROGRESS_RESOLVE_ARTIST,
+  PROGRESS_SCAN_DONE,
+  PROGRESS_SCAN_FILES,
+  PROGRESS_SCAN_START,
+  PROGRESS_SIMILAR_DONE,
+  PROGRESS_SIMILAR_FILE_START,
+  PROGRESS_SIMILAR_FILES,
+  PROGRESS_SIMILAR_INDEX_SAVED,
+  PROGRESS_SIMILAR_MATCH,
+  PROGRESS_SIMILAR_MATCH_START,
+  PROGRESS_SIMILAR_START
+} from "../events";
 import { t } from "../i18n";
 import type { ApiEvent, Language, TaskProgressState } from "../types";
 import { numberValue } from "./format";
@@ -16,47 +41,47 @@ export function progressText(language: Language, event: ApiEvent): string | null
   }
   const p = event.payload;
   switch (event.key) {
-    case "progress_scan_start":
+    case PROGRESS_SCAN_START:
       return `Scan started: ${p.roots} folder(s)`;
-    case "progress_scan_files":
+    case PROGRESS_SCAN_FILES:
       return `Scan: ${p.files} files, ${p.matched} matched, ${p.name_only} name-only`;
-    case "progress_scan_done":
+    case PROGRESS_SCAN_DONE:
       return `Scan done: ${p.files} files, ${p.matched} matched`;
-    case "progress_resolve_artist":
-    case "progress_fuzzy_artist":
+    case PROGRESS_RESOLVE_ARTIST:
+    case PROGRESS_FUZZY_ARTIST:
       return `Resolve: ${p.current}/${p.total} ${p.name}`;
-    case "progress_check_start":
+    case PROGRESS_CHECK_START:
       return `Checking ${p.total} artist(s)`;
-    case "progress_check_artist":
+    case PROGRESS_CHECK_ARTIST:
       return `Checking: ${p.current}/${p.total} ${p.artist}`;
-    case "progress_check_found":
+    case PROGRESS_CHECK_FOUND:
       return `Updates: ${p.artist} ${p.count}`;
-    case "progress_download_start":
+    case PROGRESS_DOWNLOAD_START:
       return `Downloading ${p.artists} artist(s), ${p.total_works ?? 0} artwork(s)`;
-    case "progress_download_artist":
+    case PROGRESS_DOWNLOAD_ARTIST:
       return `Downloading: ${p.current}/${p.total} ${p.artist}`;
-    case "progress_download_work":
+    case PROGRESS_DOWNLOAD_WORK:
       return `Artwork: ${p.current}/${p.total} ${p.work_id}`;
-    case "progress_download_file_start":
-    case "progress_download_file_progress":
-    case "progress_download_file_done":
-    case "progress_download_work_done":
+    case PROGRESS_DOWNLOAD_FILE_START:
+    case PROGRESS_DOWNLOAD_FILE_PROGRESS:
+    case PROGRESS_DOWNLOAD_FILE_DONE:
+    case PROGRESS_DOWNLOAD_WORK_DONE:
       return null;
-    case "progress_download_error":
+    case PROGRESS_DOWNLOAD_ERROR:
       return `${t(language, "error")}: ${p.work_id} - ${p.error}`;
-    case "progress_similar_start":
+    case PROGRESS_SIMILAR_START:
       return `Similar scan started: ${p.roots} folder(s)`;
-    case "progress_similar_file_start":
+    case PROGRESS_SIMILAR_FILE_START:
       return `Similar processing: ${p.files}/${p.total_files ?? "?"} ${p.name ?? ""}`;
-    case "progress_similar_files":
+    case PROGRESS_SIMILAR_FILES:
       return `Similar: ${p.files}/${p.total_files ?? "?"} files, ${p.indexed} indexed, ${p.changed ?? 0} changed, ${p.reused} reused, ${p.errors} errors`;
-    case "progress_similar_index_saved":
+    case PROGRESS_SIMILAR_INDEX_SAVED:
       return `Similar index saved: ${p.files}/${p.total_files ?? "?"} files, ${p.indexed} indexed, ${p.changed ?? 0} changed, ${p.reused} reused`;
-    case "progress_similar_match_start":
+    case PROGRESS_SIMILAR_MATCH_START:
       return `Similar matching started: ${p.total} indexed image(s)`;
-    case "progress_similar_match":
+    case PROGRESS_SIMILAR_MATCH:
       return `Similar matching: ${p.current}/${p.total}, ${p.pairs} candidate pair(s)`;
-    case "progress_similar_done":
+    case PROGRESS_SIMILAR_DONE:
       return `Similar done: ${p.files} files, ${p.indexed} indexed, ${p.groups} groups`;
     default:
       return `${event.key}: ${JSON.stringify(p)}`;
@@ -76,10 +101,10 @@ export function applyProgressEvent(
   }
   const p = event.payload;
   switch (event.key) {
-    case "progress_scan_start":
+    case PROGRESS_SCAN_START:
       setTaskProgress({ main: { label: t(language, "scan"), current: 0, total: 0, indeterminate: true } });
       break;
-    case "progress_scan_files":
+    case PROGRESS_SCAN_FILES:
       setTaskProgress({
         main: {
           label: `${t(language, "scan")}: ${numberValue(p.files)} files`,
@@ -89,11 +114,11 @@ export function applyProgressEvent(
         }
       });
       break;
-    case "progress_scan_done":
+    case PROGRESS_SCAN_DONE:
       setTaskProgress({ main: { label: t(language, "scan"), current: 1, total: 1 } });
       break;
-    case "progress_resolve_artist":
-    case "progress_fuzzy_artist":
+    case PROGRESS_RESOLVE_ARTIST:
+    case PROGRESS_FUZZY_ARTIST:
       setTaskProgress({
         main: {
           label: `${t(language, "scan")}: ${String(p.name ?? "")}`,
@@ -102,12 +127,12 @@ export function applyProgressEvent(
         }
       });
       break;
-    case "progress_check_start":
+    case PROGRESS_CHECK_START:
       setTaskProgress({
         main: { label: t(language, "checkUpdates"), current: 0, total: numberValue(p.total) }
       });
       break;
-    case "progress_check_artist":
+    case PROGRESS_CHECK_ARTIST:
       setTaskProgress({
         main: {
           label: `${t(language, "checkUpdates")}: ${String(p.artist ?? "")}`,
@@ -116,7 +141,7 @@ export function applyProgressEvent(
         }
       });
       break;
-    case "progress_download_start":
+    case PROGRESS_DOWNLOAD_START:
       setTaskProgress({
         main: {
           label: t(language, "totalProgress"),
@@ -126,7 +151,7 @@ export function applyProgressEvent(
         }
       });
       break;
-    case "progress_download_work":
+    case PROGRESS_DOWNLOAD_WORK:
       setTaskProgress((current) => ({
         main: {
           label: `${t(language, "totalProgress")}: ${String(p.artist ?? "")}`,
@@ -136,7 +161,7 @@ export function applyProgressEvent(
         file: current?.file
       }));
       break;
-    case "progress_download_work_done":
+    case PROGRESS_DOWNLOAD_WORK_DONE:
       setTaskProgress((current) => ({
         main: {
           label: t(language, "totalProgress"),
@@ -146,26 +171,26 @@ export function applyProgressEvent(
         file: current?.file
       }));
       break;
-    case "progress_download_file_start":
-    case "progress_download_file_progress":
-    case "progress_download_file_done":
+    case PROGRESS_DOWNLOAD_FILE_START:
+    case PROGRESS_DOWNLOAD_FILE_PROGRESS:
+    case PROGRESS_DOWNLOAD_FILE_DONE:
       setTaskProgress((current) => ({
         main: current?.main || { label: t(language, "totalProgress"), current: 0, total: 0, indeterminate: true },
         file: {
           label: `${t(language, "currentFile")}: ${String(p.filename ?? p.work_id ?? "")}`,
           current: numberValue(p.downloaded_bytes),
           total: numberValue(p.total_bytes),
-          indeterminate: numberValue(p.total_bytes) === 0 && event.key !== "progress_download_file_done",
+          indeterminate: numberValue(p.total_bytes) === 0 && event.key !== PROGRESS_DOWNLOAD_FILE_DONE,
           speedBps: numberValue(p.speed_bps)
         }
       }));
       break;
-    case "progress_similar_start":
+    case PROGRESS_SIMILAR_START:
       setTaskProgress({ main: { label: t(language, "findSimilar"), current: 0, total: 0, indeterminate: true } });
       break;
-    case "progress_similar_file_start":
-    case "progress_similar_files":
-    case "progress_similar_index_saved": {
+    case PROGRESS_SIMILAR_FILE_START:
+    case PROGRESS_SIMILAR_FILES:
+    case PROGRESS_SIMILAR_INDEX_SAVED: {
       const hasTotal = p.total_files !== undefined && p.total_files !== null;
       const totalFiles = numberValue(p.total_files);
       const files = numberValue(p.files);
@@ -179,7 +204,7 @@ export function applyProgressEvent(
       });
       break;
     }
-    case "progress_similar_match_start":
+    case PROGRESS_SIMILAR_MATCH_START:
       setTaskProgress({
         main: {
           label: `${t(language, "findSimilar")}: matching`,
@@ -189,7 +214,7 @@ export function applyProgressEvent(
         }
       });
       break;
-    case "progress_similar_match":
+    case PROGRESS_SIMILAR_MATCH:
       setTaskProgress({
         main: {
           label: `${t(language, "findSimilar")}: matching ${numberValue(p.pairs)} pairs`,
@@ -198,7 +223,7 @@ export function applyProgressEvent(
         }
       });
       break;
-    case "progress_similar_done":
+    case PROGRESS_SIMILAR_DONE:
       setTaskProgress({ main: { label: t(language, "findSimilar"), current: 1, total: 1 } });
       break;
     default:

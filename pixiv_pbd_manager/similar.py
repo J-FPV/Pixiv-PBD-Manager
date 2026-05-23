@@ -11,6 +11,15 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from .events import (
+    PROGRESS_SIMILAR_DONE,
+    PROGRESS_SIMILAR_FILE_START,
+    PROGRESS_SIMILAR_FILES,
+    PROGRESS_SIMILAR_INDEX_SAVED,
+    PROGRESS_SIMILAR_MATCH,
+    PROGRESS_SIMILAR_MATCH_START,
+    PROGRESS_SIMILAR_START,
+)
 from .paths import DEFAULT_IMAGE_INDEX  # re-exported as similar.DEFAULT_IMAGE_INDEX
 from .scanner import is_excluded_path, normalize_exclude_roots
 
@@ -349,7 +358,7 @@ def build_similar_groups(
     max_phash_distance = POSSIBLE_LIMITS[0] if include_possible else LIKELY_LIMITS[0]
     union_find = UnionFind(len(entries))
     pairs: list[SimilarPair] = []
-    emit(progress_callback, "progress_similar_match_start", total=len(entries))
+    emit(progress_callback, PROGRESS_SIMILAR_MATCH_START, total=len(entries))
 
     sha_groups: dict[str, list[int]] = defaultdict(list)
     for index, entry in enumerate(entries):
@@ -385,12 +394,12 @@ def build_similar_groups(
         if progress_callback and progress_interval > 0 and (index + 1) % progress_interval == 0:
             emit(
                 progress_callback,
-                "progress_similar_match",
+                PROGRESS_SIMILAR_MATCH,
                 current=index + 1,
                 total=len(entries),
                 pairs=len(pairs),
             )
-    emit(progress_callback, "progress_similar_match", current=len(entries), total=len(entries), pairs=len(pairs))
+    emit(progress_callback, PROGRESS_SIMILAR_MATCH, current=len(entries), total=len(entries), pairs=len(pairs))
 
     grouped_indices: dict[int, list[int]] = defaultdict(list)
     for index in range(len(entries)):
@@ -443,12 +452,12 @@ def find_similar_images(
     old_index = load_image_index(index_path)
     entries: list[ImageFingerprint] = []
     result = SimilarImageResult(roots=[str(Path(root).resolve()) for root in roots], index_path=index_path)
-    emit(progress_callback, "progress_similar_start", roots=len(roots))
+    emit(progress_callback, PROGRESS_SIMILAR_START, roots=len(roots))
     image_paths = list(iter_image_files(roots, exclude_roots))
     total_files = len(image_paths)
     emit(
         progress_callback,
-        "progress_similar_files",
+        PROGRESS_SIMILAR_FILES,
         files=0,
         total_files=total_files,
         indexed=0,
@@ -463,7 +472,7 @@ def find_similar_images(
         if progress_callback and index_progress_step and (position == 1 or (position - 1) % index_progress_step == 0):
             emit(
                 progress_callback,
-                "progress_similar_file_start",
+                PROGRESS_SIMILAR_FILE_START,
                 files=position,
                 completed=result.files_seen,
                 total_files=total_files,
@@ -491,7 +500,7 @@ def find_similar_images(
         ):
             emit(
                 progress_callback,
-                "progress_similar_files",
+                PROGRESS_SIMILAR_FILES,
                 files=result.files_seen,
                 total_files=total_files,
                 indexed=len(entries),
@@ -504,7 +513,7 @@ def find_similar_images(
             changed_since_checkpoint = 0
             emit(
                 progress_callback,
-                "progress_similar_index_saved",
+                PROGRESS_SIMILAR_INDEX_SAVED,
                 files=result.files_seen,
                 total_files=total_files,
                 indexed=len(entries),
@@ -516,7 +525,7 @@ def find_similar_images(
     result.indexed = len(entries)
     emit(
         progress_callback,
-        "progress_similar_files",
+        PROGRESS_SIMILAR_FILES,
         files=result.files_seen,
         total_files=total_files,
         indexed=len(entries),
@@ -534,7 +543,7 @@ def find_similar_images(
     save_image_index(entries, index_path)
     emit(
         progress_callback,
-        "progress_similar_done",
+        PROGRESS_SIMILAR_DONE,
         files=result.files_seen,
         total_files=total_files,
         indexed=result.indexed,

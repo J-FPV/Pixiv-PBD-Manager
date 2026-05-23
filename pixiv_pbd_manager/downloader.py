@@ -11,6 +11,11 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from urllib.parse import urlparse
 
+from .events import (
+    PROGRESS_DOWNLOAD_FILE_DONE,
+    PROGRESS_DOWNLOAD_FILE_PROGRESS,
+    PROGRESS_DOWNLOAD_FILE_START,
+)
 from .resolver import (
     PIXIV_BROWSER_USER_AGENT,
     PixivResolveError,
@@ -190,7 +195,7 @@ def download_artwork(
                 continue
             if progress_callback:
                 progress_callback(
-                    "progress_download_file_start",
+                    PROGRESS_DOWNLOAD_FILE_START,
                     {
                         "work_id": str(work_id),
                         "page": page.index,
@@ -204,7 +209,7 @@ def download_artwork(
             def on_binary_progress(downloaded: int, total: int | None, speed_bps: float) -> None:
                 if progress_callback:
                     progress_callback(
-                        "progress_download_file_progress",
+                        PROGRESS_DOWNLOAD_FILE_PROGRESS,
                         {
                             "work_id": str(work_id),
                             "page": page.index,
@@ -227,7 +232,7 @@ def download_artwork(
             if progress_callback:
                 size = output.stat().st_size if output.exists() else 0
                 progress_callback(
-                    "progress_download_file_done",
+                    PROGRESS_DOWNLOAD_FILE_DONE,
                     {
                         "work_id": str(work_id),
                         "page": page.index,

@@ -29,6 +29,13 @@ from pathlib import Path
 
 from .. import resolver
 from ..database import ArtistDatabase
+from ..events import (
+    PROGRESS_FUZZY_ARTIST,
+    PROGRESS_RESOLVE_ARTIST,
+    PROGRESS_SCAN_DONE,
+    PROGRESS_SCAN_FILES,
+    PROGRESS_SCAN_START,
+)
 from ..scanner import ScanSummary, scan_roots
 from ._shared import ProgressCallback, emit, filter_assigned_unmatched_folders
 
@@ -73,13 +80,13 @@ def collect_resolved_hits(
     fuzzy_min_score: float = 0.35,
     progress_callback: ProgressCallback | None = None,
 ) -> ScanPipelineResult:
-    emit(progress_callback, "progress_scan_start", roots=len(roots))
+    emit(progress_callback, PROGRESS_SCAN_START, roots=len(roots))
     summary = scan_roots(
         roots,
         exclude_roots=exclude_roots,
         progress_callback=lambda item: emit(
             progress_callback,
-            "progress_scan_files",
+            PROGRESS_SCAN_FILES,
             files=item.files_seen,
             matched=item.files_matched,
             name_only=len(item.name_only_artists),
@@ -87,7 +94,7 @@ def collect_resolved_hits(
     )
     emit(
         progress_callback,
-        "progress_scan_done",
+        PROGRESS_SCAN_DONE,
         files=summary.files_seen,
         matched=summary.files_matched,
         name_only=len(summary.name_only_artists),
@@ -119,7 +126,7 @@ def collect_resolved_hits(
             continue
         emit(
             progress_callback,
-            "progress_resolve_artist",
+            PROGRESS_RESOLVE_ARTIST,
             current=index,
             total=len(name_only_hits),
             name=hit.artist_name,
@@ -161,7 +168,7 @@ def collect_resolved_hits(
             continue
         emit(
             progress_callback,
-            "progress_fuzzy_artist",
+            PROGRESS_FUZZY_ARTIST,
             current=index,
             total=len(name_only_hits),
             name=hit.artist_name,

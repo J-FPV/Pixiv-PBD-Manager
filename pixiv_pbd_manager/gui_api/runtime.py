@@ -22,6 +22,8 @@ import threading
 import time
 from typing import Any, Callable
 
+from ..events import PROGRESS_DOWNLOAD_FILE_PROGRESS
+
 
 JsonDict = dict[str, Any]
 Emitter = Callable[[JsonDict], None]
@@ -165,7 +167,11 @@ def make_progress_callback(emit: Emitter) -> Callable[[str, dict[str, object]], 
     """
 
     def callback(key: str, payload: dict[str, object]) -> None:
-        if "file_progress" not in key:
+        # The per-chunk download event fires many times per second while a CDN
+        # stream is in flight; blocking it would keep that remote connection
+        # open after the user pressed Pause. Every other key (including the
+        # one-shot file_start/file_done events) goes through the gate.
+        if key != PROGRESS_DOWNLOAD_FILE_PROGRESS:
             CONTROL.wait_if_paused()
         emit({"type": "progress", "key": key, "payload": payload})
 
