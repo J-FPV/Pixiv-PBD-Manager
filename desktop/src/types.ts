@@ -1,5 +1,9 @@
+import type { PathPickKind } from "./api";
+
 export type Language = "zh" | "en";
-export type TabKey = "artists" | "unmatched" | "similar" | "settings" | "logs";
+
+export const TAB_KEYS = ["artists", "unmatched", "similar", "settings", "logs"] as const;
+export type TabKey = typeof TAB_KEYS[number];
 
 export interface UnmatchedFolder {
   path: string;
@@ -220,4 +224,46 @@ export interface LogEntry {
   id: number;
   level: "info" | "warn" | "error";
   message: string;
+}
+
+// ---- shared UI shapes (extracted from former App.tsx) ----
+
+export interface ProgressLineState {
+  label: string;
+  current: number;
+  total: number;
+  indeterminate?: boolean;
+  speedBps?: number;
+}
+
+export interface TaskProgressState {
+  main: ProgressLineState;
+  file?: ProgressLineState;
+}
+
+export interface PromptField {
+  key: string;
+  label: string;
+  value: string;
+  browse?: PathPickKind;
+}
+
+export interface PromptState {
+  title: string;
+  fields: PromptField[];
+  onSubmit: (values: Record<string, string>) => void;
+}
+
+export interface ConfirmState {
+  title: string;
+  body: string;
+  confirmLabel: string;
+  onConfirm: () => void | Promise<void>;
+}
+
+export interface ImageThumbnailPayload {
+  path: string;
+  data_url: string;
+  width: number;
+  height: number;
 }

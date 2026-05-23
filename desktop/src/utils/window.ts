@@ -1,0 +1,47 @@
+import { PhysicalPosition, PhysicalSize } from "@tauri-apps/api/window";
+import { finiteNumber } from "./format";
+
+export interface SavedWindowState {
+  x?: number;
+  y?: number;
+  width?: number;
+  height?: number;
+  maximized?: boolean;
+}
+
+export function savedWindowSize(state: SavedWindowState | null): { width: number; height: number } {
+  return {
+    width: finiteNumber(state?.width) && state.width >= 980 ? state.width : 1180,
+    height: finiteNumber(state?.height) && state.height >= 660 ? state.height : 800
+  };
+}
+
+export function windowIntersectsWorkArea(
+  state: SavedWindowState,
+  monitor: { workArea: { position: PhysicalPosition; size: PhysicalSize } }
+): boolean {
+  if (!finiteNumber(state.x) || !finiteNumber(state.y)) {
+    return false;
+  }
+  const { width, height } = savedWindowSize(state);
+  const area = monitor.workArea;
+  const overlapWidth =
+    Math.min(state.x + width, area.position.x + area.size.width) - Math.max(state.x, area.position.x);
+  const overlapHeight =
+    Math.min(state.y + height, area.position.y + area.size.height) - Math.max(state.y, area.position.y);
+  return overlapWidth >= Math.min(180, width) && overlapHeight >= Math.min(120, height);
+}
+
+export function centeredPositionForMonitor(
+  state: SavedWindowState | null,
+  monitor: { workArea: { position: PhysicalPosition; size: PhysicalSize } } | undefined
+): PhysicalPosition | null {
+  if (!monitor) {
+    return null;
+  }
+  const { width, height } = savedWindowSize(state);
+  const area = monitor.workArea;
+  const x = area.position.x + Math.max(0, Math.round((area.size.width - width) / 2));
+  const y = area.position.y + Math.max(0, Math.round((area.size.height - height) / 2));
+  return new PhysicalPosition(x, y);
+}
