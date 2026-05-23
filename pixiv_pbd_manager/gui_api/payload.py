@@ -1,0 +1,116 @@
+"""Payload coercion and project-root / settings-path resolution.
+
+Every command handler takes a JSON ``payload`` and needs the same handful of
+things: where the user's project root is, where to find/write the settings
+JSON, where the artists DB lives, and how to read typed fields out of the
+payload safely. Those helpers all live here.
+"""
+
+from __future__ import annotations
+
+import json
+from pathlib import Path
+from typing import Any
+
+from ..database import DEFAULT_DB
+from .runtime import JsonDict
+
+
+DEFAULT_SETTINGS_PATH = Path(".pixiv-pbd-manager") / "gui_settings.json"
+
+# Project source root (the directory containing the pixiv_pbd_manager/ package).
+# Used as the last-resort fallback when no project root can be detected by
+# searching upward from the cwd or the payload-provided path.
+SOURCE_ROOT = Path(__file__).resolve().parents[2]
+
+
+def load_json(path: Path) -> JsonDict:
+    if not path.exists():
+        return {}
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def save_json(path: Path, data: JsonDict) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+
+def _looks_like_project_root(path: Path) -> bool:
+    return (path / "pixiv_pbd_manager").is_dir() or (path / ".pixiv-pbd-manager").exists()
+
+
+def _nearest_project_root(path: Path) -> Path | None:
+    resolved = path.expanduser().resolve()
+    for candidate in (resolved, *resolved.parents):
+        if _looks_like_project_root(candidate):
+            return candidate
+    return None
+
+
+def resolve_base_dir(project_root: Any = None) -> Path:
+    """Pick the directory that GUI command handlers should chdir into.
+
+    Prefers (in order): the user-supplied ``project_root`` payload field, the
+    closest project root found by walking upward from the cwd, and the source
+    root as last resort. The chosen directory will contain the
+    ``.pixiv-pbd-manager/`` state folder.
+    """
+    if not project_root:
+        cwd = Path.cwd().resolve()
+        return _nearest_project_root(cwd) or cwd
+
+    raw = Path(str(project_root)).expanduser()
+    candidates = [raw if raw.is_absolute() else Path.cwd() / raw, Path.cwd(), SOURCE_ROOT]
+
+    for candidate in candidates:
+        root = _nearest_project_root(candidate)
+        if root:
+            return root
+    return SOURCE_ROOT
+
+
+def base_dir(payload: JsonDict) -> Path:
+    """Read the base dir stamped into the payload by run_command."""
+    return Path(str(payload.get("_base_dir") or Path.cwd())).expanduser().resolve()
+
+
+def resolve_path(path: Path | str, base: Path) -> Path:
+    value = Path(path).expanduser()
+    return value if value.is_absolute() else base / value
+
+
+def settings_path(payload: JsonDict) -> Path:
+    return resolve_path(payload.get("settings_path") or DEFAULT_SETTINGS_PATH, base_dir(payload))
+
+
+def db_path(payload: JsonDict, settings: JsonDict | None = None) -> Path:
+    value = payload.get("db_path") or payload.get("database") or (settings or {}).get("database") or DEFAULT_DB
+    return resolve_path(value, base_dir(payload))
+
+
+def paths(values: Any, base: Path | None = None) -> list[Path]:
+    where = base or Path.cwd()
+    return [resolve_path(str(value), where) for value in (values or []) if str(value).strip()]
+
+
+def as_bool(payload: JsonDict, key: str, default: bool) -> bool:
+    value = payload.get(key)
+    return default if value is None else bool(value)
+
+
+def as_float(payload: JsonDict, key: str, default: float) -> float:
+    try:
+        return float(payload.get(key, default))
+    except (TypeError, ValueError):
+        return default
+
+
+def as_int(payload: JsonDict, key: str, default: int) -> int:
+    try:
+        return int(payload.get(key, default))
+    except (TypeError, ValueError):
+        return default

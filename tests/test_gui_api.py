@@ -149,7 +149,7 @@ class GuiApiTests(unittest.TestCase):
             try:
                 os.chdir(root)
                 with patch(
-                    "pixiv_pbd_manager.gui_api.fetch_user_profile",
+                    "pixiv_pbd_manager.resolver.fetch_user_profile",
                     return_value=PixivUserProfile(id="123456", name="Online Artist"),
                 ):
                     exit_code, events = invoke("artists.add", {"artist_id": "123456", "name": ""})
@@ -171,7 +171,7 @@ class GuiApiTests(unittest.TestCase):
             try:
                 os.chdir(root)
                 with patch(
-                    "pixiv_pbd_manager.gui_api.fetch_user_profile",
+                    "pixiv_pbd_manager.resolver.fetch_user_profile",
                     return_value=PixivUserProfile(id="123456", name="Online Artist"),
                 ):
                     exit_code, events = invoke(
