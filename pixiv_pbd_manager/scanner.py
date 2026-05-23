@@ -74,6 +74,10 @@ class ScanSummary:
     artists: dict[str, ScanHit] = field(default_factory=dict)
     name_only_artists: dict[str, NameOnlyArtistHit] = field(default_factory=dict)
     unmatched_examples: list[Path] = field(default_factory=list)
+    # Folder path -> number of unidentified media files under it. A folder is
+    # "unmatched" when its files hit neither an artist-id pattern nor a Pixiv
+    # name-only folder pattern.
+    unmatched_folders: dict[str, int] = field(default_factory=dict)
 
     def add_hit(self, hit: ScanHit) -> None:
         existing = self.artists.get(hit.artist_id)
@@ -281,7 +285,11 @@ def scan_roots(
     excludes = normalize_exclude_roots(exclude_roots)
     for root in roots:
         root = root.expanduser().resolve()
-        root_excludes = [exclude for exclude in excludes if root == exclude or is_relative_to(exclude, root)]
+        root_excludes = [
+            exclude
+            for exclude in excludes
+            if root == exclude or is_relative_to(exclude, root) or is_relative_to(root, exclude)
+        ]
         summary.excluded_dirs += len(root_excludes)
         for path in iter_media_files(root, root_excludes):
             summary.files_seen += 1
@@ -294,8 +302,16 @@ def scan_roots(
             name_only_hit = identify_name_only_artist(path, root)
             if name_only_hit:
                 summary.add_name_only_hit(name_only_hit)
-            elif len(summary.unmatched_examples) < 20:
-                summary.unmatched_examples.append(path)
+            else:
+                parent_resolved = path.parent.resolve()
+                # The scan root itself is the library starting point, not a
+                # folder the user needs to attribute or exclude. Loose files at
+                # that top level should not surface the root in the GUI list.
+                if parent_resolved != root:
+                    folder_text = str(parent_resolved)
+                    summary.unmatched_folders[folder_text] = summary.unmatched_folders.get(folder_text, 0) + 1
+                if len(summary.unmatched_examples) < 20:
+                    summary.unmatched_examples.append(path)
     if progress_callback:
         progress_callback(summary)
     return summary

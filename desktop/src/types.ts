@@ -1,5 +1,78 @@
 export type Language = "zh" | "en";
-export type TabKey = "artists" | "similar" | "settings" | "logs";
+export type TabKey = "artists" | "unmatched" | "similar" | "settings" | "logs";
+
+export interface UnmatchedFolder {
+  path: string;
+  count: number;
+}
+
+export type ScanChangeKind = "new_artist" | "name_change" | "add_save_paths" | "add_work_ids";
+
+export interface ScanChangeNewArtist {
+  id: string;
+  kind: "new_artist";
+  artist_id: string;
+  name: string;
+  sources: string[];
+  roots: string[];
+  save_paths: string[];
+  work_ids: string[];
+}
+
+export interface ScanChangeNameChange {
+  id: string;
+  kind: "name_change";
+  artist_id: string;
+  old_name: string;
+  new_name: string;
+}
+
+export interface ScanChangeAddSavePaths {
+  id: string;
+  kind: "add_save_paths";
+  artist_id: string;
+  name: string;
+  existing: string[];
+  paths: string[];
+}
+
+export interface ScanChangeAddWorkIds {
+  id: string;
+  kind: "add_work_ids";
+  artist_id: string;
+  name: string;
+  existing_count: number;
+  work_ids: string[];
+}
+
+export type ScanChange =
+  | ScanChangeNewArtist
+  | ScanChangeNameChange
+  | ScanChangeAddSavePaths
+  | ScanChangeAddWorkIds;
+
+export interface ScanPreviewPayload {
+  changes: ScanChange[];
+  files_seen: number;
+  files_matched: number;
+  excluded_dirs: number;
+  artists: number;
+  name_only_artists: number;
+  resolved_name_only: number;
+  fuzzy_resolved_name_only: number;
+  ssl_fallback_used: number;
+  resolve_errors: string[];
+  unmatched_folders: UnmatchedFolder[];
+}
+
+export interface ScanApplyPayload {
+  applied: number;
+  new_artists: number;
+  name_changes: number;
+  save_paths_added: number;
+  work_ids_added: number;
+  db_path: string;
+}
 
 export interface AppSettings {
   language?: Language;
@@ -17,6 +90,7 @@ export interface AppSettings {
   fuzzy_min_score?: number;
   ssl_fallback?: boolean;
   similar_threshold?: SimilarThreshold;
+  similar_skip_pixiv_pages?: boolean;
   scan_local_subfolders?: boolean;
   update_check_pages?: number;
   separate_r18?: boolean;
@@ -88,6 +162,7 @@ export interface ScanResult {
   ssl_fallback_used: number;
   resolve_errors: string[];
   db_path: string;
+  unmatched_folders?: UnmatchedFolder[];
 }
 
 export interface UpdateResult {

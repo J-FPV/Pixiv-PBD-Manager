@@ -12,7 +12,9 @@ from pixiv_pbd_manager.downloader import (
     fetch_artwork_pages,
     safe_filename,
 )
-from pixiv_pbd_manager.operations import collect_local_work_ids
+from pixiv_pbd_manager.database import ArtistDatabase
+from pixiv_pbd_manager.operations import apply_scan_changes, collect_local_work_ids, preview_scan_changes, scan_into_database
+from pixiv_pbd_manager.scanner import scan_roots
 from pixiv_pbd_manager.resolver import PixivResolveError
 
 
@@ -101,6 +103,191 @@ class DownloaderTests(unittest.TestCase):
             ), patch("pixiv_pbd_manager.downloader.download_binary", return_value=False):
                 result = download_artwork("123", target, separate_restricted=True, delay_seconds=0)
             self.assertEqual(Path(result.saved_files[0]).parent, target)
+
+
+class ScanPreviewApplyTests(unittest.TestCase):
+    def _seed_db(self, db_path: Path, *, artist_id: str, name: str, work_ids: set[str]) -> None:
+        db = ArtistDatabase.load(db_path)
+        db.upsert(artist_id, name=name, source="manual", work_ids=work_ids)
+        db.save()
+
+    def test_preview_reports_name_change_and_new_works_without_writing(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            db_path = base / "db.json"
+            self._seed_db(db_path, artist_id="12345", name="ManualName", work_ids={"111111"})
+            (base / "Existing-12345").mkdir()
+            (base / "Existing-12345" / "222222_p0.jpg").write_bytes(b"x")
+            (base / "NewGuy-67890").mkdir()
+            (base / "NewGuy-67890" / "333333_p0.jpg").write_bytes(b"x")
+
+            preview = preview_scan_changes([base], db_path)
+            kinds = {change["kind"] for change in preview.changes}
+            self.assertIn("new_artist", kinds)
+            self.assertIn("name_change", kinds)
+            self.assertIn("add_work_ids", kinds)
+            # Preview must not have touched the DB on disk.
+            db_after = ArtistDatabase.load(db_path)
+            self.assertEqual(db_after.artists["12345"].name, "ManualName")
+            self.assertEqual(sorted(db_after.artists["12345"].work_ids), ["111111"])
+            self.assertNotIn("67890", db_after.artists)
+
+    def test_apply_preserves_name_when_name_change_not_selected(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            db_path = base / "db.json"
+            self._seed_db(db_path, artist_id="12345", name="ManualName", work_ids={"111111"})
+            (base / "Existing-12345").mkdir()
+            (base / "Existing-12345" / "222222_p0.jpg").write_bytes(b"x")
+            (base / "NewGuy-67890").mkdir()
+            (base / "NewGuy-67890" / "333333_p0.jpg").write_bytes(b"x")
+
+            preview = preview_scan_changes([base], db_path)
+            # Default subset: new_artist + add_work_ids; leave name_change/add_save_paths out.
+            selected = [c for c in preview.changes if c["kind"] in {"new_artist", "add_work_ids"}]
+            result = apply_scan_changes(db_path, selected)
+            self.assertEqual(result.name_changes, 0)
+            self.assertGreaterEqual(result.new_artists, 1)
+            db_after = ArtistDatabase.load(db_path)
+            self.assertEqual(db_after.artists["12345"].name, "ManualName")
+            self.assertIn("222222", db_after.artists["12345"].work_ids)
+            self.assertIn("67890", db_after.artists)
+
+    def test_preview_does_not_recreate_manually_replaced_artist_id(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            db_path = base / "db.json"
+            db = ArtistDatabase.load(db_path)
+            db.upsert("99999", name="Kiri", source="manual", work_ids={"111111"})
+            db.artists["99999"].sources.append("manual_id_edit:2632562->99999")
+            db.save()
+            (base / "OldResolved-2632562").mkdir()
+            (base / "OldResolved-2632562" / "222222_p0.jpg").write_bytes(b"x")
+
+            preview = preview_scan_changes([base], db_path)
+
+            self.assertFalse(
+                any(change["kind"] == "new_artist" and change["artist_id"] == "2632562" for change in preview.changes)
+            )
+            add_work = [change for change in preview.changes if change["kind"] == "add_work_ids"]
+            self.assertEqual(add_work[0]["artist_id"], "99999")
+            self.assertEqual(add_work[0]["work_ids"], ["222222"])
+
+    def test_preview_does_not_recreate_artist_when_save_path_is_already_known(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            db_path = base / "db.json"
+            folder = base / "OldResolved-2632562"
+            folder.mkdir()
+            (folder / "222222_p0.jpg").write_bytes(b"x")
+            db = ArtistDatabase.load(db_path)
+            db.upsert("99999", name="Kiri", source="manual", save_path=folder, work_ids={"111111"})
+            db.save()
+
+            preview = preview_scan_changes([base], db_path)
+
+            self.assertFalse(
+                any(change["kind"] == "new_artist" and change["artist_id"] == "2632562" for change in preview.changes)
+            )
+            add_work = [change for change in preview.changes if change["kind"] == "add_work_ids"]
+            self.assertEqual(add_work[0]["artist_id"], "99999")
+            self.assertEqual(add_work[0]["work_ids"], ["222222"])
+
+    def test_preview_redirects_recognized_subfolder_under_known_save_path(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            db_path = base / "db.json"
+            assigned = base / "kiri"
+            subfolder = assigned / "Archive-2632562"
+            subfolder.mkdir(parents=True)
+            (subfolder / "222222_p0.jpg").write_bytes(b"x")
+            db = ArtistDatabase.load(db_path)
+            db.upsert("99999", name="Kiri", source="manual", save_path=assigned, work_ids={"111111"})
+            db.save()
+
+            preview = preview_scan_changes([base], db_path)
+
+            self.assertFalse(
+                any(change["kind"] == "new_artist" and change["artist_id"] == "2632562" for change in preview.changes)
+            )
+            self.assertFalse(any(change["kind"] == "add_save_paths" for change in preview.changes))
+            add_work = [change for change in preview.changes if change["kind"] == "add_work_ids"]
+            self.assertEqual(add_work[0]["artist_id"], "99999")
+            self.assertEqual(add_work[0]["work_ids"], ["222222"])
+
+    def test_preview_hides_unmatched_folders_under_known_save_path(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            db_path = base / "db.json"
+            assigned = base / "kiri"
+            loose_subfolder = assigned / "misc"
+            unassigned = base / "random"
+            loose_subfolder.mkdir(parents=True)
+            unassigned.mkdir()
+            (loose_subfolder / "note_image.jpg").write_bytes(b"x")
+            (unassigned / "note_image.jpg").write_bytes(b"y")
+            db = ArtistDatabase.load(db_path)
+            db.upsert("99999", name="Kiri", source="manual", save_path=assigned)
+            db.save()
+
+            preview = preview_scan_changes([base], db_path)
+
+            unmatched_paths = {item for item in preview.summary.unmatched_folders}
+            self.assertNotIn(str(loose_subfolder.resolve()), unmatched_paths)
+            self.assertIn(str(unassigned.resolve()), unmatched_paths)
+
+    def test_scan_into_database_does_not_recreate_manually_replaced_artist_id(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            db_path = base / "db.json"
+            db = ArtistDatabase.load(db_path)
+            db.upsert("99999", name="Kiri", source="manual", work_ids={"111111"})
+            db.artists["99999"].sources.append("manual_id_edit:2632562->99999")
+            db.save()
+            (base / "OldResolved-2632562").mkdir()
+            (base / "OldResolved-2632562" / "222222_p0.jpg").write_bytes(b"x")
+
+            scan_into_database([base], db_path)
+            db_after = ArtistDatabase.load(db_path)
+
+            self.assertNotIn("2632562", db_after.artists)
+            self.assertIn("222222", db_after.artists["99999"].work_ids)
+
+    def test_scan_into_database_redirects_subfolder_under_known_save_path(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            db_path = base / "db.json"
+            assigned = base / "kiri"
+            subfolder = assigned / "Archive-2632562"
+            subfolder.mkdir(parents=True)
+            (subfolder / "222222_p0.jpg").write_bytes(b"x")
+            db = ArtistDatabase.load(db_path)
+            db.upsert("99999", name="Kiri", source="manual", save_path=assigned, work_ids={"111111"})
+            db.save()
+
+            scan_into_database([base], db_path)
+            db_after = ArtistDatabase.load(db_path)
+
+            self.assertNotIn("2632562", db_after.artists)
+            self.assertIn("222222", db_after.artists["99999"].work_ids)
+            self.assertEqual(db_after.artists["99999"].save_paths, [str(assigned.resolve())])
+
+
+class UnmatchedFolderScopeTests(unittest.TestCase):
+    def test_scan_root_itself_is_not_listed_as_unmatched(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+            # Loose file at the scan root (no artist folder around it).
+            (root / "loose.jpg").write_bytes(b"x")
+            # Subfolder with no artist id, deeper than the root.
+            sub = root / "randomstuff"
+            sub.mkdir()
+            (sub / "image.jpg").write_bytes(b"y")
+
+            summary = scan_roots([root])
+
+            self.assertNotIn(str(root), summary.unmatched_folders)
+            self.assertIn(str(sub), summary.unmatched_folders)
 
 
 class LocalWorkIdScanTests(unittest.TestCase):

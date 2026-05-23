@@ -288,6 +288,7 @@ def cmd_similar(args: argparse.Namespace) -> int:
             roots,
             exclude_roots=[Path(path) for path in args.exclude],
             threshold=args.threshold,
+            skip_same_pixiv_work_pages=args.skip_pixiv_pages,
         )
     except RuntimeError as exc:
         print(str(exc), file=sys.stderr)
@@ -422,6 +423,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="similarity threshold; likely is stricter, possible finds more candidates",
     )
     similar.add_argument("--output", help="write a CSV report")
+    similar.add_argument(
+        "--skip-pixiv-pages",
+        action="store_true",
+        help="do not compare files named like {pid}_p0 and {pid}_p1 against each other",
+    )
     similar.set_defaults(func=cmd_similar)
 
     return parser

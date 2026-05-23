@@ -4,6 +4,7 @@ import csv
 import hashlib
 import json
 import os
+import re
 from collections import defaultdict
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -17,6 +18,7 @@ DEFAULT_IMAGE_INDEX = Path(".pixiv-pbd-manager") / "image_index.json"
 IMAGE_SUFFIXES = {".jpg", ".jpeg", ".png", ".webp", ".bmp", ".gif"}
 LIKELY_LIMITS = (6, 10)
 POSSIBLE_LIMITS = (10, 14)
+PIXIV_PAGE_NAME_PATTERN = re.compile(r"(?<!\d)(?P<pid>\d{4,12})_p(?P<page>\d+)(?!\d)", re.IGNORECASE)
 
 ProgressCallback = Callable[[str, dict[str, object]], None]
 
@@ -314,7 +316,33 @@ def pair_kind(phash_distance: int, dhash_distance: int) -> str | None:
     return None
 
 
-def build_similar_groups(entries: list[ImageFingerprint], *, threshold: str = "likely") -> list[SimilarGroup]:
+def pixiv_page_key(path: str | Path) -> tuple[str, int] | None:
+    match = PIXIV_PAGE_NAME_PATTERN.search(Path(path).stem)
+    if not match:
+        return None
+    return match.group("pid"), int(match.group("page"))
+
+
+def should_skip_pixiv_page_pair(left: ImageFingerprint, right: ImageFingerprint) -> bool:
+    left_key = pixiv_page_key(left.path)
+    right_key = pixiv_page_key(right.path)
+    return bool(left_key and right_key and left_key[0] == right_key[0] and left_key[1] != right_key[1])
+
+
+def progress_step(total: int, requested_interval: int) -> int:
+    if requested_interval <= 0 or total <= 0:
+        return 0
+    return max(1, min(requested_interval, max(1, total // 200)))
+
+
+def build_similar_groups(
+    entries: list[ImageFingerprint],
+    *,
+    threshold: str = "likely",
+    skip_same_pixiv_work_pages: bool = False,
+    progress_callback: ProgressCallback | None = None,
+    progress_interval: int = 1000,
+) -> list[SimilarGroup]:
     if len(entries) < 2:
         return []
 
@@ -322,6 +350,7 @@ def build_similar_groups(entries: list[ImageFingerprint], *, threshold: str = "l
     max_phash_distance = POSSIBLE_LIMITS[0] if include_possible else LIKELY_LIMITS[0]
     union_find = UnionFind(len(entries))
     pairs: list[SimilarPair] = []
+    emit(progress_callback, "progress_similar_match_start", total=len(entries))
 
     sha_groups: dict[str, list[int]] = defaultdict(list)
     for index, entry in enumerate(entries):
@@ -329,10 +358,12 @@ def build_similar_groups(entries: list[ImageFingerprint], *, threshold: str = "l
     for indices in sha_groups.values():
         if len(indices) < 2:
             continue
-        first = indices[0]
-        for index in indices[1:]:
-            union_find.union(first, index)
-            pairs.append(SimilarPair(entries[first].path, entries[index].path, "exact", 0, 0))
+        for offset, left_index in enumerate(indices):
+            for right_index in indices[offset + 1 :]:
+                if skip_same_pixiv_work_pages and should_skip_pixiv_page_pair(entries[left_index], entries[right_index]):
+                    continue
+                union_find.union(left_index, right_index)
+                pairs.append(SimilarPair(entries[left_index].path, entries[right_index].path, "exact", 0, 0))
 
     tree = BKTree()
     for index, entry in enumerate(entries):
@@ -340,6 +371,8 @@ def build_similar_groups(entries: list[ImageFingerprint], *, threshold: str = "l
         for candidate_index in tree.query(phash_value, max_phash_distance):
             candidate = entries[candidate_index]
             if candidate.sha256 == entry.sha256:
+                continue
+            if skip_same_pixiv_work_pages and should_skip_pixiv_page_pair(candidate, entry):
                 continue
             phash_distance = hamming_hex(candidate.phash, entry.phash)
             dhash_distance = hamming_hex(candidate.dhash, entry.dhash)
@@ -350,6 +383,15 @@ def build_similar_groups(entries: list[ImageFingerprint], *, threshold: str = "l
                 union_find.union(candidate_index, index)
                 pairs.append(SimilarPair(candidate.path, entry.path, kind, phash_distance, dhash_distance))
         tree.add(phash_value, index)
+        if progress_callback and progress_interval > 0 and (index + 1) % progress_interval == 0:
+            emit(
+                progress_callback,
+                "progress_similar_match",
+                current=index + 1,
+                total=len(entries),
+                pairs=len(pairs),
+            )
+    emit(progress_callback, "progress_similar_match", current=len(entries), total=len(entries), pairs=len(pairs))
 
     grouped_indices: dict[int, list[int]] = defaultdict(list)
     for index in range(len(entries)):
@@ -392,6 +434,9 @@ def find_similar_images(
     threshold: str = "likely",
     max_errors: int = 200,
     progress_callback: ProgressCallback | None = None,
+    progress_interval: int = 100,
+    checkpoint_interval: int = 250,
+    skip_same_pixiv_work_pages: bool = False,
 ) -> SimilarImageResult:
     if threshold not in {"likely", "possible"}:
         raise ValueError("threshold must be 'likely' or 'possible'")
@@ -400,8 +445,35 @@ def find_similar_images(
     entries: list[ImageFingerprint] = []
     result = SimilarImageResult(roots=[str(Path(root).resolve()) for root in roots], index_path=index_path)
     emit(progress_callback, "progress_similar_start", roots=len(roots))
+    image_paths = list(iter_image_files(roots, exclude_roots))
+    total_files = len(image_paths)
+    emit(
+        progress_callback,
+        "progress_similar_files",
+        files=0,
+        total_files=total_files,
+        indexed=0,
+        changed=0,
+        reused=0,
+        errors=0,
+    )
+    changed_since_checkpoint = 0
+    index_progress_step = progress_step(total_files, progress_interval)
 
-    for path in iter_image_files(roots, exclude_roots):
+    for position, path in enumerate(image_paths, start=1):
+        if progress_callback and index_progress_step and (position == 1 or (position - 1) % index_progress_step == 0):
+            emit(
+                progress_callback,
+                "progress_similar_file_start",
+                files=position,
+                completed=result.files_seen,
+                total_files=total_files,
+                indexed=len(entries),
+                changed=result.changed,
+                reused=result.reused,
+                errors=result.error_count,
+                name=path.name,
+            )
         result.files_seen += 1
         resolved = str(path.resolve())
         old_entry = old_index.get(resolved)
@@ -412,25 +484,60 @@ def find_similar_images(
             try:
                 entries.append(fingerprint_image(path))
                 result.changed += 1
+                changed_since_checkpoint += 1
             except Exception as exc:  # noqa: BLE001
                 record_error(result, f"{path}: {exc}", max_errors=max_errors)
-        if progress_callback and result.files_seen % 500 == 0:
+        if progress_callback and index_progress_step and (
+            result.files_seen % index_progress_step == 0 or result.files_seen == total_files
+        ):
             emit(
                 progress_callback,
                 "progress_similar_files",
                 files=result.files_seen,
+                total_files=total_files,
                 indexed=len(entries),
+                changed=result.changed,
+                reused=result.reused,
+                errors=result.error_count,
+            )
+        if checkpoint_interval > 0 and changed_since_checkpoint >= checkpoint_interval:
+            save_image_index(entries, index_path)
+            changed_since_checkpoint = 0
+            emit(
+                progress_callback,
+                "progress_similar_index_saved",
+                files=result.files_seen,
+                total_files=total_files,
+                indexed=len(entries),
+                changed=result.changed,
                 reused=result.reused,
                 errors=result.error_count,
             )
 
     result.indexed = len(entries)
-    result.groups = build_similar_groups(entries, threshold=threshold)
+    emit(
+        progress_callback,
+        "progress_similar_files",
+        files=result.files_seen,
+        total_files=total_files,
+        indexed=len(entries),
+        changed=result.changed,
+        reused=result.reused,
+        errors=result.error_count,
+    )
+    result.groups = build_similar_groups(
+        entries,
+        threshold=threshold,
+        skip_same_pixiv_work_pages=skip_same_pixiv_work_pages,
+        progress_callback=progress_callback,
+        progress_interval=max(1000, progress_interval * 10),
+    )
     save_image_index(entries, index_path)
     emit(
         progress_callback,
         "progress_similar_done",
         files=result.files_seen,
+        total_files=total_files,
         indexed=result.indexed,
         groups=len(result.groups),
         errors=result.error_count,

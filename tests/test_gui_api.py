@@ -161,6 +161,35 @@ class GuiApiTests(unittest.TestCase):
         self.assertEqual(events[-1]["payload"]["name"], "Online Artist")
         self.assertEqual(db.artists["123456"].name, "Online Artist")
 
+    def test_artists_assign_folder_records_save_path_and_local_work_ids(self):
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            folder = root / "unmatched-folder"
+            folder.mkdir()
+            (folder / "987654_p0.jpg").write_bytes(b"fake")
+            old_cwd = Path.cwd()
+            try:
+                os.chdir(root)
+                with patch(
+                    "pixiv_pbd_manager.gui_api.fetch_user_profile",
+                    return_value=PixivUserProfile(id="123456", name="Online Artist"),
+                ):
+                    exit_code, events = invoke(
+                        "artists.assign_folder",
+                        {"artist_id": "123456", "folder": str(folder)},
+                    )
+                db = ArtistDatabase.load(root / ".pixiv-pbd-manager" / "artists.json")
+            finally:
+                os.chdir(old_cwd)
+
+        self.assertEqual(exit_code, 0)
+        payload = events[-1]["payload"]
+        self.assertEqual(payload["artist_id"], "123456")
+        self.assertEqual(payload["work_ids"], 1)
+        self.assertEqual(db.artists["123456"].name, "Online Artist")
+        self.assertEqual(db.artists["123456"].save_paths, [str(folder.resolve())])
+        self.assertEqual(db.artists["123456"].work_ids, ["987654"])
+
     def test_subprocess_outputs_utf8_json_for_cjk_and_emoji_artist_names(self):
         repo_root = Path(__file__).resolve().parents[1]
         with TemporaryDirectory() as tmp:
@@ -253,6 +282,44 @@ class GuiApiTests(unittest.TestCase):
         payload = events[-1]["payload"]
         self.assertEqual(len(payload["groups"]), 1)
         self.assertEqual(payload["groups"][0]["kind"], "exact")
+
+    def test_similar_run_can_skip_pixiv_page_pairs(self):
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            first = root / "12345678_p0.png"
+            second = root / "12345678_p1.png"
+            Image.new("RGB", (32, 32), "red").save(first)
+            second.write_bytes(first.read_bytes())
+            old_cwd = Path.cwd()
+            try:
+                os.chdir(root)
+                exit_code, events = invoke(
+                    "similar.run",
+                    {"roots": [str(root)], "threshold": "likely", "similar_skip_pixiv_pages": True},
+                )
+            finally:
+                os.chdir(old_cwd)
+
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(events[-1]["payload"]["groups"], [])
+
+    def test_image_thumbnail_outputs_data_url(self):
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            image_path = root / "sample.png"
+            Image.new("RGB", (48, 32), "red").save(image_path)
+            old_cwd = Path.cwd()
+            try:
+                os.chdir(root)
+                exit_code, events = invoke("image.thumbnail", {"path": str(image_path), "max_size": 32})
+            finally:
+                os.chdir(old_cwd)
+
+        self.assertEqual(exit_code, 0)
+        payload = events[-1]["payload"]
+        self.assertEqual(payload["width"], 48)
+        self.assertEqual(payload["height"], 32)
+        self.assertTrue(payload["data_url"].startswith("data:image/"))
 
     def test_unknown_command_outputs_error_event(self):
         exit_code, events = invoke("missing.command")

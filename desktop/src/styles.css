@@ -185,17 +185,32 @@ footer {
   background: transparent;
 }
 
+.searchClear {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+}
+
+.searchClear:hover {
+  color: var(--text);
+}
+
 .footerProgress {
   flex: 1;
-  min-width: 260px;
+  min-width: 520px;
   display: grid;
   gap: 4px;
 }
 
 .progressLine {
   display: grid;
-  grid-template-columns: minmax(150px, 280px) minmax(180px, 1fr);
-  gap: 8px;
+  grid-template-columns: minmax(0, 1fr) 200px 160px;
+  gap: 10px;
   align-items: center;
   min-width: 0;
 }
@@ -205,6 +220,16 @@ footer {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.progressMeter {
+  min-width: 0;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
 }
 
 .progressTrack {
@@ -265,7 +290,28 @@ footer {
 
 .similarTable .tableHeader,
 .similarTable .tableRow {
-  grid-template-columns: 140px 130px minmax(300px, 1fr) 110px 90px;
+  grid-template-columns: 120px 120px 76px minmax(280px, 1fr) 110px 90px;
+}
+
+.unmatchedTable .tableHeader,
+.unmatchedTable .tableRow {
+  grid-template-columns: minmax(280px, 1fr) 80px 250px;
+}
+
+.unmatchedRow:hover {
+  background: #f4faf7;
+}
+
+.unmatchedActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  min-width: 0;
+}
+
+.unmatchedActions .button {
+  min-height: 30px;
+  padding: 0 8px;
 }
 
 .tableHeader {
@@ -364,13 +410,84 @@ footer {
   white-space: nowrap;
 }
 
+.clickablePath:hover {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
 .similarGroupRow {
   font-weight: 650;
   background: #f7f8fa;
 }
 
 .similarEntryRow {
+  height: 76px;
   color: #3e4c59;
+  cursor: default;
+}
+
+.thumbnailButton {
+  display: inline-grid;
+  place-items: center;
+  width: 58px;
+  height: 58px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #f7f8fa;
+  overflow: hidden;
+}
+
+.thumbnailButton:hover {
+  border-color: var(--accent);
+  background: #eef8f3;
+}
+
+.thumbnailButton img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.thumbnailPlaceholder {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.imagePreviewModal {
+  width: min(1100px, 94vw);
+  max-height: 92vh;
+}
+
+.imagePreviewBody {
+  display: grid;
+  place-items: center;
+  min-height: 260px;
+  max-height: 72vh;
+  overflow: auto;
+  border-radius: 8px;
+  background: #111820;
+  color: #d9e2ec;
+}
+
+.imagePreviewBody img {
+  display: block;
+  max-width: 100%;
+  max-height: 70vh;
+  object-fit: contain;
+}
+
+.imagePreviewPath {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.previewError {
+  padding: 12px;
+  color: #ffd6d6;
 }
 
 .segmented {
@@ -568,6 +685,12 @@ footer {
   cursor: pointer;
 }
 
+.compactCheck {
+  min-height: 34px;
+  padding: 0 2px;
+  white-space: nowrap;
+}
+
 .fieldHint {
   margin: 0;
   padding: 10px 12px;
@@ -669,6 +792,97 @@ footer {
   line-height: 1.6;
   font-size: 13px;
   color: var(--text);
+}
+
+.scanPreviewModal {
+  width: min(780px, 94vw);
+  max-height: 86vh;
+}
+
+.scanPreviewToolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.scanPreviewList {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-height: 58vh;
+  overflow-y: auto;
+  padding: 4px 2px;
+}
+
+.scanGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: var(--surface);
+}
+
+.scanGroupHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--line);
+}
+
+.scanGroupTitle {
+  flex: 1;
+  font-weight: 650;
+  font-size: 14px;
+  color: var(--text);
+}
+
+.scanChangeRow {
+  display: grid;
+  grid-template-columns: 22px 96px 1fr;
+  gap: 10px;
+  align-items: center;
+  padding: 6px 4px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.scanChangeRow:hover {
+  background: var(--surface-muted);
+}
+
+.scanChangeId {
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+
+.scanChangeMain {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.scanChangeName {
+  font-weight: 600;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.scanChangeDetail {
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.scanChangeDetail.warning {
+  color: var(--warn);
 }
 
 .menuOverlay {

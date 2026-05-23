@@ -65,6 +65,20 @@ class ScannerTests(unittest.TestCase):
             self.assertEqual(summary.excluded_dirs, 1)
             self.assertEqual(set(summary.artists), {"111222"})
 
+    def test_scan_skips_root_when_parent_is_excluded(self):
+        with TemporaryDirectory() as tmp:
+            parent = Path(tmp)
+            root = parent / "library"
+            path = root / "Artist-111222" / "90000001-one.jpg"
+            path.parent.mkdir(parents=True)
+            path.write_bytes(b"")
+
+            summary = scan_roots([root], exclude_roots=[parent])
+
+            self.assertEqual(summary.files_seen, 0)
+            self.assertEqual(summary.excluded_dirs, 1)
+            self.assertEqual(summary.artists, {})
+
     def test_identifies_name_only_pixiv_folder(self):
         with TemporaryDirectory() as tmp:
             root = Path(tmp)

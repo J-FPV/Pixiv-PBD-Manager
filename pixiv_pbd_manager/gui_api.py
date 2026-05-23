@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import base64
+from io import BytesIO
 import json
 import os
 import subprocess
 import sys
 import threading
+import time
 import traceback
 from pathlib import Path
 from typing import Any, Callable
@@ -18,8 +21,11 @@ from .operations import (
     DownloadUpdatesResult,
     ScanResult,
     UpdateCheckResult,
+    apply_scan_changes,
     check_artist_updates,
+    collect_local_work_ids,
     download_artist_updates,
+    preview_scan_changes,
     scan_into_database,
 )
 from .resolver import PixivResolveError, fetch_user_profile
@@ -164,6 +170,7 @@ def _artist_to_json(artist: ArtistRecord) -> JsonDict:
 
 def _scan_result_to_json(result: ScanResult) -> JsonDict:
     summary = result.summary
+    unmatched = sorted(summary.unmatched_folders.items(), key=lambda item: (-item[1], item[0]))
     return {
         "files_seen": summary.files_seen,
         "files_matched": summary.files_matched,
@@ -176,6 +183,7 @@ def _scan_result_to_json(result: ScanResult) -> JsonDict:
         "ssl_fallback_used": result.ssl_fallback_used,
         "resolve_errors": list(result.resolve_errors),
         "db_path": str(result.db_path),
+        "unmatched_folders": [{"path": path, "count": count} for path, count in unmatched],
     }
 
 
@@ -237,6 +245,30 @@ def _similar_result_to_json(result: SimilarImageResult) -> JsonDict:
     }
 
 
+def _image_thumbnail(path: Path, max_size: int) -> tuple[str, int, int]:
+    from PIL import Image, ImageOps
+
+    with Image.open(path) as image:
+        try:
+            image.seek(0)
+        except EOFError:
+            pass
+        image = ImageOps.exif_transpose(image)
+        width, height = image.size
+        image.thumbnail((max_size, max_size), Image.Resampling.LANCZOS)
+
+        output = BytesIO()
+        if image.mode in ("RGBA", "LA") or (image.mode == "P" and "transparency" in image.info):
+            image.convert("RGBA").save(output, format="PNG", optimize=True)
+            mime = "image/png"
+        else:
+            image.convert("RGB").save(output, format="JPEG", quality=84, optimize=True)
+            mime = "image/jpeg"
+
+    encoded = base64.b64encode(output.getvalue()).decode("ascii")
+    return f"data:{mime};base64,{encoded}", width, height
+
+
 def _emit(event: JsonDict) -> None:
     line = json.dumps(event, ensure_ascii=False) + "\n"
     data = line.encode("utf-8")
@@ -274,6 +306,47 @@ def _start_control_reader(emit: Emitter) -> None:
     try:
         fd = sys.stdin.fileno()
     except (AttributeError, OSError, ValueError):
+        return
+
+    if os.name == "nt":
+        try:
+            import ctypes
+            import msvcrt
+
+            handle = msvcrt.get_osfhandle(fd)
+            kernel32 = ctypes.windll.kernel32
+        except (ImportError, OSError, ValueError, AttributeError):
+            return
+
+        def reader_windows() -> None:
+            pending = b""
+            available = ctypes.c_ulong()
+            while True:
+                ok = kernel32.PeekNamedPipe(
+                    ctypes.c_void_p(handle),
+                    None,
+                    0,
+                    None,
+                    ctypes.byref(available),
+                    None,
+                )
+                if not ok:
+                    return
+                if available.value == 0:
+                    time.sleep(0.05)
+                    continue
+                try:
+                    chunk = os.read(fd, min(4096, available.value))
+                except OSError:
+                    return
+                if not chunk:
+                    return
+                pending += chunk
+                while b"\n" in pending:
+                    line, pending = pending.split(b"\n", 1)
+                    _handle_control_line(line, emit)
+
+        threading.Thread(target=reader_windows, daemon=True).start()
         return
 
     def reader() -> None:
@@ -371,22 +444,57 @@ def _command_artists_add(payload: JsonDict, _emit_event: Emitter) -> JsonDict:
         raise ValueError("Artist id must be digits")
     name = str(payload.get("name") or "").strip() or None
     save_path = str(payload.get("save_path") or "").strip() or None
-    if not name:
-        settings_ssl_fallback = bool(settings.get("ssl_fallback", True))
-        try:
-            profile = fetch_user_profile(
-                artist_id,
-                cookie=load_cookie(),
-                allow_insecure_ssl_fallback=settings_ssl_fallback,
-            )
-            if profile.name and profile.name != artist_id:
-                name = profile.name
-        except PixivResolveError:
-            pass
+    name = _resolve_artist_name_if_missing(artist_id, name, settings)
     db = ArtistDatabase.load(_db_path(payload, settings))
     changed = db.upsert(artist_id, name=name, source="manual", save_path=save_path)
     db.save()
     return {"artist_id": artist_id, "changed": changed, "name": name or "", "save_path": save_path or ""}
+
+
+def _resolve_artist_name_if_missing(artist_id: str, name: str | None, settings: JsonDict) -> str | None:
+    if name:
+        return name
+    try:
+        profile = fetch_user_profile(
+            artist_id,
+            cookie=load_cookie(),
+            allow_insecure_ssl_fallback=bool(settings.get("ssl_fallback", True)),
+        )
+    except PixivResolveError:
+        return None
+    return profile.name if profile.name and profile.name != artist_id else None
+
+
+def _command_artists_assign_folder(payload: JsonDict, _emit_event: Emitter) -> JsonDict:
+    settings = _load_settings_for_payload(payload)
+    artist_id = str(payload.get("artist_id") or "").strip()
+    if not artist_id.isdigit():
+        raise ValueError("Artist id must be digits")
+    folder_text = str(payload.get("folder") or payload.get("save_path") or "").strip()
+    if not folder_text:
+        raise ValueError("Missing folder")
+    folder = _resolve_path(folder_text, _base_dir(payload)).resolve()
+    if not folder.is_dir():
+        raise ValueError(f"Folder does not exist: {folder}")
+
+    name = _resolve_artist_name_if_missing(artist_id, str(payload.get("name") or "").strip() or None, settings)
+    work_ids = collect_local_work_ids([str(folder)])
+    db = ArtistDatabase.load(_db_path(payload, settings))
+    changed = db.upsert(
+        artist_id,
+        name=name,
+        source=f"manual_unmatched_folder:{folder}",
+        save_path=folder,
+        work_ids=work_ids,
+    )
+    db.save()
+    return {
+        "artist_id": artist_id,
+        "changed": changed,
+        "name": name or "",
+        "save_path": str(folder),
+        "work_ids": len(work_ids),
+    }
 
 
 def _command_artists_rename(payload: JsonDict, _emit_event: Emitter) -> JsonDict:
@@ -447,6 +555,60 @@ def _command_scan_run(payload: JsonDict, emit_event: Emitter) -> JsonDict:
     return _scan_result_to_json(result)
 
 
+def _command_scan_preview(payload: JsonDict, emit_event: Emitter) -> JsonDict:
+    settings = _load_settings_for_payload(payload)
+    base_dir = _base_dir(payload)
+    roots = _paths(payload.get("roots") or settings.get("download_roots"), base_dir)
+    exclude_roots = _paths(payload.get("exclude_roots") or settings.get("exclude_roots"), base_dir)
+    result = preview_scan_changes(
+        roots,
+        _db_path(payload, settings),
+        resolve_online=_bool(payload, "resolve_online", bool(settings.get("resolve_online", True))),
+        resolve_limit=_int(payload, "resolve_limit", int(settings.get("resolve_limit", 3))),
+        resolve_delay=_float(payload, "resolve_delay", 0.8),
+        pixiv_cookie=payload.get("pixiv_cookie") or load_cookie(),
+        allow_insecure_ssl_fallback=_bool(payload, "ssl_fallback", bool(settings.get("ssl_fallback", True))),
+        exclude_roots=exclude_roots,
+        fuzzy_search_names=_bool(payload, "fuzzy_search", bool(settings.get("fuzzy_search", False))),
+        fuzzy_min_score=_float(payload, "fuzzy_min_score", float(settings.get("fuzzy_min_score", 0.35))),
+        progress_callback=_progress(emit_event),
+    )
+    summary = result.summary
+    unmatched: list[dict] = []
+    if summary is not None:
+        unmatched_sorted = sorted(summary.unmatched_folders.items(), key=lambda item: (-item[1], item[0]))
+        unmatched = [{"path": path, "count": count} for path, count in unmatched_sorted]
+    return {
+        "changes": result.changes,
+        "files_seen": summary.files_seen if summary else 0,
+        "files_matched": summary.files_matched if summary else 0,
+        "excluded_dirs": summary.excluded_dirs if summary else 0,
+        "artists": len(summary.artists) if summary else 0,
+        "name_only_artists": len(summary.name_only_artists) if summary else 0,
+        "resolved_name_only": result.resolved_name_only,
+        "fuzzy_resolved_name_only": result.fuzzy_resolved_name_only,
+        "ssl_fallback_used": result.ssl_fallback_used,
+        "resolve_errors": list(result.resolve_errors),
+        "unmatched_folders": unmatched,
+    }
+
+
+def _command_scan_apply(payload: JsonDict, _emit_event: Emitter) -> JsonDict:
+    settings = _load_settings_for_payload(payload)
+    operations = payload.get("operations")
+    if not isinstance(operations, list):
+        raise ValueError("operations must be a list")
+    result = apply_scan_changes(_db_path(payload, settings), [op for op in operations if isinstance(op, dict)])
+    return {
+        "applied": result.applied,
+        "new_artists": result.new_artists,
+        "name_changes": result.name_changes,
+        "save_paths_added": result.save_paths_added,
+        "work_ids_added": result.work_ids_added,
+        "db_path": str(result.db_path) if result.db_path else "",
+    }
+
+
 def _command_updates_check(payload: JsonDict, emit_event: Emitter) -> JsonDict:
     settings = _load_settings_for_payload(payload)
     update_check_pages = _int(payload, "update_check_pages", _int(settings, "update_check_pages", 0))
@@ -488,6 +650,11 @@ def _command_similar_run(payload: JsonDict, emit_event: Emitter) -> JsonDict:
         roots,
         exclude_roots=exclude_roots,
         threshold=str(payload.get("threshold") or settings.get("similar_threshold") or "likely"),
+        skip_same_pixiv_work_pages=_bool(
+            payload,
+            "similar_skip_pixiv_pages",
+            bool(settings.get("similar_skip_pixiv_pages", False)),
+        ),
         progress_callback=_progress(emit_event),
     )
     return _similar_result_to_json(result)
@@ -531,13 +698,40 @@ def _command_file_reveal(payload: JsonDict, _emit_event: Emitter) -> JsonDict:
     if not path_text:
         raise ValueError("Missing path")
     path = Path(path_text).expanduser()
-    if os.name == "nt":
-        subprocess.Popen(["explorer", "/select,", str(path)])
-    elif sys.platform == "darwin":
-        subprocess.Popen(["open", "-R", str(path)])
+    if path.is_dir():
+        # Open the folder's contents directly.
+        if os.name == "nt":
+            subprocess.Popen(["explorer", str(path)])
+        elif sys.platform == "darwin":
+            subprocess.Popen(["open", str(path)])
+        else:
+            subprocess.Popen(["xdg-open", str(path)])
     else:
-        subprocess.Popen(["xdg-open", str(path.parent if path.is_file() else path)])
+        # Reveal a file by selecting it inside its parent folder.
+        if os.name == "nt":
+            subprocess.Popen(["explorer", "/select,", str(path)])
+        elif sys.platform == "darwin":
+            subprocess.Popen(["open", "-R", str(path)])
+        else:
+            subprocess.Popen(["xdg-open", str(path.parent)])
     return {"path": str(path), "opened": True}
+
+
+def _command_image_thumbnail(payload: JsonDict, _emit_event: Emitter) -> JsonDict:
+    path_text = str(payload.get("path") or "").strip()
+    if not path_text:
+        raise ValueError("Missing path")
+    max_size = max(48, min(1600, _int(payload, "max_size", 180)))
+    path = Path(path_text).expanduser()
+    if not path.is_file():
+        raise ValueError(f"Image file does not exist: {path}")
+    data_url, width, height = _image_thumbnail(path, max_size)
+    return {
+        "path": str(path),
+        "data_url": data_url,
+        "width": width,
+        "height": height,
+    }
 
 
 COMMANDS: dict[str, Callable[[JsonDict, Emitter], JsonDict]] = {
@@ -546,14 +740,18 @@ COMMANDS: dict[str, Callable[[JsonDict, Emitter], JsonDict]] = {
     "cookie.revoke": _command_cookie_revoke,
     "artists.list": _command_artists_list,
     "artists.add": _command_artists_add,
+    "artists.assign_folder": _command_artists_assign_folder,
     "artists.rename": _command_artists_rename,
     "artists.set_save_path": _command_artists_set_save_path,
     "scan.run": _command_scan_run,
+    "scan.preview": _command_scan_preview,
+    "scan.apply": _command_scan_apply,
     "updates.check": _command_updates_check,
     "updates.download": _command_updates_download,
     "similar.run": _command_similar_run,
     "browser.open": _command_browser_open,
     "file.reveal": _command_file_reveal,
+    "image.thumbnail": _command_image_thumbnail,
 }
 
 

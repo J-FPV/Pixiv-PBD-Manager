@@ -11,6 +11,7 @@ from pixiv_pbd_manager.similar import (
     find_similar_images,
     hamming_hex,
     iter_image_files,
+    pixiv_page_key,
 )
 
 
@@ -109,6 +110,90 @@ class SimilarImageTests(unittest.TestCase):
 
             self.assertEqual(first.indexed, 1)
             self.assertEqual(second.reused, 1)
+
+    def test_pixiv_page_key_reads_pid_and_page(self):
+        self.assertEqual(pixiv_page_key("12345678_p12.jpg"), ("12345678", 12))
+        self.assertEqual(pixiv_page_key("title-12345678_p0-sample.png"), ("12345678", 0))
+        self.assertIsNone(pixiv_page_key("12345678.jpg"))
+
+    def test_can_skip_comparing_same_pixiv_work_pages(self):
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            first = root / "12345678_p0.png"
+            second = root / "12345678_p1.png"
+            make_pattern(first)
+            shutil.copyfile(first, second)
+
+            skipped = find_similar_images(
+                [root],
+                index_path=root / "skip-index.json",
+                skip_same_pixiv_work_pages=True,
+            )
+            included = find_similar_images(
+                [root],
+                index_path=root / "include-index.json",
+                skip_same_pixiv_work_pages=False,
+            )
+
+            self.assertEqual(skipped.groups, [])
+            self.assertEqual(len(included.groups), 1)
+
+    def test_same_pixiv_page_can_still_group_with_duplicate(self):
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            first = root / "12345678_p0.png"
+            second = root / "copy-12345678_p0.png"
+            make_pattern(first)
+            shutil.copyfile(first, second)
+
+            result = find_similar_images(
+                [root],
+                index_path=root / "index.json",
+                skip_same_pixiv_work_pages=True,
+            )
+
+            self.assertEqual(len(result.groups), 1)
+
+    def test_scan_emits_checkpoint_and_matching_progress(self):
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            make_pattern(root / "first.png")
+            make_pattern(root / "second.png")
+            events: list[tuple[str, dict[str, object]]] = []
+
+            result = find_similar_images(
+                [root],
+                index_path=root / "index.json",
+                progress_callback=lambda key, payload: events.append((key, payload)),
+                progress_interval=1,
+                checkpoint_interval=1,
+            )
+
+            keys = [key for key, _payload in events]
+            self.assertEqual(result.indexed, 2)
+            self.assertIn("progress_similar_index_saved", keys)
+            self.assertIn("progress_similar_match_start", keys)
+            self.assertIn("progress_similar_match", keys)
+            file_events = [payload for key, payload in events if key == "progress_similar_files"]
+            self.assertTrue(any(payload.get("total_files") == 2 for payload in file_events))
+
+    def test_small_scan_emits_file_start_progress_before_interval(self):
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            make_pattern(root / "first.png")
+            make_pattern(root / "second.png")
+            events: list[tuple[str, dict[str, object]]] = []
+
+            find_similar_images(
+                [root],
+                index_path=root / "index.json",
+                progress_callback=lambda key, payload: events.append((key, payload)),
+                progress_interval=100,
+            )
+
+            first_start = next(payload for key, payload in events if key == "progress_similar_file_start")
+            self.assertEqual(first_start["files"], 1)
+            self.assertEqual(first_start["total_files"], 2)
 
     def test_excluded_folder_is_skipped(self):
         with TemporaryDirectory() as tmp:
