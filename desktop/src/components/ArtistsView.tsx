@@ -107,19 +107,23 @@ export function ArtistsView({
     key: ArtistSortKey,
     columnKey: ArtistColumn,
     label: string,
-    align: "left" | "right" = "left",
-  ) => (
-    <span className="headerCell">
-      <ColumnResizeHandle handle={leftHandle(columnKey)} side="left" />
-      <button className={`headerButton ${align === "right" ? "numericHeader" : ""}`} onClick={() => changeSort(key)}>
-        <span>{label}</span>
-        <span className={`sortArrow ${sortKey === key ? "active" : ""}`}>
-          {sortKey === key ? (sortDirection === "asc" ? "▲" : "▼") : ""}
-        </span>
-      </button>
-      <ColumnResizeHandle handle={rightHandle(columnKey)} side="right" />
-    </span>
-  );
+    align: "left" | "right" | "center" = "left",
+  ) => {
+    const alignClass =
+      align === "right" ? "numericHeader" : align === "center" ? "centerNumericHeader" : "";
+    return (
+      <span className="headerCell">
+        <ColumnResizeHandle handle={leftHandle(columnKey)} side="left" />
+        <button className={`headerButton ${alignClass}`} onClick={() => changeSort(key)}>
+          <span>{label}</span>
+          <span className={`sortArrow ${sortKey === key ? "active" : ""}`}>
+            {sortKey === key ? (sortDirection === "asc" ? "▲" : "▼") : ""}
+          </span>
+        </button>
+        <ColumnResizeHandle handle={rightHandle(columnKey)} side="right" />
+      </span>
+    );
+  };
   const plainHeader = (columnKey: ArtistColumn, label: string) => (
     <span className="headerCell">
       <ColumnResizeHandle handle={leftHandle(columnKey)} side="left" />
@@ -224,8 +228,8 @@ export function ArtistsView({
           <span />
           {sortHeader("id", "id", t(language, "artistId"))}
           {sortHeader("name", "name", t(language, "artistName"))}
-          {sortHeader("works", "works", t(language, "works"), "right")}
-          {sortHeader("new_works", "newWorks", t(language, "newWorks"), "right")}
+          {sortHeader("works", "works", t(language, "works"), "center")}
+          {sortHeader("new_works", "newWorks", t(language, "newWorks"), "center")}
           {plainHeader("savePaths", t(language, "savePaths"))}
           {plainHeader("lastSeen", t(language, "lastSeen"))}
         </div>
@@ -246,8 +250,8 @@ export function ArtistsView({
                   <span className="checkbox">{checked ? <CheckSquare size={17} /> : <Square size={17} />}</span>
                   <span>{artist.id}</span>
                   <span>{artist.name}</span>
-                  <span className="numeric">{artist.works}</span>
-                  <span className="numeric strong">{artist.new_works}</span>
+                  <span className="centerNumeric">{artist.works}</span>
+                  <span className="centerNumeric strong">{artist.new_works}</span>
                   <span
                     className={`pathText ${artist.save_paths.length ? "clickablePath" : ""}`}
                     title={artist.save_paths[0] || ""}

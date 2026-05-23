@@ -445,6 +445,14 @@ body.col-resizing .colHandle::after {
   text-align: right;
 }
 
+.centerNumeric {
+  text-align: center;
+}
+
+.headerButton.centerNumericHeader {
+  justify-content: center;
+}
+
 .strong {
   font-weight: 650;
   color: var(--accent-strong);

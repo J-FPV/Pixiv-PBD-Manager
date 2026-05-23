@@ -101,26 +101,40 @@ export function useColumnWidths<K extends string>(
     [defaults, min],
   );
 
+  // CSS grid anchors columns differently depending on which side of the flex
+  // column they're on. Columns to the LEFT of flex have a fixed left edge; the
+  // flex absorbs growth on the right, so their right handle visually tracks
+  // the mouse. Columns to the RIGHT of flex have a fixed right edge (anchored
+  // to the container); growing them only moves their LEFT edge, so the right
+  // handle on those columns wouldn't move at all. We therefore put handles on
+  // the side that faces the flex column.
+  const flexIndex = useMemo(() => columns.findIndex((c) => c.flex), [columns]);
+
   const rightHandle = useCallback(
     (key: K): ColumnHandleProps | null => {
       const idx = columns.findIndex((entry) => entry.key === key);
-      if (idx === -1 || idx >= columns.length - 1) return null;
+      if (idx === -1) return null;
       if (!isResizable(columns[idx])) return null;
+      if (flexIndex === -1) {
+        if (idx >= columns.length - 1) return null;
+      } else if (idx >= flexIndex) {
+        return null; // columns at or after flex use left handles
+      }
       return makeHandle(key, "right");
     },
-    [columns, makeHandle],
+    [columns, flexIndex, makeHandle],
   );
 
   const leftHandle = useCallback(
     (key: K): ColumnHandleProps | null => {
       const idx = columns.findIndex((entry) => entry.key === key);
-      if (idx <= 0) return null;
+      if (idx === -1) return null;
       if (!isResizable(columns[idx])) return null;
-      // Only meaningful when the previous column is flex, so the flex absorbs the delta.
-      if (!columns[idx - 1].flex) return null;
+      if (flexIndex === -1) return null; // no flex, no elasticity for left-side resize
+      if (idx <= flexIndex) return null; // columns at or before flex use right handles
       return makeHandle(key, "left");
     },
-    [columns, makeHandle],
+    [columns, flexIndex, makeHandle],
   );
 
   const gridTemplate = useMemo(

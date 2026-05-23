@@ -213,12 +213,12 @@ export function SimilarView({
           </span>
           <span className="headerCell">
             <ColumnResizeHandle handle={leftHandle("resolution")} side="left" />
-            <span>{t(language, "resolution")}</span>
+            <span className="centerNumeric">{t(language, "resolution")}</span>
             <ColumnResizeHandle handle={rightHandle("resolution")} side="right" />
           </span>
           <span className="headerCell">
             <ColumnResizeHandle handle={leftHandle("size")} side="left" />
-            <span>{t(language, "size")}</span>
+            <span className="centerNumeric">{t(language, "size")}</span>
             <ColumnResizeHandle handle={rightHandle("size")} side="right" />
           </span>
         </div>
@@ -267,8 +267,8 @@ export function SimilarView({
                       onPreview={() => setPreview({ group: item.group, path: item.entry.path })}
                     />
                     <span className="pathText clickablePath" title={item.entry.path}>{item.entry.path}</span>
-                    <span>{item.entry.resolution}</span>
-                    <span className="numeric">{formatBytes(item.entry.size_bytes)}</span>
+                    <span className="centerNumeric">{item.entry.resolution}</span>
+                    <span className="centerNumeric">{formatBytes(item.entry.size_bytes)}</span>
                   </div>
                 );
               })}
