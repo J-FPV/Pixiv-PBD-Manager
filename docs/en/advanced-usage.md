@@ -98,7 +98,7 @@ The update page limit controls how many newest profile pages are checked. `0` me
 
 ## Similar Image Rules
 
-Open Similar Images in the GUI and optionally enter dedicated scan and exclude folders. If left empty, the current download and exclude folders are used.
+Open Similar Images in the GUI and optionally enter dedicated scan and exclude folders. Empty scan folders fall back to the current download folders; Similar Images exclude folders are saved independently and do not automatically reuse the normal scan exclude folders.
 
 The app only reports results; it does not delete or move files.
 

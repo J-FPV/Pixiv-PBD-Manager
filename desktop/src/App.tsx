@@ -158,7 +158,6 @@ export default function App() {
     setCookieConsent(payload.cookie_consent);
     setPixivCookie(payload.pixiv_cookie || "");
     setSimilarRoots((current) => current || joinLines(merged.download_roots));
-    setSimilarExcludes((current) => current || joinLines(merged.exclude_roots));
     if (payload.project_root) {
       setProjectRootState(payload.project_root);
       setProjectRoot(payload.project_root);

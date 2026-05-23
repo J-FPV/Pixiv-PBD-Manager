@@ -133,6 +133,7 @@ export function SimilarView({
               onChange={(event) => setExcludes(event.target.value)}
               onMouseUp={() => rememberTextareaHeight(excludeTextareaRef, setExcludeBoxHeight)}
               onBlur={() => rememberTextareaHeight(excludeTextareaRef, setExcludeBoxHeight)}
+              placeholder={t(language, "similarExcludeRootsHint")}
               style={excludeBoxHeight ? { height: excludeBoxHeight } : undefined}
             />
             <button type="button" className="button browseButton" onClick={() => void appendFolder(excludes, setExcludes)}>

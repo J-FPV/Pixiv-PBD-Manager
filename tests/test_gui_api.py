@@ -305,6 +305,34 @@ class GuiApiTests(unittest.TestCase):
         self.assertEqual(len(payload["groups"]), 1)
         self.assertEqual(payload["groups"][0]["kind"], "exact")
 
+    def test_similar_run_empty_excludes_do_not_fall_back_to_scan_excludes(self):
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            first = root / "first.png"
+            second = root / "second.png"
+            Image.new("RGB", (32, 32), "red").save(first)
+            second.write_bytes(first.read_bytes())
+            data_dir = root / ".pixiv-pbd-manager"
+            data_dir.mkdir()
+            (data_dir / "gui_settings.json").write_text(
+                json.dumps({"download_roots": [str(root)], "exclude_roots": [str(root)]}),
+                encoding="utf-8",
+            )
+            old_cwd = Path.cwd()
+            try:
+                os.chdir(root)
+                exit_code, events = invoke(
+                    "similar.run",
+                    {"roots": [str(root)], "exclude_roots": [], "threshold": "likely"},
+                )
+            finally:
+                os.chdir(old_cwd)
+
+        self.assertEqual(exit_code, 0)
+        payload = events[-1]["payload"]
+        self.assertEqual(len(payload["groups"]), 1)
+        self.assertEqual(payload["groups"][0]["kind"], "exact")
+
     def test_similar_run_can_skip_pixiv_page_pairs(self):
         with TemporaryDirectory() as tmp:
             root = Path(tmp)

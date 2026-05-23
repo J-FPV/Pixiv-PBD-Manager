@@ -13,7 +13,8 @@ def run(payload: JsonDict, emit_event: Emitter) -> JsonDict:
     settings = load_settings_for_payload(payload)
     base = base_dir(payload)
     roots = paths(payload.get("roots") or settings.get("download_roots"), base)
-    exclude_roots = paths(payload.get("exclude_roots") or settings.get("exclude_roots"), base)
+    raw_exclude_roots = payload.get("exclude_roots") if "exclude_roots" in payload else settings.get("exclude_roots")
+    exclude_roots = paths(raw_exclude_roots, base)
     result = find_similar_images(
         roots,
         exclude_roots=exclude_roots,
