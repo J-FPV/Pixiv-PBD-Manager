@@ -35,7 +35,7 @@ class GuiBackendTests(unittest.TestCase):
             db_path = Path(tmp) / "artists.json"
 
             with patch(
-                "pixiv_pbd_manager.operations.resolve_name_only_artist",
+                "pixiv_pbd_manager.resolver.resolve_name_only_artist",
                 return_value=ResolvedArtist(id="126324", name="96YOTTEA", work_id="100187254"),
             ):
                 result = scan_into_database([root], db_path, resolve_online=True)
@@ -54,7 +54,7 @@ class GuiBackendTests(unittest.TestCase):
             db_path = Path(tmp) / "artists.json"
 
             with patch(
-                "pixiv_pbd_manager.operations.resolve_name_by_fuzzy_search",
+                "pixiv_pbd_manager.resolver.resolve_name_by_fuzzy_search",
                 return_value=PixivUserCandidate(id="123456", name="一条レイ", score=0.91, source="test"),
             ):
                 result = scan_into_database([root], db_path, resolve_online=True, fuzzy_search_names=True)
@@ -90,7 +90,7 @@ class GuiBackendTests(unittest.TestCase):
             db.save()
 
             with patch(
-                "pixiv_pbd_manager.operations.fetch_user_work_ids",
+                "pixiv_pbd_manager.resolver.fetch_user_work_ids",
                 return_value=PixivUserWorks(user_id="123456", work_ids={"100", "101", "102", "103"}),
             ):
                 result = check_artist_updates(db_path)
@@ -109,7 +109,7 @@ class GuiBackendTests(unittest.TestCase):
             db.save()
 
             with patch(
-                "pixiv_pbd_manager.operations.fetch_user_work_ids",
+                "pixiv_pbd_manager.resolver.fetch_user_work_ids",
                 return_value=PixivUserWorks(user_id="123456", work_ids={"100", "101"}),
             ) as fetch:
                 check_artist_updates(db_path, max_pages=2)
@@ -125,7 +125,7 @@ class GuiBackendTests(unittest.TestCase):
             events = []
 
             with patch(
-                "pixiv_pbd_manager.operations.fetch_user_work_ids",
+                "pixiv_pbd_manager.resolver.fetch_user_work_ids",
                 return_value=PixivUserWorks(user_id="123456", work_ids={"100", "101"}),
             ):
                 check_artist_updates(db_path, progress_callback=lambda key, payload: events.append((key, payload)))
@@ -144,7 +144,7 @@ class GuiBackendTests(unittest.TestCase):
             db.save()
 
             with patch(
-                "pixiv_pbd_manager.operations.download_artwork",
+                "pixiv_pbd_manager.downloader.download_artwork",
                 return_value=ArtworkDownloadResult(work_id="101", saved_files=[str(root / "101_p0.jpg")]),
             ):
                 result = download_artist_updates(db_path)
