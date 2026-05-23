@@ -16,6 +16,7 @@ import json
 import os
 import sys
 import traceback
+from pathlib import Path
 from typing import Callable
 
 from .commands import artists, files, scan, settings, similar, updates
@@ -73,20 +74,49 @@ def run_command(command: str, payload: JsonDict | None = None, *, emit: Emitter 
     return 0
 
 
+def _read_payload_source(command: str, argv: list[str]) -> tuple[str, int]:
+    """Return (payload_text, exit_code). exit_code != 0 means error already emitted.
+
+    Supports three forms (Tauri only uses the first):
+      <cmd> '<json>'                 — JSON as a single positional arg
+      <cmd> --payload-file PATH      — read JSON from a file
+      <cmd> -                        — read JSON from stdin
+
+    The latter two exist so a human at a PowerShell prompt can hand-debug a
+    command without fighting argv quoting (PowerShell strips inner double
+    quotes from a JSON arg).
+    """
+    if not argv:
+        return "{}", 0
+    first = argv[0]
+    if first == "-":
+        return sys.stdin.read(), 0
+    if first == "--payload-file":
+        if len(argv) < 2:
+            emit_event({"type": "error", "command": command, "message": "--payload-file requires a path"})
+            return "", 2
+        try:
+            return Path(argv[1]).read_text(encoding="utf-8"), 0
+        except OSError as exc:
+            emit_event({"type": "error", "command": command, "message": f"Cannot read payload file: {exc}"})
+            return "", 2
+    return first, 0
+
+
 def main(argv: list[str] | None = None) -> int:
     argv = list(sys.argv[1:] if argv is None else argv)
     if not argv:
         emit_event({"type": "error", "message": "Missing GUI API command"})
         return 2
     command = argv[0]
-    if len(argv) >= 2:
-        try:
-            payload = json.loads(argv[1])
-        except json.JSONDecodeError as exc:
-            emit_event({"type": "error", "command": command, "message": f"Invalid JSON payload: {exc}"})
-            return 2
-    else:
-        payload = {}
+    payload_text, rc = _read_payload_source(command, argv[1:])
+    if rc != 0:
+        return rc
+    try:
+        payload = json.loads(payload_text) if payload_text.strip() else {}
+    except json.JSONDecodeError as exc:
+        emit_event({"type": "error", "command": command, "message": f"Invalid JSON payload: {exc}"})
+        return 2
     if not isinstance(payload, dict):
         emit_event({"type": "error", "command": command, "message": "Payload must be a JSON object"})
         return 2

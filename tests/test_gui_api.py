@@ -437,6 +437,53 @@ class GuiApiTests(unittest.TestCase):
         self.assertEqual(exit_code, 2)
         self.assertEqual(events[-1]["type"], "error")
 
+    def test_main_reads_payload_from_file(self):
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            payload_file = root / "payload.json"
+            payload_file.write_text(json.dumps({"settings": {}}), encoding="utf-8")
+            buf = io.StringIO()
+            old_cwd = Path.cwd()
+            try:
+                os.chdir(root)
+                with redirect_stdout(buf):
+                    exit_code = gui_api.main(["settings.save", "--payload-file", str(payload_file)])
+            finally:
+                os.chdir(old_cwd)
+
+        self.assertEqual(exit_code, 0)
+        events = [json.loads(line) for line in buf.getvalue().splitlines()]
+        self.assertEqual(events[-1]["type"], "result")
+
+    def test_main_reads_payload_from_stdin(self):
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            buf = io.StringIO()
+            old_cwd = Path.cwd()
+            old_stdin = sys.stdin
+            try:
+                os.chdir(root)
+                sys.stdin = io.StringIO(json.dumps({"settings": {}}))
+                with redirect_stdout(buf):
+                    exit_code = gui_api.main(["settings.save", "-"])
+            finally:
+                sys.stdin = old_stdin
+                os.chdir(old_cwd)
+
+        self.assertEqual(exit_code, 0)
+        events = [json.loads(line) for line in buf.getvalue().splitlines()]
+        self.assertEqual(events[-1]["type"], "result")
+
+    def test_main_payload_file_missing_path_errors(self):
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            exit_code = gui_api.main(["settings.get", "--payload-file"])
+
+        self.assertEqual(exit_code, 2)
+        events = [json.loads(line) for line in buf.getvalue().splitlines()]
+        self.assertEqual(events[-1]["type"], "error")
+        self.assertIn("--payload-file", events[-1]["message"])
+
     def test_update_download_and_browser_commands_return_results(self):
         with TemporaryDirectory() as tmp:
             root = Path(tmp)
