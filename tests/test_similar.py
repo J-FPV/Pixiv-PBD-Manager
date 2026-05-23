@@ -94,7 +94,7 @@ class SimilarImageTests(unittest.TestCase):
             root = Path(tmp)
             (root / "first.jpg").write_bytes(b"not an image")
 
-            with patch("pixiv_pbd_manager.similar.Image", None):
+            with patch("pixiv_pbd_manager.similar.fingerprint.Image", None):
                 with self.assertRaisesRegex(RuntimeError, "Pillow is required"):
                     find_similar_images([root], index_path=root / "index.json")
 
