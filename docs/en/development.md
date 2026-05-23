@@ -120,7 +120,26 @@ Run the GUI regression checklist in [manual-test-checklist.md](../zh/manual-test
 
 ## Packaging Direction
 
-The current development build depends on the user's Python environment. The intended packaging path is to build the Python backend with PyInstaller as a Tauri sidecar, then ship a Tauri installer so end users do not need to install Python dependencies manually.
+The end-user distribution bundles the Python backend with PyInstaller into a single-file `.exe`, runs it as a Tauri sidecar, and ships everything as a Tauri installer so end users do not need to install Python or any Python dependencies.
+
+### Building the backend exe locally
+
+```powershell
+pip install -e ".[build]"
+pyinstaller pixiv-pbd-api.spec
+```
+
+Output: `dist/pixiv-pbd-api.exe`. It accepts the same argv / `--payload-file` / `-` (stdin) forms as `python -m pixiv_pbd_manager.gui_api` and emits the same JSON Lines.
+
+Sanity check:
+
+```powershell
+.\dist\pixiv-pbd-api.exe settings.get '{}'
+```
+
+Note: the current bundle is ~344 MB because `imagehash` transitively pulls in `scipy` + `numpy` + `PyWavelets`. The Tauri installer compresses further; the end-user download will be on the order of ~100 MB. If size becomes a problem, a future optimization can replace `imagehash` with an in-house pHash/dHash that depends only on `numpy`.
+
+P2 will wire this exe into Tauri as a sidecar; P3 adds a GitHub Actions release workflow.
 
 ## Data directory resolution
 

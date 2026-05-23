@@ -96,7 +96,10 @@ def _read_payload_source(command: str, argv: list[str]) -> tuple[str, int]:
             emit_event({"type": "error", "command": command, "message": "--payload-file requires a path"})
             return "", 2
         try:
-            return Path(argv[1]).read_text(encoding="utf-8"), 0
+            # ``utf-8-sig`` strips an optional BOM. PowerShell 5.1's
+            # ``Out-File -Encoding utf8`` writes a BOM by default; plain UTF-8
+            # files without a BOM also decode correctly under this codec.
+            return Path(argv[1]).read_text(encoding="utf-8-sig"), 0
         except OSError as exc:
             emit_event({"type": "error", "command": command, "message": f"Cannot read payload file: {exc}"})
             return "", 2

@@ -10,6 +10,7 @@ dist/
 build/
 *.egg-info/
 *.spec
+!pixiv-pbd-api.spec
 .claude/
 desktop/node_modules/
 desktop/dist/

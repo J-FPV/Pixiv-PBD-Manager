@@ -485,6 +485,26 @@ class GuiApiTests(unittest.TestCase):
         events = [json.loads(line) for line in buf.getvalue().splitlines()]
         self.assertEqual(events[-1]["type"], "result")
 
+    def test_main_payload_file_strips_utf8_bom(self):
+        # PowerShell 5.1's `Out-File -Encoding utf8` writes UTF-8 with a BOM,
+        # which json.loads rejects. The payload-file reader must tolerate it.
+        with TemporaryDirectory() as tmp:
+            root = _isolate(tmp)
+            payload_file = root / "payload.json"
+            payload_file.write_bytes(b"\xef\xbb\xbf" + json.dumps({"settings": {}}).encode("utf-8"))
+            buf = io.StringIO()
+            old_cwd = Path.cwd()
+            try:
+                os.chdir(root)
+                with redirect_stdout(buf):
+                    exit_code = gui_api.main(["settings.save", "--payload-file", str(payload_file)])
+            finally:
+                os.chdir(old_cwd)
+
+        self.assertEqual(exit_code, 0)
+        events = [json.loads(line) for line in buf.getvalue().splitlines()]
+        self.assertEqual(events[-1]["type"], "result")
+
     def test_main_payload_file_missing_path_errors(self):
         buf = io.StringIO()
         with redirect_stdout(buf):
