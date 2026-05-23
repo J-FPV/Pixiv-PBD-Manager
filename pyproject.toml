@@ -53,4 +53,7 @@ select = [
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
-addopts = "-q"
+# -p no:cacheprovider sidesteps a "WinError 5: Access is denied" when pytest
+# tries to write .pytest_cache/ on some Windows volumes. Tests still pass
+# without it; the cache write is cosmetic and the warnings drown real output.
+addopts = "-q -p no:cacheprovider"

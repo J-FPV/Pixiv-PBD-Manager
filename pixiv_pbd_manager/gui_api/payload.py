@@ -56,10 +56,21 @@ def _nearest_project_root(path: Path) -> Path | None:
 def resolve_base_dir(project_root: Any = None) -> Path:
     """Pick the directory that GUI command handlers should chdir into.
 
-    Prefers (in order): the user-supplied ``project_root`` payload field, the
-    closest project root found by walking upward from the cwd, and the source
-    root as last resort. The chosen directory will contain the
-    ``.pixiv-pbd-manager/`` state folder.
+    The Tauri frontend lives in ``desktop/src-tauri/`` and passes
+    ``project_root=".."`` (or similar) expecting the resolver to **walk
+    upward** until it finds a project root — a directory holding either
+    ``pixiv_pbd_manager/`` (developer checkout) or ``.pixiv-pbd-manager/``
+    (installed user state). That walk-up is the whole point of this
+    function.
+
+    Order of preference: the supplied ``project_root`` (or its closest
+    ancestor that looks like a project root), then the cwd's closest
+    project root, then the source root as last resort.
+
+    **Gotcha for tests / smokes:** if you pass ``project_root=/tmp/foo``
+    and ``/tmp/foo`` has neither marker, the walk-up will escape into
+    cwd and you'll silently hit the real ``.pixiv-pbd-manager/``. To
+    isolate a smoke, ``mkdir <tmp>/.pixiv-pbd-manager`` before calling.
     """
     if not project_root:
         cwd = Path.cwd().resolve()
