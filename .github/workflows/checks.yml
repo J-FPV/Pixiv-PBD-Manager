@@ -29,6 +29,9 @@ jobs:
       - name: Python tests
         run: python -m unittest
 
+      - name: IPC smoke (gui_api roundtrip)
+        run: python scripts/smoke.py --only ipc
+
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
