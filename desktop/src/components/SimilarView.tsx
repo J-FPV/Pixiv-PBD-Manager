@@ -1,8 +1,11 @@
 import { useMemo, useRef, useState } from "react";
-import type { RefObject } from "react";
+import type { CSSProperties, RefObject } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { Image as ImageIcon } from "lucide-react";
 import { browsePath } from "../api";
+import { SIMILAR_COL_WIDTHS_KEY } from "../constants";
+import { useColumnWidths } from "../hooks/useColumnWidths";
+import type { ColumnDef } from "../hooks/useColumnWidths";
 import { t } from "../i18n";
 import type {
   Language,
@@ -14,8 +17,20 @@ import type {
 import { formatBytes } from "../utils/format";
 import { clampTextareaHeight } from "../utils/textarea";
 import { Button } from "./Button";
+import { ColumnResizeHandle } from "./ColumnResizeHandle";
 import { ImagePreviewModal } from "./ImagePreviewModal";
 import { SimilarThumbnail } from "./SimilarThumbnail";
+
+type SimilarColumn = "group" | "kind" | "preview" | "path" | "resolution" | "size";
+
+const SIMILAR_COLUMNS: ColumnDef<SimilarColumn>[] = [
+  { key: "group", width: 120 },
+  { key: "kind", width: 120 },
+  { key: "preview", width: 76 },
+  { key: "path", flex: true },
+  { key: "resolution", width: 110 },
+  { key: "size", width: 90 },
+];
 
 type SimilarRow =
   | { type: "group"; group: SimilarGroup }
@@ -84,6 +99,11 @@ export function SimilarView({
     estimateSize: (index) => (rows[index]?.type === "entry" ? 76 : 42),
     overscan: 14
   });
+  const { gridTemplate, handleProps } = useColumnWidths<SimilarColumn>(
+    SIMILAR_COL_WIDTHS_KEY,
+    SIMILAR_COLUMNS,
+  );
+  const tableStyle: CSSProperties = { ["--cols" as string]: gridTemplate };
 
   const appendFolder = async (value: string, setter: (next: string) => void) => {
     const picked = await browsePath("folder");
@@ -169,14 +189,32 @@ export function SimilarView({
         </div>
       </div>
 
-      <div className="table similarTable">
+      <div className="table similarTable" style={tableStyle}>
         <div className="tableHeader">
-          <span>{t(language, "group")}</span>
-          <span>{t(language, "kind")}</span>
-          <span>{t(language, "preview")}</span>
-          <span>{t(language, "path")}</span>
-          <span>{t(language, "resolution")}</span>
-          <span>{t(language, "size")}</span>
+          <span className="headerCell">
+            <span>{t(language, "group")}</span>
+            <ColumnResizeHandle handle={handleProps("group")} />
+          </span>
+          <span className="headerCell">
+            <span>{t(language, "kind")}</span>
+            <ColumnResizeHandle handle={handleProps("kind")} />
+          </span>
+          <span className="headerCell">
+            <span>{t(language, "preview")}</span>
+            <ColumnResizeHandle handle={handleProps("preview")} />
+          </span>
+          <span className="headerCell">
+            <span>{t(language, "path")}</span>
+            <ColumnResizeHandle handle={handleProps("path")} />
+          </span>
+          <span className="headerCell">
+            <span>{t(language, "resolution")}</span>
+            <ColumnResizeHandle handle={handleProps("resolution")} />
+          </span>
+          <span className="headerCell">
+            <span>{t(language, "size")}</span>
+            <ColumnResizeHandle handle={handleProps("size")} />
+          </span>
         </div>
         <div className="virtualList" ref={parentRef}>
           {rows.length ? (

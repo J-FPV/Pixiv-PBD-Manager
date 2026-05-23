@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { MouseEvent as ReactMouseEvent } from "react";
+import type { CSSProperties, MouseEvent as ReactMouseEvent } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import {
   CheckSquare,
@@ -16,9 +16,25 @@ import {
   Trash2,
   XCircle
 } from "lucide-react";
+import { ARTISTS_COL_WIDTHS_KEY } from "../constants";
+import { useColumnWidths } from "../hooks/useColumnWidths";
+import type { ColumnDef } from "../hooks/useColumnWidths";
 import { t } from "../i18n";
 import type { Artist, Language } from "../types";
 import { Button } from "./Button";
+import { ColumnResizeHandle } from "./ColumnResizeHandle";
+
+type ArtistColumn = "checkbox" | "id" | "name" | "works" | "newWorks" | "savePaths" | "lastSeen";
+
+const ARTIST_COLUMNS: ColumnDef<ArtistColumn>[] = [
+  { key: "checkbox", width: 30, resizable: false },
+  { key: "id", width: 110 },
+  { key: "name", width: 160 },
+  { key: "works", width: 64 },
+  { key: "newWorks", width: 72 },
+  { key: "savePaths", flex: true },
+  { key: "lastSeen", width: 170 },
+];
 
 type ArtistSortKey = "id" | "name" | "works" | "new_works";
 type SortDirection = "asc" | "desc";
@@ -69,6 +85,8 @@ export function ArtistsView({
   const [menu, setMenu] = useState<{ x: number; y: number; artistId: string } | null>(null);
   const [sortKey, setSortKey] = useState<ArtistSortKey>("id");
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
+  const { gridTemplate, handleProps } = useColumnWidths<ArtistColumn>(ARTISTS_COL_WIDTHS_KEY, ARTIST_COLUMNS);
+  const tableStyle: CSSProperties = { ["--cols" as string]: gridTemplate };
 
   const openMenu = (event: ReactMouseEvent, artistId: string) => {
     event.preventDefault();
@@ -82,13 +100,27 @@ export function ArtistsView({
     setSortKey(key);
     setSortDirection("asc");
   };
-  const sortHeader = (key: ArtistSortKey, label: string, align: "left" | "right" = "left") => (
-    <button className={`headerButton ${align === "right" ? "numericHeader" : ""}`} onClick={() => changeSort(key)}>
+  const sortHeader = (
+    key: ArtistSortKey,
+    columnKey: ArtistColumn,
+    label: string,
+    align: "left" | "right" = "left",
+  ) => (
+    <span className="headerCell">
+      <button className={`headerButton ${align === "right" ? "numericHeader" : ""}`} onClick={() => changeSort(key)}>
+        <span>{label}</span>
+        <span className={`sortArrow ${sortKey === key ? "active" : ""}`}>
+          {sortKey === key ? (sortDirection === "asc" ? "▲" : "▼") : ""}
+        </span>
+      </button>
+      <ColumnResizeHandle handle={handleProps(columnKey)} />
+    </span>
+  );
+  const plainHeader = (columnKey: ArtistColumn, label: string) => (
+    <span className="headerCell">
       <span>{label}</span>
-      <span className={`sortArrow ${sortKey === key ? "active" : ""}`}>
-        {sortKey === key ? (sortDirection === "asc" ? "▲" : "▼") : ""}
-      </span>
-    </button>
+      <ColumnResizeHandle handle={handleProps(columnKey)} />
+    </span>
   );
   const parentRef = useRef<HTMLDivElement>(null);
   const visibleArtists = useMemo(() => {
@@ -182,15 +214,15 @@ export function ArtistsView({
         </Button>
       </div>
 
-      <div className="table artistsTable">
+      <div className="table artistsTable" style={tableStyle}>
         <div className="tableHeader">
           <span />
-          {sortHeader("id", t(language, "artistId"))}
-          {sortHeader("name", t(language, "artistName"))}
-          {sortHeader("works", t(language, "works"), "right")}
-          {sortHeader("new_works", t(language, "newWorks"), "right")}
-          <span>{t(language, "savePaths")}</span>
-          <span>{t(language, "lastSeen")}</span>
+          {sortHeader("id", "id", t(language, "artistId"))}
+          {sortHeader("name", "name", t(language, "artistName"))}
+          {sortHeader("works", "works", t(language, "works"), "right")}
+          {sortHeader("new_works", "newWorks", t(language, "newWorks"), "right")}
+          {plainHeader("savePaths", t(language, "savePaths"))}
+          {plainHeader("lastSeen", t(language, "lastSeen"))}
         </div>
         <div className="virtualList" ref={parentRef}>
           <div style={{ height: virtualizer.getTotalSize(), position: "relative" }}>

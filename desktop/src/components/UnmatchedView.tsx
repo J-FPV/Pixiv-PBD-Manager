@@ -1,9 +1,22 @@
 import { useRef } from "react";
+import type { CSSProperties } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { UserPlus, XCircle } from "lucide-react";
+import { UNMATCHED_COL_WIDTHS_KEY } from "../constants";
+import { useColumnWidths } from "../hooks/useColumnWidths";
+import type { ColumnDef } from "../hooks/useColumnWidths";
 import { t } from "../i18n";
 import type { Language, UnmatchedFolder } from "../types";
 import { Button } from "./Button";
+import { ColumnResizeHandle } from "./ColumnResizeHandle";
+
+type UnmatchedColumn = "path" | "count" | "actions";
+
+const UNMATCHED_COLUMNS: ColumnDef<UnmatchedColumn>[] = [
+  { key: "path", flex: true },
+  { key: "count", width: 80 },
+  { key: "actions", width: 250 },
+];
 
 export function UnmatchedView({
   language,
@@ -25,6 +38,11 @@ export function UnmatchedView({
     estimateSize: () => 42,
     overscan: 14
   });
+  const { gridTemplate, handleProps } = useColumnWidths<UnmatchedColumn>(
+    UNMATCHED_COL_WIDTHS_KEY,
+    UNMATCHED_COLUMNS,
+  );
+  const tableStyle: CSSProperties = { ["--cols" as string]: gridTemplate };
   return (
     <section className="panel">
       <div className="toolbar">
@@ -32,11 +50,20 @@ export function UnmatchedView({
           {folders.length ? `${folders.length} ${t(language, "unmatched")}` : t(language, "unmatchedHint")}
         </span>
       </div>
-      <div className="table unmatchedTable">
+      <div className="table unmatchedTable" style={tableStyle}>
         <div className="tableHeader">
-          <span>{t(language, "path")}</span>
-          <span>{t(language, "unmatchedCount")}</span>
-          <span>{t(language, "actions")}</span>
+          <span className="headerCell">
+            <span>{t(language, "path")}</span>
+            <ColumnResizeHandle handle={handleProps("path")} />
+          </span>
+          <span className="headerCell">
+            <span>{t(language, "unmatchedCount")}</span>
+            <ColumnResizeHandle handle={handleProps("count")} />
+          </span>
+          <span className="headerCell">
+            <span>{t(language, "actions")}</span>
+            <ColumnResizeHandle handle={handleProps("actions")} />
+          </span>
         </div>
         <div className="virtualList" ref={parentRef}>
           {folders.length ? (

@@ -285,21 +285,56 @@ footer {
   gap: 10px;
   min-width: 0;
   padding: 0 12px;
+  grid-template-columns: var(--cols);
 }
 
-.artistsTable .tableHeader,
-.artistsTable .tableRow {
-  grid-template-columns: 30px 110px 160px 64px 72px minmax(220px, 1fr) 170px;
+.headerCell {
+  position: relative;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  height: 100%;
 }
 
-.similarTable .tableHeader,
-.similarTable .tableRow {
-  grid-template-columns: 120px 120px 76px minmax(280px, 1fr) 110px 90px;
+.headerCell > :not(.colHandle) {
+  flex: 1;
+  min-width: 0;
 }
 
-.unmatchedTable .tableHeader,
-.unmatchedTable .tableRow {
-  grid-template-columns: minmax(280px, 1fr) 80px 250px;
+.colHandle {
+  position: absolute;
+  top: 0;
+  right: -8px;
+  width: 10px;
+  height: 100%;
+  cursor: col-resize;
+  user-select: none;
+  z-index: 2;
+}
+
+.colHandle::after {
+  content: "";
+  position: absolute;
+  top: 25%;
+  left: 4px;
+  width: 2px;
+  height: 50%;
+  background: transparent;
+  transition: background 0.12s ease;
+}
+
+.colHandle:hover::after,
+body.col-resizing .colHandle::after {
+  background: var(--accent, #2563eb);
+}
+
+body.col-resizing {
+  cursor: col-resize !important;
+  user-select: none;
+}
+
+body.col-resizing * {
+  cursor: col-resize !important;
 }
 
 .unmatchedRow:hover {
