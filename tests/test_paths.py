@@ -48,7 +48,10 @@ class ResolveDataDirTests(unittest.TestCase):
             legacy = Path(tmp) / paths.LEGACY_DATA_DIR_NAME
             legacy.mkdir()
             resolved = paths.resolve_data_dir(start=Path(tmp))
-            self.assertEqual(resolved, legacy)
+            # ``_find_legacy_data_dir`` resolves the path (expanding e.g.
+            # ``RUNNER~1`` to ``runneradmin`` on Windows), so resolve both
+            # sides before comparing.
+            self.assertEqual(resolved, legacy.resolve())
 
     def test_falls_back_to_appdata_when_no_marker_and_no_env(self):
         with TemporaryDirectory() as tmp, ClearEnv(paths.DATA_DIR_ENV_VAR):
