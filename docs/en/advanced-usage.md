@@ -90,7 +90,9 @@ Settings can route restricted artworks into `[R-18&R-18G]` inside the artist fol
 
 ## Local Subfolder Scan During Update Checks
 
-If you organize artworks into subfolders, enable local subfolder scanning during update checks. The app recursively reads artwork IDs under each artist's save path before comparing against Pixiv, so already saved files are not reported as new.
+Update checks now always read artwork IDs directly under each artist's save-path root before comparing against Pixiv. If you manually download an image and place it in the artist's root save folder, the next update check treats it as already saved.
+
+If you organize artworks into subfolders, enable recursive local subfolder scanning during update checks. The app will also read artwork IDs under child folders so already saved files are not reported as new.
 
 The update page limit controls how many newest profile pages are checked. `0` means all works; values above `0` are faster but may miss older additions.
 

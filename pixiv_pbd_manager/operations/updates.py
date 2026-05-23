@@ -70,10 +70,9 @@ def check_artist_updates(
     emit(progress_callback, PROGRESS_CHECK_START, total=len(artists))
     for index, artist in enumerate(artists, 1):
         emit(progress_callback, PROGRESS_CHECK_ARTIST, current=index, total=len(artists), artist=artist.name or artist.id)
-        if scan_local:
-            local_ids = collect_local_work_ids(artist.save_paths)
-            if local_ids:
-                artist.merge(work_ids=local_ids)
+        local_ids = collect_local_work_ids(artist.save_paths, recursive=scan_local)
+        if local_ids:
+            artist.merge(work_ids=local_ids)
         try:
             remote = resolver.fetch_user_work_ids(
                 artist.id,

@@ -12,7 +12,7 @@ from pathlib import Path
 
 from ..database import ArtistDatabase
 from ..models import ArtistRecord
-from ..scanner import ScanSummary, extract_work_ids, is_relative_to, iter_media_files
+from ..scanner import MEDIA_SUFFIXES, ScanSummary, extract_work_ids, is_relative_to, iter_media_files
 
 
 ProgressCallback = Callable[[str, dict[str, object]], None]
@@ -23,14 +23,21 @@ def emit(progress_callback: ProgressCallback | None, key: str, **kwargs: object)
         progress_callback(key, kwargs)
 
 
-def collect_local_work_ids(save_paths: list[str]) -> set[str]:
-    """Scan an artist's saved folder(s) recursively and collect work ids on disk."""
+def _iter_direct_media_files(folder: Path):
+    for path in folder.iterdir():
+        if path.is_file() and path.suffix.lower() in MEDIA_SUFFIXES:
+            yield path
+
+
+def collect_local_work_ids(save_paths: list[str], *, recursive: bool = True) -> set[str]:
+    """Scan an artist's saved folder(s) and collect work ids on disk."""
     ids: set[str] = set()
     for raw in save_paths:
         folder = Path(raw)
         if not folder.exists():
             continue
-        for path in iter_media_files(folder):
+        paths = iter_media_files(folder) if recursive else _iter_direct_media_files(folder)
+        for path in paths:
             ids.update(extract_work_ids(path))
     return ids
 

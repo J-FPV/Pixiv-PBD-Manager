@@ -116,6 +116,55 @@ class GuiBackendTests(unittest.TestCase):
 
             self.assertEqual(fetch.call_args.kwargs["max_pages"], 2)
 
+    def test_check_artist_updates_rescans_artist_root_files_by_default(self):
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp) / "downloads"
+            root.mkdir()
+            (root / "100002_p0.jpg").write_bytes(b"fake")
+            db_path = Path(tmp) / "artists.json"
+            db = ArtistDatabase.load(db_path)
+            db.upsert("123456", name="Artist", save_path=root, work_ids={"100000"})
+            db.save()
+
+            with patch(
+                "pixiv_pbd_manager.resolver.fetch_user_work_ids",
+                return_value=PixivUserWorks(user_id="123456", work_ids={"100000", "100002", "100003"}),
+            ):
+                result = check_artist_updates(db_path)
+            db = ArtistDatabase.load(db_path)
+
+            self.assertEqual(result.new_works, 1)
+            self.assertIn("100002", db.artists["123456"].work_ids)
+            self.assertEqual(db.artists["123456"].new_work_ids, ["100003"])
+
+    def test_check_artist_updates_only_rescans_subfolders_when_enabled(self):
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp) / "downloads"
+            nested = root / "nested"
+            nested.mkdir(parents=True)
+            (nested / "100002_p0.jpg").write_bytes(b"fake")
+            db_path = Path(tmp) / "artists.json"
+            db = ArtistDatabase.load(db_path)
+            db.upsert("123456", name="Artist", save_path=root, work_ids={"100000"})
+            db.save()
+
+            with patch(
+                "pixiv_pbd_manager.resolver.fetch_user_work_ids",
+                return_value=PixivUserWorks(user_id="123456", work_ids={"100000", "100002"}),
+            ):
+                check_artist_updates(db_path, scan_local=False)
+            db = ArtistDatabase.load(db_path)
+            self.assertEqual(db.artists["123456"].new_work_ids, ["100002"])
+
+            with patch(
+                "pixiv_pbd_manager.resolver.fetch_user_work_ids",
+                return_value=PixivUserWorks(user_id="123456", work_ids={"100000", "100002"}),
+            ):
+                check_artist_updates(db_path, scan_local=True)
+            db = ArtistDatabase.load(db_path)
+            self.assertIn("100002", db.artists["123456"].work_ids)
+            self.assertEqual(db.artists["123456"].new_work_ids, [])
+
     def test_check_artist_updates_reports_progress(self):
         with TemporaryDirectory() as tmp:
             db_path = Path(tmp) / "artists.json"
