@@ -38,7 +38,7 @@ export function UnmatchedView({
     estimateSize: () => 42,
     overscan: 14
   });
-  const { gridTemplate, handleProps } = useColumnWidths<UnmatchedColumn>(
+  const { gridTemplate, leftHandle, rightHandle } = useColumnWidths<UnmatchedColumn>(
     UNMATCHED_COL_WIDTHS_KEY,
     UNMATCHED_COLUMNS,
   );
@@ -53,16 +53,19 @@ export function UnmatchedView({
       <div className="table unmatchedTable" style={tableStyle}>
         <div className="tableHeader">
           <span className="headerCell">
+            <ColumnResizeHandle handle={leftHandle("path")} side="left" />
             <span>{t(language, "path")}</span>
-            <ColumnResizeHandle handle={handleProps("path")} />
+            <ColumnResizeHandle handle={rightHandle("path")} side="right" />
           </span>
           <span className="headerCell">
+            <ColumnResizeHandle handle={leftHandle("count")} side="left" />
             <span>{t(language, "unmatchedCount")}</span>
-            <ColumnResizeHandle handle={handleProps("count")} />
+            <ColumnResizeHandle handle={rightHandle("count")} side="right" />
           </span>
           <span className="headerCell">
+            <ColumnResizeHandle handle={leftHandle("actions")} side="left" />
             <span>{t(language, "actions")}</span>
-            <ColumnResizeHandle handle={handleProps("actions")} />
+            <ColumnResizeHandle handle={rightHandle("actions")} side="right" />
           </span>
         </div>
         <div className="virtualList" ref={parentRef}>

@@ -85,7 +85,10 @@ export function ArtistsView({
   const [menu, setMenu] = useState<{ x: number; y: number; artistId: string } | null>(null);
   const [sortKey, setSortKey] = useState<ArtistSortKey>("id");
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
-  const { gridTemplate, handleProps } = useColumnWidths<ArtistColumn>(ARTISTS_COL_WIDTHS_KEY, ARTIST_COLUMNS);
+  const { gridTemplate, leftHandle, rightHandle } = useColumnWidths<ArtistColumn>(
+    ARTISTS_COL_WIDTHS_KEY,
+    ARTIST_COLUMNS,
+  );
   const tableStyle: CSSProperties = { ["--cols" as string]: gridTemplate };
 
   const openMenu = (event: ReactMouseEvent, artistId: string) => {
@@ -107,19 +110,21 @@ export function ArtistsView({
     align: "left" | "right" = "left",
   ) => (
     <span className="headerCell">
+      <ColumnResizeHandle handle={leftHandle(columnKey)} side="left" />
       <button className={`headerButton ${align === "right" ? "numericHeader" : ""}`} onClick={() => changeSort(key)}>
         <span>{label}</span>
         <span className={`sortArrow ${sortKey === key ? "active" : ""}`}>
           {sortKey === key ? (sortDirection === "asc" ? "▲" : "▼") : ""}
         </span>
       </button>
-      <ColumnResizeHandle handle={handleProps(columnKey)} />
+      <ColumnResizeHandle handle={rightHandle(columnKey)} side="right" />
     </span>
   );
   const plainHeader = (columnKey: ArtistColumn, label: string) => (
     <span className="headerCell">
+      <ColumnResizeHandle handle={leftHandle(columnKey)} side="left" />
       <span>{label}</span>
-      <ColumnResizeHandle handle={handleProps(columnKey)} />
+      <ColumnResizeHandle handle={rightHandle(columnKey)} side="right" />
     </span>
   );
   const parentRef = useRef<HTMLDivElement>(null);

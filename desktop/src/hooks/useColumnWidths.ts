@@ -16,6 +16,10 @@ export type ColumnHandleProps = {
 
 const MIN_WIDTH_DEFAULT = 60;
 
+function isResizable<K extends string>(col: ColumnDef<K>) {
+  return !col.flex && col.resizable !== false;
+}
+
 export function useColumnWidths<K extends string>(
   storageKey: string,
   columns: ColumnDef<K>[],
@@ -42,41 +46,65 @@ export function useColumnWidths<K extends string>(
     persistJson(storageKey, widths);
   }, [storageKey, widths]);
 
-  const dragRef = useRef<{ key: K; startX: number; startWidth: number } | null>(null);
+  const dragRef = useRef<{ key: K; startX: number; startWidth: number; sign: number } | null>(null);
 
-  const startResize = useCallback(
-    (key: K) => (event: ReactMouseEvent) => {
-      event.preventDefault();
-      event.stopPropagation();
-      dragRef.current = {
-        key,
-        startX: event.clientX,
-        startWidth: widths[key] ?? defaults[key] ?? min,
-      };
-      const onMove = (moveEvent: MouseEvent) => {
-        if (!dragRef.current) return;
-        const delta = moveEvent.clientX - dragRef.current.startX;
-        const next = Math.max(min, dragRef.current.startWidth + delta);
-        setWidths((current) => ({ ...current, [dragRef.current!.key]: next }));
-      };
-      const onUp = () => {
-        dragRef.current = null;
-        document.removeEventListener("mousemove", onMove);
-        document.removeEventListener("mouseup", onUp);
-        document.body.classList.remove("col-resizing");
-      };
-      document.body.classList.add("col-resizing");
-      document.addEventListener("mousemove", onMove);
-      document.addEventListener("mouseup", onUp);
-    },
+  const makeHandle = useCallback(
+    (key: K, side: "left" | "right"): ColumnHandleProps => ({
+      onMouseDown: (event: ReactMouseEvent) => {
+        event.preventDefault();
+        event.stopPropagation();
+        dragRef.current = {
+          key,
+          startX: event.clientX,
+          startWidth: widths[key] ?? defaults[key] ?? min,
+          sign: side === "right" ? 1 : -1,
+        };
+        const onMove = (moveEvent: MouseEvent) => {
+          if (!dragRef.current) return;
+          const delta = (moveEvent.clientX - dragRef.current.startX) * dragRef.current.sign;
+          const next = Math.max(min, dragRef.current.startWidth + delta);
+          setWidths((current) => ({ ...current, [dragRef.current!.key]: next }));
+        };
+        const onUp = () => {
+          dragRef.current = null;
+          document.removeEventListener("mousemove", onMove);
+          document.removeEventListener("mouseup", onUp);
+          document.body.classList.remove("col-resizing");
+        };
+        document.body.classList.add("col-resizing");
+        document.addEventListener("mousemove", onMove);
+        document.addEventListener("mouseup", onUp);
+      },
+      onDoubleClick: () => {
+        setWidths((current) => ({ ...current, [key]: defaults[key] }));
+      },
+    }),
     [widths, defaults, min],
   );
 
-  const reset = useCallback(
-    (key: K) => () => {
-      setWidths((current) => ({ ...current, [key]: defaults[key] }));
+  const rightHandle = useCallback(
+    (key: K): ColumnHandleProps | null => {
+      const idx = columns.findIndex((entry) => entry.key === key);
+      if (idx === -1 || idx >= columns.length - 1) return null; // last column has no right handle
+      if (!isResizable(columns[idx])) return null;
+      return makeHandle(key, "right");
     },
-    [defaults],
+    [columns, makeHandle],
+  );
+
+  const leftHandle = useCallback(
+    (key: K): ColumnHandleProps | null => {
+      const idx = columns.findIndex((entry) => entry.key === key);
+      if (idx <= 0) return null; // first column has no left handle
+      if (!isResizable(columns[idx])) return null;
+      // Only show a left handle when the previous column is FLEX — that's the
+      // only case where the boundary can actually move (the flex column absorbs
+      // the delta). A fixed non-resizable neighbor on the left would just shift
+      // this column's far edge, which looks like the wrong edge is moving.
+      if (!columns[idx - 1].flex) return null;
+      return makeHandle(key, "left");
+    },
+    [columns, makeHandle],
   );
 
   const gridTemplate = useMemo(
@@ -84,14 +112,5 @@ export function useColumnWidths<K extends string>(
     [columns, widths],
   );
 
-  const handleProps = useCallback(
-    (key: K): ColumnHandleProps | null => {
-      const col = columns.find((entry) => entry.key === key);
-      if (!col || col.flex || col.resizable === false) return null;
-      return { onMouseDown: startResize(key), onDoubleClick: reset(key) };
-    },
-    [columns, startResize, reset],
-  );
-
-  return { gridTemplate, handleProps };
+  return { gridTemplate, leftHandle, rightHandle };
 }

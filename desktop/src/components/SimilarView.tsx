@@ -99,7 +99,7 @@ export function SimilarView({
     estimateSize: (index) => (rows[index]?.type === "entry" ? 76 : 42),
     overscan: 14
   });
-  const { gridTemplate, handleProps } = useColumnWidths<SimilarColumn>(
+  const { gridTemplate, leftHandle, rightHandle } = useColumnWidths<SimilarColumn>(
     SIMILAR_COL_WIDTHS_KEY,
     SIMILAR_COLUMNS,
   );
@@ -192,28 +192,34 @@ export function SimilarView({
       <div className="table similarTable" style={tableStyle}>
         <div className="tableHeader">
           <span className="headerCell">
+            <ColumnResizeHandle handle={leftHandle("group")} side="left" />
             <span>{t(language, "group")}</span>
-            <ColumnResizeHandle handle={handleProps("group")} />
+            <ColumnResizeHandle handle={rightHandle("group")} side="right" />
           </span>
           <span className="headerCell">
+            <ColumnResizeHandle handle={leftHandle("kind")} side="left" />
             <span>{t(language, "kind")}</span>
-            <ColumnResizeHandle handle={handleProps("kind")} />
+            <ColumnResizeHandle handle={rightHandle("kind")} side="right" />
           </span>
           <span className="headerCell">
+            <ColumnResizeHandle handle={leftHandle("preview")} side="left" />
             <span>{t(language, "preview")}</span>
-            <ColumnResizeHandle handle={handleProps("preview")} />
+            <ColumnResizeHandle handle={rightHandle("preview")} side="right" />
           </span>
           <span className="headerCell">
+            <ColumnResizeHandle handle={leftHandle("path")} side="left" />
             <span>{t(language, "path")}</span>
-            <ColumnResizeHandle handle={handleProps("path")} />
+            <ColumnResizeHandle handle={rightHandle("path")} side="right" />
           </span>
           <span className="headerCell">
+            <ColumnResizeHandle handle={leftHandle("resolution")} side="left" />
             <span>{t(language, "resolution")}</span>
-            <ColumnResizeHandle handle={handleProps("resolution")} />
+            <ColumnResizeHandle handle={rightHandle("resolution")} side="right" />
           </span>
           <span className="headerCell">
+            <ColumnResizeHandle handle={leftHandle("size")} side="left" />
             <span>{t(language, "size")}</span>
-            <ColumnResizeHandle handle={handleProps("size")} />
+            <ColumnResizeHandle handle={rightHandle("size")} side="right" />
           </span>
         </div>
         <div className="virtualList" ref={parentRef}>

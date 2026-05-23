@@ -304,12 +304,19 @@ footer {
 .colHandle {
   position: absolute;
   top: 0;
-  right: -8px;
   width: 10px;
   height: 100%;
   cursor: col-resize;
   user-select: none;
   z-index: 2;
+}
+
+.colHandle-right {
+  right: -8px;
+}
+
+.colHandle-left {
+  left: -8px;
 }
 
 .colHandle::after {
