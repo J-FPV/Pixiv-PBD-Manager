@@ -73,38 +73,48 @@ docs/
 
 ## Checks
 
-Backend tests:
+One-shot driver — pytest + IPC roundtrip + ruff + eslint + frontend build (same script CI runs in `.github/workflows/checks.yml`):
 
 ```powershell
-python -m unittest
+python scripts/smoke.py
 ```
 
-Ruff:
+Common subsets:
 
 ```powershell
-python -m ruff check .
+python scripts/smoke.py --only ipc      # IPC smoke only
+python scripts/smoke.py --only tests    # backend tests only
+python scripts/smoke.py --no-build      # skip the frontend build for backend-only PRs
 ```
 
-Pytest:
+Individual commands:
 
 ```powershell
-python -m pytest
+python -m unittest             # backend tests (what CI runs)
+python -m pytest               # equivalent; pyproject already sets -p no:cacheprovider
+python -m ruff check .         # ruff lint
+cd desktop; npm run lint       # frontend lint
+cd desktop; npm run build      # frontend type check + production build
+cd desktop\src-tauri; cargo check
 ```
 
-Frontend type check and production build:
+## Debugging a single IPC command
+
+The Tauri frontend invokes the backend as `python -m pixiv_pbd_manager.gui_api <cmd> <json-string>`. When invoking manually from PowerShell, **argv quoting strips the inner double quotes** out of the JSON argument (you get `Expecting property name enclosed in double quotes`). Three usable forms:
 
 ```powershell
-cd desktop
-npm run lint
-npm run build
+# 1. in-process — best for tests and one-offs (no shell at all)
+python -c "from pixiv_pbd_manager import gui_api; gui_api.run_command('settings.get', {}, emit=print)"
+
+# 2. --payload-file — equivalent to what Tauri's subprocess call does, no shell quoting
+'{"settings": {}}' | Set-Content -NoNewline payload.json -Encoding utf8
+python -m pixiv_pbd_manager.gui_api settings.save --payload-file payload.json
+
+# 3. stdin — `-` reads the payload from stdin
+'{"settings": {}}' | python -m pixiv_pbd_manager.gui_api settings.save -
 ```
 
-Rust check:
-
-```powershell
-cd desktop\src-tauri
-cargo check
-```
+When writing IPC smokes, note that `gui_api.payload.resolve_base_dir` **walks upward** looking for a directory marked by `pixiv_pbd_manager/` or `.pixiv-pbd-manager/`. Passing `project_root=/tmp/foo` alone does *not* isolate — the walk-up climbs out of the fixture and lands on the repo root, reading/writing the real user state. To isolate, `mkdir <tmp>/.pixiv-pbd-manager` first. The `settings.get` phase in `scripts/smoke.py` does this and asserts `settings_path` stays inside the fixture.
 
 Run the GUI regression checklist in [manual-test-checklist.md](../zh/manual-test-checklist.md), especially after frontend or IPC changes.
 
