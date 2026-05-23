@@ -11,10 +11,9 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from .paths import DEFAULT_IMAGE_INDEX  # re-exported as similar.DEFAULT_IMAGE_INDEX
 from .scanner import is_excluded_path, normalize_exclude_roots
 
-
-DEFAULT_IMAGE_INDEX = Path(".pixiv-pbd-manager") / "image_index.json"
 IMAGE_SUFFIXES = {".jpg", ".jpeg", ".png", ".webp", ".bmp", ".gif"}
 LIKELY_LIMITS = (6, 10)
 POSSIBLE_LIMITS = (10, 14)

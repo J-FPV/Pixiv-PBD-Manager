@@ -4,8 +4,8 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 
+from .paths import DEFAULT_CONSENT as CONSENT_PATH  # re-exported as consent.CONSENT_PATH
 
-CONSENT_PATH = Path(".pixiv-pbd-manager") / "consent.json"
 COOKIE_CONSENT_VERSION = "1"
 
 

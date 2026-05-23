@@ -6,10 +6,13 @@ import sys
 from ctypes import wintypes
 from pathlib import Path
 
-
-COOKIE_DIR = Path(".pixiv-pbd-manager")
-COOKIE_BIN = COOKIE_DIR / "cookie.bin"
-COOKIE_TXT = COOKIE_DIR / "cookie.txt"
+from .paths import (
+    DATA_DIR as COOKIE_DIR,
+    DEFAULT_COOKIE_BIN as COOKIE_BIN,
+    DEFAULT_COOKIE_TXT as COOKIE_TXT,
+)
+# These three names stay on this module for backwards compat — tests refer to
+# ``cookie_store.COOKIE_BIN.name`` etc.
 
 CRYPTPROTECT_UI_FORBIDDEN = 0x1
 

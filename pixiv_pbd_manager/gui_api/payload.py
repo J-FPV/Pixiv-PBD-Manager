@@ -12,11 +12,11 @@ import json
 from pathlib import Path
 from typing import Any
 
-from ..database import DEFAULT_DB
+from ..paths import DATA_DIR, DEFAULT_DB, DEFAULT_GUI_SETTINGS as DEFAULT_SETTINGS_PATH
 from .runtime import JsonDict
 
-
-DEFAULT_SETTINGS_PATH = Path(".pixiv-pbd-manager") / "gui_settings.json"
+# ``DEFAULT_DB`` and ``DEFAULT_SETTINGS_PATH`` are re-exported from this module
+# for callers that historically imported them from ``gui_api.payload``.
 
 # Project source root (the directory containing the pixiv_pbd_manager/ package).
 # Used as the last-resort fallback when no project root can be detected by
@@ -40,7 +40,9 @@ def save_json(path: Path, data: JsonDict) -> None:
 
 
 def _looks_like_project_root(path: Path) -> bool:
-    return (path / "pixiv_pbd_manager").is_dir() or (path / ".pixiv-pbd-manager").exists()
+    # Heuristic: a directory is a project root if it holds either the package
+    # source tree (developer checkout) or the user-state directory (installed).
+    return (path / "pixiv_pbd_manager").is_dir() or (path / DATA_DIR.name).exists()
 
 
 def _nearest_project_root(path: Path) -> Path | None:

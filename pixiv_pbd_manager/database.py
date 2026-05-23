@@ -4,9 +4,7 @@ import json
 from pathlib import Path
 
 from .models import ArtistRecord
-
-
-DEFAULT_DB = Path(".pixiv-pbd-manager") / "artists.json"
+from .paths import DEFAULT_DB  # re-exported for callers that import it from here
 
 
 class ArtistDatabase:
