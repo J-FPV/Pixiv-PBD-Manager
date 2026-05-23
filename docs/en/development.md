@@ -126,20 +126,29 @@ The end-user distribution bundles the Python backend with PyInstaller into a sin
 
 ```powershell
 pip install -e ".[build]"
-pyinstaller pixiv-pbd-api.spec
+python scripts/build_sidecar.py
 ```
 
-Output: `dist/pixiv-pbd-api.exe`. It accepts the same argv / `--payload-file` / `-` (stdin) forms as `python -m pixiv_pbd_manager.gui_api` and emits the same JSON Lines.
+This:
+1. Runs `pyinstaller pixiv-pbd-api.spec` to produce `dist/pixiv-pbd-api.exe`.
+2. Detects the Rust host triple via `rustc -vV` and copies the exe to `desktop/src-tauri/binaries/pixiv-pbd-api-<triple>.exe` (Tauri's sidecar naming convention).
 
-Sanity check:
+After that, `cd desktop; npm run tauri:build` produces an installer that bundles the exe.
+
+Standalone sanity check:
 
 ```powershell
 .\dist\pixiv-pbd-api.exe settings.get '{}'
 ```
 
+### Dev vs prod runtime behaviour
+
+- **`npm run tauri:dev` (development)**: the frontend detects dev mode via `import.meta.env.DEV === true` and keeps spawning the source backend with `Command.create("python", ["-m", "pixiv_pbd_manager.gui_api", ...])`. Editing Python code is immediate; no exe rebuild required.
+- **`npm run tauri:build` (production)**: the frontend uses `Command.sidecar("binaries/pixiv-pbd-api", ...)`, and Tauri spawns the bundled exe.
+
 Note: the current bundle is ~344 MB because `imagehash` transitively pulls in `scipy` + `numpy` + `PyWavelets`. The Tauri installer compresses further; the end-user download will be on the order of ~100 MB. If size becomes a problem, a future optimization can replace `imagehash` with an in-house pHash/dHash that depends only on `numpy`.
 
-P2 will wire this exe into Tauri as a sidecar; P3 adds a GitHub Actions release workflow.
+P3 adds a GitHub Actions release workflow.
 
 ## Data directory resolution
 

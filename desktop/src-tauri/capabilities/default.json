@@ -42,6 +42,18 @@
               "validator": ".+"
             }
           ]
+        },
+        {
+          "name": "binaries/pixiv-pbd-api",
+          "sidecar": true,
+          "args": [
+            {
+              "validator": "^(?:settings\\.get|settings\\.save|artists\\.list|artists\\.add|artists\\.assign_folder|artists\\.remove|artists\\.rename|artists\\.set_save_path|scan\\.run|scan\\.preview|scan\\.apply|updates\\.check|updates\\.download|similar\\.run|browser\\.open|file\\.reveal|image\\.thumbnail|image\\.difference|cookie\\.revoke)$"
+            },
+            {
+              "validator": ".+"
+            }
+          ]
         }
       ]
     }

@@ -54,17 +54,19 @@ export async function runGuiApi<T>(
     throw new GuiApiCancelledError(commandName);
   }
   const projectRoot = getProjectRoot();
-  const pythonCommand = getPythonCommand();
-  const args = [
-    "-m",
-    "pixiv_pbd_manager.gui_api",
-    commandName,
-    JSON.stringify({ ...payload, project_root: projectRoot })
-  ];
-  const command = Command.create(pythonCommand, args, {
-    cwd: projectRoot,
-    env: { PYTHONPATH: projectRoot }
-  });
+  const payloadJson = JSON.stringify({ ...payload, project_root: projectRoot });
+  // In development (Vite dev server + tauri:dev) we spawn the source Python
+  // backend directly so code edits don't require rebuilding the PyInstaller
+  // exe. In production (tauri:build) the backend is shipped as a sidecar at
+  // `binaries/pixiv-pbd-api-<target>.exe`; the OS-standard user data dir
+  // (paths.py APPDATA fallback) handles where state lives.
+  const command = import.meta.env.DEV
+    ? Command.create(
+        getPythonCommand(),
+        ["-m", "pixiv_pbd_manager.gui_api", commandName, payloadJson],
+        { cwd: projectRoot, env: { PYTHONPATH: projectRoot } }
+      )
+    : Command.sidecar("binaries/pixiv-pbd-api", [commandName, payloadJson]);
 
   let stdoutBuffer = "";
   let stderrText = "";

@@ -22,6 +22,7 @@
   },
   "bundle": {
     "active": true,
-    "targets": "all"
+    "targets": "all",
+    "externalBin": ["binaries/pixiv-pbd-api"]
   }
 }
