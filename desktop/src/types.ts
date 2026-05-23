@@ -267,3 +267,11 @@ export interface ImageThumbnailPayload {
   width: number;
   height: number;
 }
+
+export interface ImageDifferencePayload {
+  base_path: string;
+  compare_path: string;
+  data_url: string;
+  width: number;
+  height: number;
+}

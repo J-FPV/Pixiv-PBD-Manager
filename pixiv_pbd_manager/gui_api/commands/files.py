@@ -13,6 +13,7 @@ from ...database import ArtistDatabase
 from ...scanner import is_relative_to
 from ..payload import as_float, as_int, db_path
 from ..runtime import Emitter, JsonDict
+from ..thumbnails import image_difference as render_difference
 from ..thumbnails import image_thumbnail as render_thumbnail
 from .settings import load_settings_for_payload
 
@@ -50,28 +51,89 @@ def open_browser(payload: JsonDict, _emit_event: Emitter) -> JsonDict:
     return {"opened": len(urls)}
 
 
+def _windows_open_folder(path: Path) -> None:
+    os.startfile(str(path))  # type: ignore[attr-defined]
+
+
+def _windows_select_path(path: Path) -> None:
+    import ctypes
+    from ctypes import wintypes
+
+    shell32 = ctypes.OleDLL("shell32")
+    ole32 = ctypes.OleDLL("ole32")
+    pidl = ctypes.c_void_p()
+    attributes = wintypes.ULONG(0)
+
+    shell32.SHParseDisplayName.argtypes = [
+        wintypes.LPCWSTR,
+        ctypes.c_void_p,
+        ctypes.POINTER(ctypes.c_void_p),
+        wintypes.ULONG,
+        ctypes.POINTER(wintypes.ULONG),
+    ]
+    shell32.SHParseDisplayName.restype = ctypes.c_long
+    shell32.SHOpenFolderAndSelectItems.argtypes = [ctypes.c_void_p, wintypes.UINT, ctypes.c_void_p, wintypes.DWORD]
+    shell32.SHOpenFolderAndSelectItems.restype = ctypes.c_long
+    ole32.CoTaskMemFree.argtypes = [ctypes.c_void_p]
+
+    result = shell32.SHParseDisplayName(str(path), None, ctypes.byref(pidl), 0, ctypes.byref(attributes))
+    if result != 0 or not pidl:
+        raise OSError(f"SHParseDisplayName failed for {path}: HRESULT {result}")
+    try:
+        result = shell32.SHOpenFolderAndSelectItems(pidl, 0, None, 0)
+        if result != 0:
+            raise OSError(f"SHOpenFolderAndSelectItems failed for {path}: HRESULT {result}")
+    finally:
+        ole32.CoTaskMemFree(pidl)
+
+
+def _nearest_existing_parent(path: Path) -> Path | None:
+    current = path.parent
+    while current != current.parent:
+        if current.exists():
+            return current
+        current = current.parent
+    return current if current.exists() else None
+
+
 def reveal_file(payload: JsonDict, _emit_event: Emitter) -> JsonDict:
     path_text = str(payload.get("path") or "").strip()
     if not path_text:
         raise ValueError("Missing path")
-    path = Path(path_text).expanduser()
+    path = Path(path_text).expanduser().resolve()
+    selected = False
     if path.is_dir():
         # Open the folder's contents directly.
         if os.name == "nt":
-            subprocess.Popen(["explorer", str(path)])
+            _windows_open_folder(path)
         elif sys.platform == "darwin":
             subprocess.Popen(["open", str(path)])
         else:
             subprocess.Popen(["xdg-open", str(path)])
-    else:
+    elif path.is_file():
         # Reveal a file by selecting it inside its parent folder.
         if os.name == "nt":
-            subprocess.Popen(["explorer", "/select,", str(path)])
+            try:
+                _windows_select_path(path)
+                selected = True
+            except OSError:
+                _windows_open_folder(path.parent)
         elif sys.platform == "darwin":
             subprocess.Popen(["open", "-R", str(path)])
+            selected = True
         else:
             subprocess.Popen(["xdg-open", str(path.parent)])
-    return {"path": str(path), "opened": True}
+    else:
+        parent = _nearest_existing_parent(path)
+        if parent is None:
+            raise ValueError(f"Path does not exist: {path}")
+        if os.name == "nt":
+            _windows_open_folder(parent)
+        elif sys.platform == "darwin":
+            subprocess.Popen(["open", str(parent)])
+        else:
+            subprocess.Popen(["xdg-open", str(parent)])
+    return {"path": str(path), "opened": True, "selected": selected}
 
 
 def image_thumbnail(payload: JsonDict, _emit_event: Emitter) -> JsonDict:
@@ -85,6 +147,28 @@ def image_thumbnail(payload: JsonDict, _emit_event: Emitter) -> JsonDict:
     data_url, width, height = render_thumbnail(path, max_size)
     return {
         "path": str(path),
+        "data_url": data_url,
+        "width": width,
+        "height": height,
+    }
+
+
+def image_difference(payload: JsonDict, _emit_event: Emitter) -> JsonDict:
+    base_text = str(payload.get("base_path") or "").strip()
+    compare_text = str(payload.get("compare_path") or "").strip()
+    if not base_text or not compare_text:
+        raise ValueError("Missing image path")
+    max_size = max(48, min(1600, as_int(payload, "max_size", 1200)))
+    base_path = Path(base_text).expanduser()
+    compare_path = Path(compare_text).expanduser()
+    if not base_path.is_file():
+        raise ValueError(f"Image file does not exist: {base_path}")
+    if not compare_path.is_file():
+        raise ValueError(f"Image file does not exist: {compare_path}")
+    data_url, width, height = render_difference(base_path, compare_path, max_size)
+    return {
+        "base_path": str(base_path),
+        "compare_path": str(compare_path),
         "data_url": data_url,
         "width": width,
         "height": height,

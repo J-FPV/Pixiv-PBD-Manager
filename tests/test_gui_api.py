@@ -343,6 +343,66 @@ class GuiApiTests(unittest.TestCase):
         self.assertEqual(payload["height"], 32)
         self.assertTrue(payload["data_url"].startswith("data:image/"))
 
+    def test_image_difference_outputs_data_url(self):
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            first = root / "first.png"
+            second = root / "second.png"
+            Image.new("RGB", (48, 32), "red").save(first)
+            Image.new("RGB", (48, 32), "blue").save(second)
+            old_cwd = Path.cwd()
+            try:
+                os.chdir(root)
+                exit_code, events = invoke(
+                    "image.difference",
+                    {"base_path": str(first), "compare_path": str(second), "max_size": 32},
+                )
+            finally:
+                os.chdir(old_cwd)
+
+        self.assertEqual(exit_code, 0)
+        payload = events[-1]["payload"]
+        self.assertGreater(payload["width"], 0)
+        self.assertGreater(payload["height"], 0)
+        self.assertTrue(payload["data_url"].startswith("data:image/"))
+
+    @unittest.skipUnless(os.name == "nt", "Windows explorer argument regression")
+    def test_file_reveal_uses_windows_shell_selection_api(self):
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            image_path = root / "sample image.jpg"
+            image_path.write_bytes(b"fake")
+            old_cwd = Path.cwd()
+            try:
+                os.chdir(root)
+                with patch("pixiv_pbd_manager.gui_api.commands.files._windows_select_path") as select_path:
+                    exit_code, events = invoke("file.reveal", {"path": str(image_path)})
+            finally:
+                os.chdir(old_cwd)
+
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(events[-1]["payload"]["opened"], True)
+        self.assertEqual(events[-1]["payload"]["selected"], True)
+        select_path.assert_called_once_with(image_path.resolve())
+
+    @unittest.skipUnless(os.name == "nt", "Windows missing-path fallback")
+    def test_file_reveal_missing_file_opens_existing_parent_on_windows(self):
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            missing = root / "missing image.jpg"
+            old_cwd = Path.cwd()
+            try:
+                os.chdir(root)
+                with patch("pixiv_pbd_manager.gui_api.commands.files._windows_open_folder") as open_folder:
+                    exit_code, events = invoke("file.reveal", {"path": str(missing)})
+            finally:
+                os.chdir(old_cwd)
+
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(events[-1]["payload"]["opened"], True)
+        self.assertEqual(events[-1]["payload"]["selected"], False)
+        open_folder.assert_called_once_with(root.resolve())
+
     def test_unknown_command_outputs_error_event(self):
         exit_code, events = invoke("missing.command")
 

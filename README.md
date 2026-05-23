@@ -2,44 +2,34 @@
 
 [English README](README.en.md)
 
-一个本地 Pixiv 下载管理器。它可以扫描已有图片库，记录 Pixiv 作者 ID、作者名、作品 ID 和每个作者的保存路径；之后你可以检查作者更新，并选择用 Powerful Pixiv Downloader 打开页面下载，或使用软件内置的直接下载器自动下载新作品。
+Pixiv PBD Manager 是一个本地 Pixiv 图片管理工具。它可以帮你扫描已有图库、记录艺术家、检查更新、下载新作品，也可以查找不同文件名或不同分辨率下的相似图片。
 
-## 工作方式
+这个 README 面向“只想使用软件”的用户。开发、命令行和实现细节放在 [docs/zh](docs/zh/) 里。
 
-1. 扫描已有下载目录，识别作者、作品和保存路径。
-2. 保存作者 ID、作者名、已见过作品 ID、可下载新作品 ID。
-3. 检查更新时，逐个作者查询 Pixiv 是否有本地还没有保存的新作品。
-4. 你可以打开作者作品页交给 PBD 下载，也可以使用“直接下载更新”自动下载。
-5. 下载后再次扫描，数据库会更新为最新状态。
+## 它能做什么
 
-## 推荐 PBD 命名规则
+- 扫描你的 Pixiv 图片目录，识别艺术家、作品 ID 和保存路径。
+- 记录每个艺术家的 Pixiv ID、名字、已保存作品和可下载新作品。
+- 检查单个或多个艺术家的更新，并显示每个艺术家有多少新图。
+- 直接下载检查到的新作品，也可以打开 Pixiv 页面交给 Powerful Pixiv Downloader 下载。
+- 识别没有艺术家 ID 的旧文件夹，并提供在线解析和手动指定 ID。
+- 按排除目录跳过你不想扫描的文件夹。
+- 查找相似图片，帮助发现跨平台下载造成的重复图。
+- 支持中文 / English 界面切换。
 
-建议在 Powerful Pixiv Downloader 的命名规则中包含作者 ID，例如：
+## 推荐使用方式
 
-```text
-pixiv/{user}-{user_id}/{id}-{title}
-```
+1. 启动软件。
+2. 在“设置”里添加你的图片下载目录。
+3. 如有不想扫描的文件夹，加入排除目录。
+4. 回到“艺术家”页，点击“扫描”。
+5. 扫描预览里确认要写入的变更。
+6. 点击“检查更新”，查看哪些艺术家有新作品。
+7. 选择需要的艺术家，点击“下载更新”；或者点击“打开选中”，用浏览器里的 Powerful Pixiv Downloader 下载。
 
-这样扫描器可以直接从 `作者名-作者ID` 文件夹识别作者。工具也会尝试从文件名中的 `uid`、`user_id`、`member_id`、`artist_id` 等字段识别作者 ID。
+## 启动方式
 
-## 快速开始
-
-在本目录运行：
-
-```powershell
-pip install -e .
-python -m pixiv_pbd_manager scan "C:\PixivDownloads"
-python -m pixiv_pbd_manager list
-python -m pixiv_pbd_manager open --limit 10
-```
-
-需要 Python 3.9 或更新版本。
-
-## 桌面界面
-
-主桌面界面是 Tauri + React + TypeScript，位于 [desktop](desktop/)。旧 Tkinter GUI 已冻结在单独分支，main 分支不再维护 Tkinter 入口。
-
-开发运行需要先安装 Node.js、npm、Rust、Cargo，并在仓库根目录执行过 `pip install -e .`。当前 Tauri 界面仍是开发版：它会通过 Tauri shell 插件启动 `python -m pixiv_pbd_manager.gui_api`，所以还不是不依赖 Python 的最终安装包。稳定后计划再用 PyInstaller sidecar 打包 Python 后端。
+目前项目还没有最终打包安装器，需要在本机开发环境中启动：
 
 ```powershell
 pip install -e .
@@ -48,281 +38,80 @@ npm install
 npm run tauri:dev
 ```
 
-如果 Tauri 界面无法导入 `pixiv_pbd_manager`，在 Settings 页把 `Project root` 设为本仓库根目录。
+需要：
 
-如果修改了 `desktop/src-tauri/`、Tauri 插件或权限配置，需要重启 `npm run tauri:dev`；纯前端和 Python 后端改动通常可以热重载。
+- Python 3.9 或更新版本
+- Node.js 和 npm
+- Rust 和 Cargo
 
-主要功能：
+如果你只是日常使用，启动后主要在图形界面里操作即可，不需要记命令行参数。
 
-- 选择数据库位置。
-- 添加一个或多个下载目录。
-- 添加排除目录，扫描时跳过这些文件夹。
-- 扫描下载目录并写入作者库。
-- 在线解析只有作者名、没有作者 ID 的 Pixiv 文件夹。
-- 可选开启作者名模糊搜索，适合 `illus-作者名-风格标签` 这类手动目录。
-- 检查已记录作者是否有 Pixiv 新作品，并在“可下载”列显示数量。
-- 检查更新时可递归扫描艺术家保存路径，避免子文件夹里的已保存作品被误判为新作品。
-- 可指定检查更新时只检查作者主页最新前几页作品，0 表示检查全部。
-- 直接下载“可下载”列里的新作品，无需手动点击 PBD。
-- 可选把 R-18 / R-18G 新作品保存到 `[R-18&R-18G]` 子文件夹。
-- 表格显示扫描到的艺术家保存路径。
-- 在设置页切换中文 / English。
-- 在设置页配置目录、扫描解析、浏览器、Pixiv Cookie、SSL 兼容、打开间隔等选项。
-- 查看、搜索、排序、手动添加作者；搜索会匹配作者 ID、作者名和保存路径/文件夹名，手动添加时可自动从 Pixiv 拉取作者名。
-- 右键作者可以手动修改 Pixiv 作者 ID，修改后会尝试自动更新作者名。
-- 右键作者可以手动修改保存路径。
-- 点击表格第一列的蓝色勾选框可以勾选多个作者，也可以用“全选 / 取消全选”批量切换。
-- 检查更新、打开选中、直接下载更新会处理勾选作者。
-- 后台扫描、检查或下载运行时，仍然可以双击作者行打开该作者的浏览器页面；双击只打开被点击的作者，不受勾选列表影响。
-- 长任务会在底部状态栏显示进度；下载时显示总进度、当前图片进度和下载速度，并可用红色按钮取消当前任务。
-- 复制作者作品页 URL。
-- 查找相似图片，可自定义扫描/排除目录，按疑似重复组展示不同文件名、格式或分辨率的同图版本。
+## 第一次设置
 
-## 浏览器设置提醒
+打开“设置”页后，建议先检查这些项目：
 
-如果默认浏览器不是安装了 Powerful Pixiv Downloader 的浏览器，可以在 Settings 页的浏览器相关设置里指定 Chrome/Edge 的 exe 路径和用户数据目录。
+- **下载目录**：你的 Pixiv 图片库目录，可以添加多个。
+- **排除目录**：不想扫描的目录，例如杂图、非 Pixiv 图、浏览器缓存目录。
+- **数据库位置**：默认会保存在项目目录下的 `.pixiv-pbd-manager/artists.json`，一般不用改。
+- **浏览器路径**：如果默认浏览器不是安装了 Powerful Pixiv Downloader 的那个，可以在这里指定 Chrome / Edge。
+- **浏览器用户数据目录**：不要选图片库目录。Chrome / Edge 会在用户数据目录里创建 `Default`、`ShaderCache`、`Safe Browsing`、`Webstore Downloads` 等文件夹。
+- **Pixiv Cookie**：只有下载登录可见或 R-18 作品时才需要。Cookie 等同于登录凭证，使用前请阅读界面里的风险提示。
 
-“浏览器用户数据目录”不要选择图片下载目录。Chrome/Edge 会在用户数据目录里创建 `Default`、`Safe Browsing`、`ShaderCache`、`Webstore Downloads` 等浏览器配置文件夹。GUI 会阻止把它设在下载目录内部；不确定时保持为空即可使用系统默认浏览器配置。
+## 推荐 PBD 命名规则
 
-## 旧目录识别
-
-如果旧目录像这样：
+如果你还在使用 Powerful Pixiv Downloader，建议让文件夹或文件名包含 Pixiv 艺术家 ID。推荐规则：
 
 ```text
-C:\PixivLibrary\ArtistName's illustrations／manga - pixiv\12345678_p0.jpg
+pixiv/{user}-{user_id}/{id}-{title}
 ```
 
-这种文件夹本身只有作者名，没有 Pixiv 作者 ID。GUI 默认会勾选“在线解析无 ID 的 Pixiv 文件夹”，扫描时会用文件名里的作品 ID 请求 Pixiv，解析出作者 ID 后再写入数据库。离线扫描只能识别到这些“无 ID 文件夹”，不能生成可打开的作者更新页。
+这样软件可以直接从文件夹名识别艺术家。旧目录如果只有作者名、没有 ID，也可以尝试开启在线解析或模糊搜索，但准确性会受文件名和 Pixiv 搜索结果影响。
 
-如果旧目录像这样：
+## 下载更新
 
-```text
-C:\PixivLibrary\illus-ArtistName-style-tag\12345678_p0.jpg
-```
+“下载更新”使用软件内置下载器，不是调用 PBD。它会下载“检查更新”后记录到数据库里的新作品，并保存到该艺术家的保存路径。
 
-这里的 `ArtistName` 会被当作候选作者名。勾选“模糊搜索作者名”后，软件会在线搜索 Pixiv 用户并尝试匹配作者 ID。因为手写名称可能不准确，这个功能默认关闭；建议先用较高匹配阈值试扫一小部分目录，确认结果后再大规模使用。
+常见流程：
 
-## SSL 证书兼容
+1. 先扫描本地图库，让软件知道每个艺术家保存在哪里。
+2. 点击“检查更新”。
+3. 表格“可下载”列出现数量后，点击“下载更新”。
+4. 如果勾选了艺术家，只下载勾选艺术家的新作品；如果没有勾选，则下载所有有更新的艺术家。
 
-如果 Python 环境遇到 `CERTIFICATE_VERIFY_FAILED`，GUI 默认会在证书校验失败时自动重试一次。命令行也默认启用这个兼容行为；如果想严格校验证书，可以添加 `--no-ssl-fallback`。
+如果你更想使用 PBD 的命名规则、过滤器或浏览器扩展流程，可以用“打开选中”打开艺术家页面，再在浏览器里使用 PBD。
 
-## 直接自动下载
+## 相似图片
 
-GUI 中先点“检查更新”，确认表格“可下载”列出现数量后，可以点“直接下载更新”。如果先勾选了一些作者，只会下载勾选作者的新作品；如果没有勾选，会下载所有有更新的作者。
+打开“相似图片”页，选择要扫描的目录，然后点击“查找相似图片”。软件会列出疑似重复组，并显示缩略图方便对比。
 
-直接下载不是通过 Powerful Pixiv Downloader 完成，而是软件自己的下载器。它会先从数据库里读取“检查更新”得到的新作品 ID，然后请求 Pixiv 的作品分页接口：
+注意：
 
-```text
-https://www.pixiv.net/ajax/illust/{work_id}/pages
-```
+- 软件只展示结果，不会自动删除或移动图片。
+- 不同分辨率、轻微压缩、不同格式的同图可能会被识别出来。
+- 可以勾选“不比较同一 Pixiv 作品的拆分页”，避免 `{pid}_p0` 和 `{pid}_p1` 这类同一作品不同页互相干扰。
 
-软件会从返回结果里取每一页的 `urls.original` 原图地址，再用 Python 下载文件。请求 Pixiv 接口时会带 `Referer`、浏览器风格 `User-Agent` 和可选 Pixiv Cookie；从 `i.pximg.net` 下载图片时**只带 Referer，不带 Cookie**，避免把会话泄露给图片 CDN。
+## 常见问题
 
-检查更新时可以开启“扫描艺术家文件夹的子文件夹”，软件会先递归读取该艺术家保存路径下已有的作品 ID，再与 Pixiv 远端列表比较，避免已经保存在子文件夹里的作品被误判为新作品。
+### 扫描不到作者怎么办？
 
-直接下载器会保存到数据库记录的艺术家保存路径。文件名使用：
+优先检查你的目录或文件名里是否包含 Pixiv 艺术家 ID。最稳定的方式是使用上面的 PBD 命名规则。
 
-```text
-作品ID_p页码.扩展名
-```
+如果旧目录只有作者名，可以在设置里开启在线解析；如果是手动命名的目录，可以尝试开启模糊搜索。扫描后仍未识别的文件夹会出现在“未识别文件夹”页，你可以手动指定艺术家 ID。
 
-例如：
+### 图片库里出现了奇怪的浏览器文件夹怎么办？
 
-```text
-12345678_p0.jpg
-12345678_p1.png
-```
+如果出现 `Default`、`Safe Browsing`、`ShaderCache`、`Webstore Downloads`、`Crashpad` 等文件夹，通常是浏览器用户数据目录被错误设置到了图片库里。
 
-如果某个作者没有保存路径，命令行可以用 `--output-root` 指定兜底目录。GUI 里建议先扫描一遍已有目录，让软件记录保存路径。
+先关闭软件和浏览器，把浏览器用户数据目录改到图片库之外；确认这些文件夹不是你的图片目录后再手动清理。
 
-注意：直接下载器不使用 PBD 的命名规则和过滤器。公开作品通常可以直接下载；登录、年龄限制或不可见作品可能需要提供 Pixiv cookie。
+### Cookie 必须填吗？
 
-设置里可以开启“限制级作品单独存入 [R-18&R-18G] 子文件夹”。开启后，下载器会先查询作品的 `xRestrict` 标记，R-18 / R-18G 作品会保存到该艺术家目录下的 `[R-18&R-18G]` 子文件夹，普通作品仍保存在艺术家目录根部。限制级作品下载失败时，日志会逐条显示具体作品 ID 和失败原因。
+不必须。公开作品通常不需要 Cookie。只有登录可见、年龄限制或部分受限作品可能需要 Cookie。
 
-## 相似图片检测
+如果要填写 Cookie，建议使用专门的小号，并在 Pixiv 网页端定期注销会话。
 
-GUI 中打开“相似图片”选项卡，可以单独填写相似图片扫描目录和排除目录；如果留空，则默认使用当前下载目录和当前排除目录。点击“查找相似图片”后，结果按疑似重复组展示，双击结果里的文件行可以打开文件所在位置。软件只展示结果，不会自动删除或移动文件；损坏图片或无法读取的文件会计入错误，并在日志中显示前若干条错误。
+## 更多文档
 
-相似图片检测会处理 `.jpg`、`.jpeg`、`.png`、`.webp`、`.bmp`、`.gif`；GIF/WebP 动图使用首帧。它会为每张图记录文件大小、修改时间、分辨率、`sha256`、`pHash` 和 `dHash`，索引保存在：
-
-```text
-.pixiv-pbd-manager/image_index.json
-```
-
-判断规则：
-
-- `sha256` 相同：完全重复。
-- `pHash <= 6` 且 `dHash <= 10`：高度相似。
-- `pHash <= 10` 且 `dHash <= 14`：可能相似。
-
-CLI 示例：
-
-```powershell
-python -m pixiv_pbd_manager similar "C:\PixivLibrary"
-python -m pixiv_pbd_manager similar "C:\PixivLibrary" --threshold possible --output similar_report.csv
-```
-
-## Pixiv Cookie 与隐私风险
-
-直接下载限制级 (R-18) 作品需要在 GUI"Pixiv 登录"区或 CLI 的 `--pixiv-cookie` 参数提供 Pixiv 会话 Cookie（通常是 `PHPSESSID`）。账号还必须在 Pixiv 设置里开启 R-18 浏览，否则即便有 cookie，作品也不会出现在 `/profile/all` 列表中。
-
-⚠️ **Cookie 等同于密码**。请认真阅读以下风险后再使用。
-
-### 必须先同意免责声明才能使用 Cookie
-
-为防止误用，本工具要求显式同意 Cookie 使用风险声明后才会启用 Cookie：
-
-- **GUI**：勾选"我已阅读并同意 Cookie 使用风险声明"复选框。首次勾选会弹出免责声明，必须点击"我同意"才会启用 Cookie 输入框；取消勾选时会清除本地已保存的 Cookie。
-- **CLI**：使用 `--pixiv-cookie` 时必须同时附带 `--accept-cookie-risk`（仅首次）。否则命令会直接拒绝执行。在 GUI 中已同意过的，CLI 也会复用该同意记录。
-
-同意记录写在 `.pixiv-pbd-manager/consent.json` 中。删除该文件等同于撤回同意，下次使用 Cookie 时会被再次询问。
-
-### 这个 Cookie 能做什么
-
-只要持有有效的 `PHPSESSID`，无需密码即可：
-
-- 查看你的所有私密书签、私信、购买记录、关注列表
-- 以你的身份点赞、关注、评论、发作品、删作品、改账号信息
-- 操作 Pixiv Booth / Fanbox 的购买与赞助
-
-Pixiv 的二次验证 (2FA) 只在用密码新登录时触发，**不会保护已经登录的活动会话**。
-
-### 软件如何保存它
-
-- **Windows**：通过 [DPAPI](https://learn.microsoft.com/zh-cn/windows/win32/seccrypto/cryptoapi-cryptography-and-data-protection-api) 加密为 `.pixiv-pbd-manager/cookie.bin`，**只有当前 Windows 用户**能解密；其他系统账号、备份盘里的同份文件无法解密。
-- **非 Windows**：以纯文本保存到 `.pixiv-pbd-manager/cookie.txt`，权限置为 `0600`，依赖 OS 权限保护。
-- 不会写入 `gui_settings.json`，避免被一起同步到云盘 / Git。
-- `.pixiv-pbd-manager/` 已在仓库 `.gitignore` 中。
-
-### 网络层做了什么取舍
-
-- 仅向 `*.pixiv.net` 发送 Cookie；下载图片走 `i.pximg.net`，**不会带 Cookie**，避免把会话泄露给图片 CDN。
-- HTTP 请求使用与最新 Chrome 一致的 `User-Agent`，降低被识别为脚本客户端的概率。
-- 即便如此，高频请求 `/ajax/illust/*/pages`、`/ajax/user/*/profile/all` 仍可能触发 rate limit 或人机验证；严重时账号可能被冻结。这违反 Pixiv 服务条款，请节制使用、合理设置 `--delay` 与 `--resolve-delay`。
-
-### 风险仍然存在的情况
-
-即使有 DPAPI 加密，下列情况下 Cookie 仍可能泄露：
-
-- 你的 Windows 账号本身被入侵（DPAPI 在该用户上下文内可正常解密）
-- 项目目录被同步到云盘（OneDrive / Dropbox / 坚果云等）：加密 blob 同账号能解，仍是多余暴露面
-- Windows 强制重置密码导致 DPAPI master key 失效：本地存的 cookie 会变成无法解密的垃圾数据，需要重新粘贴
-- 浏览器扩展、剪贴板监视、屏幕录像软件可能在粘贴瞬间截获明文 Cookie
-
-### 推荐做法
-
-1. **用一个专门跑本工具的小号**，开启 R-18 但不放任何重要数据；即便泄露，损失可控。
-2. **用完手动注销**：在 Pixiv 网页设置里手动注销该 session。
-3. **不要把项目目录放在云盘同步路径下**。
-4. **怀疑泄露立即注销所有 session**：Pixiv 网页登录后注销所有会话即可作废全部 cookie。
-
-## 常用命令
-
-```powershell
-# 扫描已有下载，保存作者 ID
-python -m pixiv_pbd_manager scan "C:\PixivDownloads"
-
-# 扫描旧目录，并用作品 ID 在线解析 Pixiv 作者 ID
-python -m pixiv_pbd_manager scan "C:\PixivLibrary" --resolve-online
-
-# 开启作者名模糊搜索，适合 illus-作者名-标签 这类手动目录
-python -m pixiv_pbd_manager scan "C:\PixivLibrary" --resolve-online --fuzzy-search
-
-# 扫描时排除某些子目录；--exclude 可以重复使用
-python -m pixiv_pbd_manager scan "C:\PixivLibrary" --exclude "C:\PixivLibrary\anime"
-
-# 检查已记录作者是否有新作品
-python -m pixiv_pbd_manager check
-
-# 检查更新前递归扫描每个作者保存路径，避免子文件夹里的作品被误判为新作
-python -m pixiv_pbd_manager check --scan-local
-
-# 只检查每个作者主页最新前 2 页作品
-python -m pixiv_pbd_manager check --max-pages 2
-
-# 只检查指定作者
-python -m pixiv_pbd_manager check 123456 789012
-
-# 下载检查出的新作品
-python -m pixiv_pbd_manager download
-
-# 将 R-18/R-18G 新作品保存到艺术家目录下的 [R-18&R-18G] 子文件夹
-python -m pixiv_pbd_manager download --separate-r18
-
-# 下载指定作者的新作品
-python -m pixiv_pbd_manager download 123456 789012
-
-# 没有保存路径时指定兜底目录
-python -m pixiv_pbd_manager download --output-root "C:\PixivDownloads"
-
-# 严格 SSL 证书校验，不使用兼容重试
-python -m pixiv_pbd_manager scan "C:\PixivLibrary" --resolve-online --no-ssl-fallback
-
-# PBD 正在下载时持续监控目录
-python -m pixiv_pbd_manager watch "C:\PixivDownloads" --interval 30
-
-# 查找相似图片并导出 CSV 报告
-python -m pixiv_pbd_manager similar "C:\PixivLibrary" --output similar_report.csv
-
-# 手动添加作者
-python -m pixiv_pbd_manager add 123456 --name "artist name"
-
-# 打开全部已记录作者的作品页，让 PBD 接管下载
-python -m pixiv_pbd_manager open
-
-# 只打开指定作者
-python -m pixiv_pbd_manager open 123456 789012
-
-# 导出作者作品页 URL
-python -m pixiv_pbd_manager export --format urls --output pbd_update_urls.txt
-```
-
-## 数据库位置
-
-默认数据库位置：
-
-```text
-.pixiv-pbd-manager/artists.json
-```
-
-如果想放到别处，给命令加 `--db`：
-
-```powershell
-python -m pixiv_pbd_manager --help
-python -m pixiv_pbd_manager scan --db "C:\PixivData\pixiv_artists.json" "C:\PixivDownloads"
-```
-
-## 使用指定浏览器
-
-如果默认浏览器不是安装了 PBD 的那个，可以指定浏览器可执行文件：
-
-```powershell
-python -m pixiv_pbd_manager open --browser "C:\Program Files\Google\Chrome\Application\chrome.exe"
-```
-
-如果 PBD 装在某个独立 Chrome/Edge 用户数据目录里：
-
-```powershell
-python -m pixiv_pbd_manager open --browser "C:\Program Files\Google\Chrome\Application\chrome.exe" --user-data-dir "C:\PixivBrowserProfile"
-```
-
-## 识别规则
-
-优先从文件夹名识别作者，适合这些形式：
-
-```text
-Artist-123456
-Artist (123456)
-[123456] Artist
-123456 - Artist
-```
-
-然后从文件名识别：
-
-```text
-98765432_user_id_123456_title.jpg
-98765432_uid-123456_title.png
-98765432_member_id=123456_title.webp
-```
-
-如果旧文件完全没有作者 ID，只保留作品 ID，工具无法离线可靠推断作者。建议先把 PBD 命名规则改成包含 `{user_id}`，之后新下载的文件会自动可识别。
+- [高级使用说明](docs/zh/advanced-usage.md)：旧目录识别、直接下载细节、相似图片规则、Cookie 风险、CLI 命令。
+- [开发说明](docs/zh/development.md)：Tauri 开发环境、项目结构、测试和打包路线。
+- [手动测试清单](docs/zh/manual-test-checklist.md)：GUI 回归测试 checklist。

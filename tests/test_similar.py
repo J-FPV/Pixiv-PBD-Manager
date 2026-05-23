@@ -78,6 +78,23 @@ class SimilarImageTests(unittest.TestCase):
             self.assertEqual(result.error_count, 1)
             self.assertEqual(len(result.errors), 1)
 
+    def test_large_local_image_limit_is_disabled_for_hashing(self):
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            image_path = root / "large-warning.png"
+            make_pattern(image_path, size=(32, 32))
+            from pixiv_pbd_manager.similar import fingerprint as fingerprint_module
+
+            old_limit = fingerprint_module.Image.MAX_IMAGE_PIXELS
+            try:
+                fingerprint_module.Image.MAX_IMAGE_PIXELS = 1
+                result = fingerprint_image(image_path)
+            finally:
+                fingerprint_module.Image.MAX_IMAGE_PIXELS = old_limit
+
+            self.assertEqual(result.width, 32)
+            self.assertEqual(result.height, 32)
+
     def test_corrupt_file_errors_are_capped(self):
         with TemporaryDirectory() as tmp:
             root = Path(tmp)

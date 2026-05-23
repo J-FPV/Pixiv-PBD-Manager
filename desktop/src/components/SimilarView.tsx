@@ -65,7 +65,7 @@ export function SimilarView({
   const parentRef = useRef<HTMLDivElement>(null);
   const rootTextareaRef = useRef<HTMLTextAreaElement>(null);
   const excludeTextareaRef = useRef<HTMLTextAreaElement>(null);
-  const [previewPath, setPreviewPath] = useState<string | null>(null);
+  const [preview, setPreview] = useState<{ group: SimilarGroup; path: string } | null>(null);
   const rows = useMemo<SimilarRow[]>(() => {
     const output: SimilarRow[] = [];
     for (const group of result?.groups || []) {
@@ -216,8 +216,12 @@ export function SimilarView({
                   >
                     <span />
                     <span />
-                    <SimilarThumbnail language={language} path={item.entry.path} onPreview={setPreviewPath} />
-                    <span className="pathText">{item.entry.path}</span>
+                    <SimilarThumbnail
+                      language={language}
+                      path={item.entry.path}
+                      onPreview={() => setPreview({ group: item.group, path: item.entry.path })}
+                    />
+                    <span className="pathText clickablePath" title={item.entry.path}>{item.entry.path}</span>
                     <span>{item.entry.resolution}</span>
                     <span className="numeric">{formatBytes(item.entry.size_bytes)}</span>
                   </div>
@@ -229,11 +233,13 @@ export function SimilarView({
           )}
         </div>
       </div>
-      {previewPath ? (
+      {preview ? (
         <ImagePreviewModal
           language={language}
-          path={previewPath}
-          onClose={() => setPreviewPath(null)}
+          path={preview.path}
+          paths={preview.group.entries.map((entry) => entry.path)}
+          onPathChange={(path) => setPreview({ ...preview, path })}
+          onClose={() => setPreview(null)}
           revealFile={revealFile}
         />
       ) : null}

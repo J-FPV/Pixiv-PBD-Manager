@@ -42,6 +42,7 @@ COMMANDS: dict[str, Callable[[JsonDict, Emitter], JsonDict]] = {
     "browser.open": files.open_browser,
     "file.reveal": files.reveal_file,
     "image.thumbnail": files.image_thumbnail,
+    "image.difference": files.image_difference,
 }
 
 

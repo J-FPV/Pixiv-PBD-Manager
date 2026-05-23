@@ -663,6 +663,7 @@ export default function App() {
             folders={unmatchedFolders}
             excludeFolder={excludeFolder}
             assignFolder={assignUnmatchedFolder}
+            openPath={revealFile}
           />
         ) : null}
         {activeTab === "similar" ? (

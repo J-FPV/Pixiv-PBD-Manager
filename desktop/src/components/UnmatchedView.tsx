@@ -9,12 +9,14 @@ export function UnmatchedView({
   language,
   folders,
   excludeFolder,
-  assignFolder
+  assignFolder,
+  openPath
 }: {
   language: Language;
   folders: UnmatchedFolder[];
   excludeFolder: (path: string) => void;
   assignFolder: (path: string) => void;
+  openPath: (path: string) => void;
 }) {
   const parentRef = useRef<HTMLDivElement>(null);
   const virtualizer = useVirtualizer({
@@ -47,7 +49,11 @@ export function UnmatchedView({
                     key={item.path}
                     style={{ transform: `translateY(${row.start}px)` }}
                   >
-                    <span className="pathText" title={item.path}>
+                    <span
+                      className="pathText clickablePath"
+                      title={item.path}
+                      onDoubleClick={() => openPath(item.path)}
+                    >
                       {item.path}
                     </span>
                     <span className="numeric">{item.count}</span>

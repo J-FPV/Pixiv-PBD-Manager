@@ -9,6 +9,7 @@ good enough that ``hamming_hex`` distances stay well-correlated.
 from __future__ import annotations
 
 import hashlib
+import warnings
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -69,6 +70,11 @@ class ImageFingerprint:
 def ensure_image_dependencies() -> None:
     if Image is None:
         raise RuntimeError("Pillow is required for similar image detection. Run: pip install -e .")
+    # This tool scans the user's own local library. Pixiv/Fanbox files can be
+    # very large, and Pillow's decompression-bomb guard otherwise rejects some
+    # valid images before we can downsample them for perceptual hashing.
+    Image.MAX_IMAGE_PIXELS = None
+    warnings.simplefilter("ignore", Image.DecompressionBombWarning)
 
 
 def sha256_file(path: Path) -> str:
