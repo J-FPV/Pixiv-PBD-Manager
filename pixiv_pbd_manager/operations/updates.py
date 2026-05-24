@@ -60,6 +60,7 @@ def check_artist_updates(
     pixiv_cookie: str | None = None,
     allow_insecure_ssl_fallback: bool = True,
     scan_local: bool = False,
+    scan_local_depth: int | None = None,
     max_pages: int | None = None,
     progress_callback: ProgressCallback | None = None,
 ) -> UpdateCheckResult:
@@ -70,7 +71,11 @@ def check_artist_updates(
     emit(progress_callback, PROGRESS_CHECK_START, total=len(artists))
     for index, artist in enumerate(artists, 1):
         emit(progress_callback, PROGRESS_CHECK_ARTIST, current=index, total=len(artists), artist=artist.name or artist.id)
-        local_ids = collect_local_work_ids(artist.save_paths, recursive=scan_local)
+        local_ids = collect_local_work_ids(
+            artist.save_paths,
+            recursive=scan_local,
+            max_depth=scan_local_depth,
+        )
         if local_ids:
             artist.merge(work_ids=local_ids)
         try:

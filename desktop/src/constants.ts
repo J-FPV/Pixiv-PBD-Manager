@@ -17,6 +17,9 @@ export const DEFAULT_SETTINGS: AppSettings = {
   similar_threshold: "likely",
   similar_skip_pixiv_pages: false,
   scan_local_subfolders: false,
+  scan_max_depth: -1,
+  scan_recognize_low_pids: false,
+  update_check_depth: 0,
   update_check_pages: 0,
   separate_r18: false,
   show_progress_percent: true

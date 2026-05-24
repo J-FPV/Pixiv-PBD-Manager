@@ -78,6 +78,8 @@ def collect_resolved_hits(
     exclude_roots: list[Path] | None = None,
     fuzzy_search_names: bool = False,
     fuzzy_min_score: float = 0.35,
+    max_depth: int | None = None,
+    allow_low_pids: bool = False,
     progress_callback: ProgressCallback | None = None,
 ) -> ScanPipelineResult:
     emit(progress_callback, PROGRESS_SCAN_START, roots=len(roots))
@@ -91,6 +93,8 @@ def collect_resolved_hits(
             matched=item.files_matched,
             name_only=len(item.name_only_artists),
         ),
+        max_depth=max_depth,
+        allow_low_pids=allow_low_pids,
     )
     emit(
         progress_callback,

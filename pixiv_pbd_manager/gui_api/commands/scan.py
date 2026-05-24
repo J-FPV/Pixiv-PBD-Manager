@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from ...cookie_store import load_cookie
 from ...database import ArtistDatabase
 from ...operations import apply_scan_changes, preview_scan_changes, scan_into_database
@@ -9,6 +11,22 @@ from ..payload import as_bool, as_float, as_int, base_dir, db_path, paths
 from ..runtime import Emitter, JsonDict, make_progress_callback
 from ..serializers import artist_to_json, scan_result_to_json
 from .settings import load_settings_for_payload
+
+
+def _as_optional_depth(payload: JsonDict, key: str, settings: JsonDict, settings_key: str) -> int | None:
+    """Read a max_depth value: ``-1`` (or any negative) means unlimited (None).
+    Defaults to unlimited when the value is missing.
+    """
+    value: Any = payload.get(key)
+    if value is None:
+        value = settings.get(settings_key)
+    if value is None:
+        return None
+    try:
+        depth = int(value)
+    except (TypeError, ValueError):
+        return None
+    return None if depth < 0 else depth
 
 
 def run(payload: JsonDict, emit_event: Emitter) -> JsonDict:
@@ -27,6 +45,8 @@ def run(payload: JsonDict, emit_event: Emitter) -> JsonDict:
         exclude_roots=exclude_roots,
         fuzzy_search_names=as_bool(payload, "fuzzy_search", bool(settings.get("fuzzy_search", False))),
         fuzzy_min_score=as_float(payload, "fuzzy_min_score", float(settings.get("fuzzy_min_score", 0.35))),
+        max_depth=_as_optional_depth(payload, "scan_max_depth", settings, "scan_max_depth"),
+        allow_low_pids=as_bool(payload, "scan_recognize_low_pids", bool(settings.get("scan_recognize_low_pids", False))),
         progress_callback=make_progress_callback(emit_event),
     )
     return scan_result_to_json(result)
@@ -48,6 +68,8 @@ def preview(payload: JsonDict, emit_event: Emitter) -> JsonDict:
         exclude_roots=exclude_roots,
         fuzzy_search_names=as_bool(payload, "fuzzy_search", bool(settings.get("fuzzy_search", False))),
         fuzzy_min_score=as_float(payload, "fuzzy_min_score", float(settings.get("fuzzy_min_score", 0.35))),
+        max_depth=_as_optional_depth(payload, "scan_max_depth", settings, "scan_max_depth"),
+        allow_low_pids=as_bool(payload, "scan_recognize_low_pids", bool(settings.get("scan_recognize_low_pids", False))),
         progress_callback=make_progress_callback(emit_event),
     )
     summary = result.summary

@@ -223,6 +223,8 @@ def scan_into_database(
     exclude_roots: list[Path] | None = None,
     fuzzy_search_names: bool = False,
     fuzzy_min_score: float = 0.35,
+    max_depth: int | None = None,
+    allow_low_pids: bool = False,
     progress_callback: ProgressCallback | None = None,
 ) -> ScanResult:
     db = ArtistDatabase.load(db_path)
@@ -237,6 +239,8 @@ def scan_into_database(
         exclude_roots=exclude_roots,
         fuzzy_search_names=fuzzy_search_names,
         fuzzy_min_score=fuzzy_min_score,
+        max_depth=max_depth,
+        allow_low_pids=allow_low_pids,
         progress_callback=progress_callback,
     )
     changed = sum(1 for hit in pipeline.hits if _merge_scan_hit(db, hit))
@@ -264,6 +268,8 @@ def preview_scan_changes(
     exclude_roots: list[Path] | None = None,
     fuzzy_search_names: bool = False,
     fuzzy_min_score: float = 0.35,
+    max_depth: int | None = None,
+    allow_low_pids: bool = False,
     progress_callback: ProgressCallback | None = None,
 ) -> ScanPreviewResult:
     """Run the scan but produce a diff of proposed changes instead of writing.
@@ -285,6 +291,8 @@ def preview_scan_changes(
         exclude_roots=exclude_roots,
         fuzzy_search_names=fuzzy_search_names,
         fuzzy_min_score=fuzzy_min_score,
+        max_depth=max_depth,
+        allow_low_pids=allow_low_pids,
         progress_callback=progress_callback,
     )
     proposed: dict[str, dict] = {}

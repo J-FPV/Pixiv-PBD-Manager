@@ -26,14 +26,16 @@ FOLDER_ARTIST_PATTERNS = [
     re.compile(r"^(?P<name>.+?)-(?P<id>\d{3,12})$"),
     re.compile(r"^(?P<name>.+?)\s*\((?P<id>\d{3,12})\)$"),
     re.compile(r"^\[(?P<id>\d{3,12})\]\s*(?P<name>.+)$"),
-    # ``\d{5,12}`` here (not ``\d{3,12}`` like the structured forms above)
-    # because the leading-digits form has no anchoring delimiter to prove the
-    # number is meant as an ID. Date-prefixed folders ``2020-07-01-title``
-    # otherwise match with id=2020 — bumping the minimum to 5 digits rules
-    # out 4-digit years while still catching real Pixiv IDs (5-digit IDs are
-    # the floor for any Pixiv account active in the last decade).
-    re.compile(r"^(?P<id>\d{5,12})[_ -]+(?P<name>.+)$"),
+    re.compile(r"^(?P<id>\d{3,12})[_ -]+(?P<name>.+)$"),
 ]
+
+# Numeric threshold below which a folder-name match is rejected by default.
+# Pixiv user IDs in this range exist (very old 2007 accounts) but are vastly
+# outnumbered by false positives — most notably date prefixes ``2020-07-01-X``
+# matching the leading-digits pattern with id=2020. The frontend exposes a
+# ``recognize_low_pids`` toggle that lifts this filter for users who actually
+# need the old-account behaviour.
+LOW_PID_THRESHOLD = 3000
 
 NAME_ONLY_PIXIV_FOLDER_PATTERNS = [
     re.compile(r"^(?:illus[-_ ])?(?P<name>.+?)'s illustrations[／/]manga(?: - pixiv)?$", re.I),
@@ -121,18 +123,35 @@ def is_excluded_path(path: Path, exclude_roots: list[Path]) -> bool:
     return any(resolved == exclude or is_relative_to(resolved, exclude) for exclude in exclude_roots)
 
 
-def iter_media_files(root: Path, exclude_roots: list[Path] | None = None):
+def iter_media_files(
+    root: Path,
+    exclude_roots: list[Path] | None = None,
+    *,
+    max_depth: int | None = None,
+):
+    """Walk ``root`` for media files. ``max_depth`` limits how deep we recurse:
+    ``None`` (default) = unlimited; ``0`` = only files directly in ``root``;
+    ``N`` = up to ``N`` directories below ``root``.
+    """
     excludes = normalize_exclude_roots(exclude_roots)
     if root.is_file():
         if not is_excluded_path(root, excludes) and root.suffix.lower() in MEDIA_SUFFIXES:
             yield root
         return
 
+    root_str = str(root)
+    root_depth = root_str.count(os.sep)
+
     for current_dir, dirnames, filenames in os.walk(root):
         current_path = Path(current_dir)
         if is_excluded_path(current_path, excludes):
             dirnames[:] = []
             continue
+
+        if max_depth is not None and max_depth >= 0:
+            depth = current_dir.count(os.sep) - root_depth
+            if depth >= max_depth:
+                dirnames[:] = []  # stop descending below the cap
 
         kept_dirnames = []
         for dirname in dirnames:
@@ -163,14 +182,23 @@ def normalize_artist_name_from_folder(name: str | None) -> str | None:
     return value or None
 
 
-def plausible_artist_id(value: str) -> bool:
+def plausible_artist_id(value: str, *, allow_low_pids: bool = False) -> bool:
     if not value.isdigit():
         return False
     numeric = int(value)
-    return 1 <= numeric <= 999_999_999_999
+    if not (1 <= numeric <= 999_999_999_999):
+        return False
+    if not allow_low_pids and numeric < LOW_PID_THRESHOLD:
+        return False
+    return True
 
 
-def find_artist_in_text(text: str, *, include_loose_patterns: bool) -> tuple[str, str | None, str] | None:
+def find_artist_in_text(
+    text: str,
+    *,
+    include_loose_patterns: bool,
+    allow_low_pids: bool = False,
+) -> tuple[str, str | None, str] | None:
     patterns = KEYWORD_ARTIST_PATTERNS
     if include_loose_patterns:
         patterns = [*FOLDER_ARTIST_PATTERNS, *KEYWORD_ARTIST_PATTERNS]
@@ -179,7 +207,7 @@ def find_artist_in_text(text: str, *, include_loose_patterns: bool) -> tuple[str
         if not match:
             continue
         artist_id = match.group("id")
-        if plausible_artist_id(artist_id):
+        if plausible_artist_id(artist_id, allow_low_pids=allow_low_pids):
             return artist_id, clean_name(match.groupdict().get("name")), pattern.pattern
     return None
 
@@ -211,7 +239,7 @@ def stable_artist_key(root: Path, folder: Path, name: str) -> str:
     return f"name:{digest}"
 
 
-def identify_artist(path: Path, root: Path) -> ScanHit | None:
+def identify_artist(path: Path, root: Path, *, allow_low_pids: bool = False) -> ScanHit | None:
     relative_parts = []
     try:
         relative_parts = list(path.relative_to(root).parts)
@@ -226,7 +254,7 @@ def identify_artist(path: Path, root: Path) -> ScanHit | None:
         folder_paths.append((part, current_folder))
 
     for part, folder_path in reversed(folder_paths):
-        found = find_artist_in_text(part, include_loose_patterns=True)
+        found = find_artist_in_text(part, include_loose_patterns=True, allow_low_pids=allow_low_pids)
         if found:
             artist_id, artist_name, pattern = found
             return ScanHit(
@@ -239,7 +267,7 @@ def identify_artist(path: Path, root: Path) -> ScanHit | None:
                 work_ids=extract_work_ids(path),
             )
 
-    found = find_artist_in_text(path.name, include_loose_patterns=False)
+    found = find_artist_in_text(path.name, include_loose_patterns=False, allow_low_pids=allow_low_pids)
     if found:
         artist_id, artist_name, pattern = found
         return ScanHit(
@@ -286,6 +314,9 @@ def scan_roots(
     exclude_roots: list[Path] | None = None,
     progress_callback: Callable[[ScanSummary], None] | None = None,
     progress_interval: int = 1000,
+    *,
+    max_depth: int | None = None,
+    allow_low_pids: bool = False,
 ) -> ScanSummary:
     summary = ScanSummary()
     excludes = normalize_exclude_roots(exclude_roots)
@@ -297,11 +328,11 @@ def scan_roots(
             if root == exclude or is_relative_to(exclude, root) or is_relative_to(root, exclude)
         ]
         summary.excluded_dirs += len(root_excludes)
-        for path in iter_media_files(root, root_excludes):
+        for path in iter_media_files(root, root_excludes, max_depth=max_depth):
             summary.files_seen += 1
             if progress_callback and progress_interval > 0 and summary.files_seen % progress_interval == 0:
                 progress_callback(summary)
-            hit = identify_artist(path, root)
+            hit = identify_artist(path, root, allow_low_pids=allow_low_pids)
             if hit:
                 summary.add_hit(hit)
                 continue

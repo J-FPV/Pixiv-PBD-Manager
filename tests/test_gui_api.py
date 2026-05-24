@@ -442,6 +442,34 @@ class GuiApiTests(unittest.TestCase):
         self.assertEqual(events[-1]["payload"]["selected"], False)
         shell_execute.assert_called_once_with(str(root.resolve()))
 
+    def test_emit_event_survives_lone_surrogate_in_payload(self):
+        # File / folder paths from Windows occasionally surface lone surrogates
+        # (``\udc81``-range chars produced by ``surrogateescape`` decode of
+        # mbcs bytes). A user-reported crash was ``'utf-8' codec can't encode
+        # character '\\udc81' ...`` originating from the JSON-encode step of
+        # ``emit_event``. ``backslashreplace`` on the final encode now turns
+        # the offending char into a printable escape instead of aborting.
+        from pixiv_pbd_manager.gui_api import runtime
+        import io as _io
+        import contextlib
+
+        buf = _io.BytesIO()
+
+        class _Stub:
+            def __init__(self, target):
+                self.buffer = target
+
+            def write(self, _):
+                raise AssertionError("path should write via .buffer, not .write")
+
+            def flush(self):
+                pass
+
+        stub = _Stub(buf)
+        with patch.object(runtime, "sys", new=type("S", (), {"stdout": stub})):
+            runtime.emit_event({"type": "progress", "path": "test\udc81"})
+        self.assertIn(b"\\udc81", buf.getvalue())
+
     def test_unknown_command_outputs_error_event(self):
         exit_code, events = invoke("missing.command")
 

@@ -12,15 +12,40 @@ from ..serializers import download_result_to_json, update_result_to_json
 from .settings import load_settings_for_payload
 
 
+def _resolve_update_check_depth(payload: JsonDict, settings: JsonDict) -> tuple[bool, int | None]:
+    """Return (scan_local_bool, scan_local_depth_or_None).
+
+    Honours the new ``update_check_depth`` setting (``-1`` = unlimited, ``0`` =
+    artist folder only, ``N`` = N levels deep) when present. Falls back to the
+    legacy ``scan_local_subfolders`` boolean otherwise so existing saved
+    settings keep working.
+    """
+    raw = payload.get("update_check_depth")
+    if raw is None:
+        raw = settings.get("update_check_depth")
+    if raw is None:
+        legacy = as_bool(payload, "scan_local_subfolders", bool(settings.get("scan_local_subfolders", False)))
+        return legacy, None
+    try:
+        depth = int(raw)
+    except (TypeError, ValueError):
+        return False, None
+    if depth < 0:
+        return True, None
+    return depth != 0, depth
+
+
 def check(payload: JsonDict, emit_event: Emitter) -> JsonDict:
     settings = load_settings_for_payload(payload)
     update_check_pages = as_int(payload, "update_check_pages", as_int(settings, "update_check_pages", 0))
+    scan_local, scan_local_depth = _resolve_update_check_depth(payload, settings)
     result = check_artist_updates(
         db_path(payload, settings),
         artist_ids=[str(item) for item in payload.get("artist_ids") or []] or None,
         pixiv_cookie=payload.get("pixiv_cookie") or load_cookie(),
         allow_insecure_ssl_fallback=as_bool(payload, "ssl_fallback", bool(settings.get("ssl_fallback", True))),
-        scan_local=as_bool(payload, "scan_local_subfolders", bool(settings.get("scan_local_subfolders", False))),
+        scan_local=scan_local,
+        scan_local_depth=scan_local_depth,
         max_pages=update_check_pages if update_check_pages > 0 else None,
         progress_callback=make_progress_callback(emit_event),
     )

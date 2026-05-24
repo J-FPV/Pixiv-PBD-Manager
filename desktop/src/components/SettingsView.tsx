@@ -226,14 +226,32 @@ export function SettingsView({
                 <label>
                   <input
                     type="checkbox"
-                    checked={Boolean(settings.scan_local_subfolders)}
-                    onChange={(event) => update("scan_local_subfolders", event.target.checked)}
+                    checked={Boolean(settings.scan_recognize_low_pids)}
+                    onChange={(event) => update("scan_recognize_low_pids", event.target.checked)}
                   />
-                  <span>{t(language, "scanLocalSubfolders")}</span>
+                  <span>{t(language, "scanRecognizeLowPids")}</span>
                 </label>
               </div>
-              <p className="fieldHint">{t(language, "scanLocalHint")}</p>
+              <p className="fieldHint">{t(language, "scanRecognizeLowPidsHint")}</p>
               <div className="fieldGrid">
+                <label>
+                  <span>{t(language, "scanMaxDepth")}</span>
+                  <input
+                    type="number"
+                    min="-1"
+                    value={settings.scan_max_depth ?? -1}
+                    onChange={(event) => update("scan_max_depth", Number(event.target.value))}
+                  />
+                </label>
+                <label>
+                  <span>{t(language, "updateCheckDepth")}</span>
+                  <input
+                    type="number"
+                    min="-1"
+                    value={settings.update_check_depth ?? 0}
+                    onChange={(event) => update("update_check_depth", Number(event.target.value))}
+                  />
+                </label>
                 <label>
                   <span>{t(language, "resolveLimit")}</span>
                   <input
@@ -261,6 +279,7 @@ export function SettingsView({
                   />
                 </label>
               </div>
+              <p className="fieldHint">{t(language, "scanDepthHint")}</p>
               <p className="fieldHint">{t(language, "updateCheckPagesHint")}</p>
             </div>
           ) : null}

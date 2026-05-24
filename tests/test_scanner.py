@@ -2,7 +2,12 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
 
-from pixiv_pbd_manager.scanner import identify_artist, identify_name_only_artist, scan_roots
+from pixiv_pbd_manager.scanner import (
+    identify_artist,
+    identify_name_only_artist,
+    iter_media_files,
+    scan_roots,
+)
 
 
 class ScannerTests(unittest.TestCase):
@@ -121,10 +126,10 @@ class ScannerTests(unittest.TestCase):
 
     def test_date_prefixed_folder_is_not_mistaken_for_pid(self):
         # A fanbox-style nested folder ``2020-07-01-title`` previously matched
-        # the leading-digits pattern with id=2020 (year as artist ID). The
-        # tightened ``\d{5,12}`` minimum on that specific pattern rules out
-        # 4-digit years; the file should fall through to the name-only
-        # detector and attribute under the outer ``illus-XX`` folder.
+        # the leading-digits pattern with id=2020 (year). With the LOW_PID
+        # threshold (3000) enabled by default, the year (2020 < 3000) is
+        # rejected; the file falls through to the name-only detector and is
+        # attributed under the outer ``illus-XX`` folder.
         with TemporaryDirectory() as tmp:
             root = Path(tmp)
             path = (
@@ -144,6 +149,40 @@ class ScannerTests(unittest.TestCase):
             self.assertIsNotNone(name_only)
             assert name_only is not None
             self.assertEqual(name_only.artist_name, "カンザリン")
+
+    def test_low_pid_toggle_unlocks_old_4_digit_ids(self):
+        # Users with very old Pixiv accounts (4-digit IDs registered in 2007)
+        # can opt in to recognise IDs below the LOW_PID threshold.
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            path = root / "1234 LegacyArtist" / "98765432-work.jpg"
+            path.parent.mkdir(parents=True)
+            path.write_bytes(b"")
+
+            self.assertIsNone(identify_artist(path, root), "low IDs rejected by default")
+
+            opted_in = identify_artist(path, root, allow_low_pids=True)
+            self.assertIsNotNone(opted_in)
+            assert opted_in is not None
+            self.assertEqual(opted_in.artist_id, "1234")
+
+    def test_iter_media_files_respects_max_depth(self):
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "a.jpg").write_bytes(b"")
+            (root / "level1").mkdir()
+            (root / "level1" / "b.jpg").write_bytes(b"")
+            (root / "level1" / "level2").mkdir()
+            (root / "level1" / "level2" / "c.jpg").write_bytes(b"")
+
+            unlimited = sorted(p.name for p in iter_media_files(root))
+            self.assertEqual(unlimited, ["a.jpg", "b.jpg", "c.jpg"])
+
+            depth0 = sorted(p.name for p in iter_media_files(root, max_depth=0))
+            self.assertEqual(depth0, ["a.jpg"])
+
+            depth1 = sorted(p.name for p in iter_media_files(root, max_depth=1))
+            self.assertEqual(depth1, ["a.jpg", "b.jpg"])
 
 
 if __name__ == "__main__":

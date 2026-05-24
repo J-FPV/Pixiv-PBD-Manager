@@ -97,6 +97,13 @@ export interface AppSettings {
   similar_threshold?: SimilarThreshold;
   similar_skip_pixiv_pages?: boolean;
   scan_local_subfolders?: boolean;
+  // -1 = unlimited; 0 = root level only; N = walk N levels under each download root.
+  scan_max_depth?: number;
+  // Allow folder names with numeric ID < 3000 to be recognised as PIDs.
+  // Off by default so date prefixes like ``2020-07-01-X`` aren't misread.
+  scan_recognize_low_pids?: boolean;
+  // -1 = unlimited; 0 = artist save_path top level only.
+  update_check_depth?: number;
   update_check_pages?: number;
   separate_r18?: boolean;
   show_progress_percent?: boolean;

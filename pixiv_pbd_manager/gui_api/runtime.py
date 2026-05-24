@@ -57,9 +57,15 @@ _EMIT_LOCK = threading.Lock()
 
 
 def emit_event(event: JsonDict) -> None:
-    """Write one JSON line to stdout, lock-protected so threads don't interleave."""
+    """Write one JSON line to stdout, lock-protected so threads don't interleave.
+
+    Uses ``errors='backslashreplace'`` on the final UTF-8 encode so lone
+    surrogates that occasionally surface from Windows path APIs (the
+    ``\\udc81`` "surrogates not allowed" crash users hit during scans) get
+    serialised as the literal text ``\\udc81`` rather than aborting the IPC.
+    """
     line = json.dumps(event, ensure_ascii=False) + "\n"
-    data = line.encode("utf-8")
+    data = line.encode("utf-8", errors="backslashreplace")
     with _EMIT_LOCK:
         buffer = getattr(sys.stdout, "buffer", None)
         if buffer is not None:

@@ -29,14 +29,32 @@ def _iter_direct_media_files(folder: Path):
             yield path
 
 
-def collect_local_work_ids(save_paths: list[str], *, recursive: bool = True) -> set[str]:
-    """Scan an artist's saved folder(s) and collect work ids on disk."""
+def collect_local_work_ids(
+    save_paths: list[str],
+    *,
+    recursive: bool = True,
+    max_depth: int | None = None,
+) -> set[str]:
+    """Scan an artist's saved folder(s) and collect work ids on disk.
+
+    ``max_depth`` (when provided) wins over ``recursive``: ``max_depth=0``
+    means only files directly in each save_path, ``max_depth=N`` recurses
+    ``N`` levels deep, ``None`` is unlimited. The boolean ``recursive`` flag
+    stays for backwards compat (True ⇒ unlimited, False ⇒ depth 0).
+    """
     ids: set[str] = set()
+    if max_depth is None:
+        effective_depth: int | None = None if recursive else 0
+    else:
+        effective_depth = max_depth
     for raw in save_paths:
         folder = Path(raw)
         if not folder.exists():
             continue
-        paths = iter_media_files(folder) if recursive else _iter_direct_media_files(folder)
+        if effective_depth == 0:
+            paths = _iter_direct_media_files(folder)
+        else:
+            paths = iter_media_files(folder, max_depth=effective_depth)
         for path in paths:
             ids.update(extract_work_ids(path))
     return ids
