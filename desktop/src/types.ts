@@ -76,6 +76,7 @@ export interface ScanApplyPayload {
   save_paths_added: number;
   work_ids_added: number;
   db_path: string;
+  artists: Artist[];
 }
 
 export interface AppSettings {

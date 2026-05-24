@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 from ...cookie_store import load_cookie
+from ...database import ArtistDatabase
 from ...operations import apply_scan_changes, preview_scan_changes, scan_into_database
 from ..payload import as_bool, as_float, as_int, base_dir, db_path, paths
 from ..runtime import Emitter, JsonDict, make_progress_callback
-from ..serializers import scan_result_to_json
+from ..serializers import artist_to_json, scan_result_to_json
 from .settings import load_settings_for_payload
 
 
@@ -74,7 +75,14 @@ def apply(payload: JsonDict, _emit_event: Emitter) -> JsonDict:
     operations = payload.get("operations")
     if not isinstance(operations, list):
         raise ValueError("operations must be a list")
-    result = apply_scan_changes(db_path(payload, settings), [op for op in operations if isinstance(op, dict)])
+    resolved_db_path = db_path(payload, settings)
+    result = apply_scan_changes(resolved_db_path, [op for op in operations if isinstance(op, dict)])
+    # Include the updated artist list in the response so the frontend can
+    # populate its state without a follow-up ``artists.list`` IPC. The cold
+    # sidecar startup makes that second round-trip the dominant source of
+    # the "applied scan but list stayed empty for a while" delay.
+    db = ArtistDatabase.load(resolved_db_path)
+    artists = [artist_to_json(db.artists[artist_id]) for artist_id in sorted(db.artists, key=lambda v: (len(v), v))]
     return {
         "applied": result.applied,
         "new_artists": result.new_artists,
@@ -82,4 +90,5 @@ def apply(payload: JsonDict, _emit_event: Emitter) -> JsonDict:
         "save_paths_added": result.save_paths_added,
         "work_ids_added": result.work_ids_added,
         "db_path": str(result.db_path) if result.db_path else "",
+        "artists": artists,
     }

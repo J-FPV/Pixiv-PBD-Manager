@@ -21,12 +21,14 @@ const UNMATCHED_COLUMNS: ColumnDef<UnmatchedColumn>[] = [
 export function UnmatchedView({
   language,
   folders,
+  pendingExclude,
   excludeFolder,
   assignFolder,
   openPath
 }: {
   language: Language;
   folders: UnmatchedFolder[];
+  pendingExclude: Set<string>;
   excludeFolder: (path: string) => void;
   assignFolder: (path: string) => void;
   openPath: (path: string) => void;
@@ -73,9 +75,10 @@ export function UnmatchedView({
             <div style={{ height: virtualizer.getTotalSize(), position: "relative" }}>
               {virtualizer.getVirtualItems().map((row) => {
                 const item = folders[row.index];
+                const isPending = pendingExclude.has(item.path);
                 return (
                   <div
-                    className="tableRow unmatchedRow"
+                    className={`tableRow unmatchedRow ${isPending ? "pending" : ""}`}
                     key={item.path}
                     style={{ transform: `translateY(${row.start}px)` }}
                   >
@@ -88,10 +91,19 @@ export function UnmatchedView({
                     </span>
                     <span className="numeric">{item.count}</span>
                     <span className="unmatchedActions">
-                      <Button icon={<UserPlus size={14} />} onClick={() => assignFolder(item.path)}>
+                      <Button
+                        icon={<UserPlus size={14} />}
+                        disabled={isPending}
+                        onClick={() => assignFolder(item.path)}
+                      >
                         {t(language, "assignArtist")}
                       </Button>
-                      <Button icon={<XCircle size={14} />} variant="danger" onClick={() => excludeFolder(item.path)}>
+                      <Button
+                        icon={<XCircle size={14} />}
+                        variant="danger"
+                        disabled={isPending}
+                        onClick={() => excludeFolder(item.path)}
+                      >
                         {t(language, "excludeFolder")}
                       </Button>
                     </span>

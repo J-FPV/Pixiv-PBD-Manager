@@ -348,6 +348,11 @@ body.col-resizing .colHandle::after {
   background: #f4faf7;
 }
 
+.tableRow.pending {
+  opacity: 0.45;
+  pointer-events: none;
+}
+
 .unmatchedActions {
   display: flex;
   justify-content: flex-end;

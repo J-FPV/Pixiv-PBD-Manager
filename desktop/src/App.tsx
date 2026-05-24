@@ -95,6 +95,11 @@ export default function App() {
   const [unmatchedFolders, setUnmatchedFolders] = useState<UnmatchedFolder[]>(() =>
     loadJson<UnmatchedFolder[]>(UNMATCHED_CACHE_KEY, [])
   );
+  // Tracks unmatched paths whose exclude IPC is in flight. Rows in this set
+  // render greyed + disabled so rapid clicks during cold-sidecar startup
+  // don't fire the action again on a row that just slid into the clicked
+  // screen position.
+  const [pendingExcludeFolders, setPendingExcludeFolders] = useState<Set<string>>(() => new Set());
   const [prompt, setPrompt] = useState<PromptState | null>(null);
   const [confirm, setConfirm] = useState<ConfirmState | null>(null);
   const [disclaimer, setDisclaimer] = useState<"accept" | "view" | null>(null);
@@ -285,7 +290,15 @@ export default function App() {
         "info",
         `${t(languageValue, "scanApplied")}: ${res.applied} (new: ${res.new_artists}, names: ${res.name_changes}, paths: ${res.save_paths_added}, works: ${res.work_ids_added})`
       );
-      await loadArtists();
+      // Backend now includes the updated artist list in the response, so we
+      // can update state without a second ``artists.list`` IPC. Skipping
+      // that follow-up round-trip removes the cold-sidecar delay the user
+      // sees as "scan applied but list is still empty".
+      if (Array.isArray(res.artists)) {
+        setArtists(res.artists);
+      } else {
+        await loadArtists();
+      }
     } catch (error) {
       appendLog("error", error instanceof Error ? error.message : String(error));
     }
@@ -297,27 +310,33 @@ export default function App() {
       setUnmatchedFolders((list) => list.filter((item) => item.path !== path));
       return;
     }
-    // Optimistic UI: drop the row immediately so the user gets feedback
-    // even while the settings.save IPC is in flight (cold sidecar startup
-    // can take ~500ms in the installed build). Restore on failure.
-    let snapshot: UnmatchedFolder[] = [];
-    setUnmatchedFolders((list) => {
-      snapshot = list;
-      return list.filter((item) => item.path !== path);
-    });
+    // Don't drop the row optimistically — under the slow cold sidecar
+    // startup, removing immediately shifts the next row into the clicked
+    // screen position, so a second click hits a different row. Instead,
+    // mark this row as "pending" (greyed + disabled) and only remove on
+    // IPC success.
+    if (pendingExcludeFolders.has(path)) {
+      return;
+    }
+    setPendingExcludeFolders((set) => new Set(set).add(path));
     const nextSettings = { ...settings, exclude_roots: [...current, path] };
-    setSettings(nextSettings);
     try {
       await runGuiApi<SettingsPayload>(
         "settings.save",
         { settings: nextSettings, cookie_consent: cookieConsent },
         handleEvent
       );
+      setSettings(nextSettings);
+      setUnmatchedFolders((list) => list.filter((item) => item.path !== path));
       appendLog("info", `${t(languageValue, "excludeFolder")}: ${path}`);
     } catch (error) {
-      setUnmatchedFolders(snapshot);
-      setSettings(settings);
       appendLog("error", error instanceof Error ? error.message : String(error));
+    } finally {
+      setPendingExcludeFolders((set) => {
+        const next = new Set(set);
+        next.delete(path);
+        return next;
+      });
     }
   };
 
@@ -473,11 +492,15 @@ export default function App() {
             handleEvent
           );
           const removed = new Set(result.artist_ids);
+          // Update state directly from the IPC result instead of a follow-up
+          // artists.list call — the cold sidecar startup makes that second
+          // round-trip the dominant source of the "deleted but still showing"
+          // delay users see.
+          setArtists((list) => list.filter((artist) => !removed.has(artist.id)));
           setSelected((current) => new Set([...current].filter((id) => !removed.has(id))));
           const message = `${t(languageValue, "removedArtists")}: ${result.removed}`;
           appendLog("info", message);
           showToast(message);
-          await loadArtists();
         } catch (error) {
           appendLog("error", error instanceof Error ? error.message : String(error));
         }
@@ -669,6 +692,7 @@ export default function App() {
           <UnmatchedView
             language={languageValue}
             folders={unmatchedFolders}
+            pendingExclude={pendingExcludeFolders}
             excludeFolder={excludeFolder}
             assignFolder={assignUnmatchedFolder}
             openPath={revealFile}
