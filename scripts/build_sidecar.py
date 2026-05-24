@@ -1,15 +1,18 @@
-"""Build the PyInstaller backend exe and place it at the Tauri sidecar path.
+"""Build the PyInstaller backend bundle and place it where Tauri can find it.
 
-Tauri expects sidecars to be named ``<bundle-name>-<target-triple>``, so we
-detect the Rust target triple via ``rustc -vV`` and copy ``dist/pixiv-pbd-api(.exe)``
-into ``desktop/src-tauri/binaries/`` with the proper suffix.
+The spec is in ``--onedir`` mode so the output is a *folder* (the exe plus an
+``_internal/`` directory with the Python runtime). We copy that whole folder
+into ``desktop/src-tauri/binaries/pixiv-pbd-api/`` — Tauri's release config
+bundles it via ``bundle.resources`` and the frontend resolves the resource
+path at runtime instead of going through the sidecar mechanism (which only
+handles single-file binaries).
 
 Run from the repo root:
 
     python scripts/build_sidecar.py
 
 After this, ``cd desktop && npm run tauri:build`` produces an installer that
-includes the bundled Python backend.
+ships the bundled Python backend.
 """
 
 from __future__ import annotations
@@ -21,22 +24,9 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SPEC = REPO_ROOT / "pixiv-pbd-api.spec"
-DIST_EXE = REPO_ROOT / "dist" / ("pixiv-pbd-api.exe" if sys.platform == "win32" else "pixiv-pbd-api")
+DIST_DIR = REPO_ROOT / "dist" / "pixiv-pbd-api"
+LAUNCHER_NAME = "pixiv-pbd-api.exe" if sys.platform == "win32" else "pixiv-pbd-api"
 BIN_DIR = REPO_ROOT / "desktop" / "src-tauri" / "binaries"
-
-
-def rustc_target_triple() -> str:
-    """Return the Rust host target triple (e.g. ``x86_64-pc-windows-msvc``).
-
-    Tauri's externalBin mechanism appends this exact string to the bundle
-    name, so we must match what Rust thinks the host is — not what Python
-    reports about itself.
-    """
-    proc = subprocess.run(["rustc", "-vV"], capture_output=True, text=True, check=True)
-    for line in proc.stdout.splitlines():
-        if line.startswith("host:"):
-            return line.split(":", 1)[1].strip()
-    raise RuntimeError("rustc -vV did not report a host triple")
 
 
 def main() -> int:
@@ -51,17 +41,26 @@ def main() -> int:
     ).returncode
     if rc != 0:
         return rc
-    if not DIST_EXE.exists():
-        print(f"FAIL: expected built exe at {DIST_EXE}", file=sys.stderr)
+
+    launcher = DIST_DIR / LAUNCHER_NAME
+    if not launcher.exists():
+        print(f"FAIL: expected launcher at {launcher}", file=sys.stderr)
+        return 1
+    internal = DIST_DIR / "_internal"
+    if not internal.is_dir():
+        print(f"FAIL: expected _internal/ next to launcher at {internal}", file=sys.stderr)
         return 1
 
-    triple = rustc_target_triple()
-    BIN_DIR.mkdir(parents=True, exist_ok=True)
-    suffix = ".exe" if sys.platform == "win32" else ""
-    target = BIN_DIR / f"pixiv-pbd-api-{triple}{suffix}"
-    shutil.copy2(DIST_EXE, target)
-    size_mb = target.stat().st_size / (1024 * 1024)
-    print(f"\nOK: sidecar placed at {target} ({size_mb:.1f} MB)")
+    target = BIN_DIR / "pixiv-pbd-api"
+    if target.exists():
+        shutil.rmtree(target)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copytree(DIST_DIR, target)
+
+    total_bytes = sum(p.stat().st_size for p in target.rglob("*") if p.is_file())
+    total_files = sum(1 for p in target.rglob("*") if p.is_file())
+    size_mb = total_bytes / (1024 * 1024)
+    print(f"\nOK: sidecar placed at {target} ({total_files} files, {size_mb:.1f} MB)")
     return 0
 
 

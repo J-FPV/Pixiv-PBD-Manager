@@ -2,23 +2,24 @@
 """PyInstaller spec for the ``pixiv-pbd-api`` Tauri sidecar.
 
 Bundles the Python backend (``pixiv_pbd_manager.gui_api`` + all its
-transitive deps: Pillow, imagehash) into a single Windows executable.
-The Tauri desktop frontend will spawn this exe instead of
-``python -m pixiv_pbd_manager.gui_api`` once distribution is set up.
+transitive deps: Pillow, imagehash) into a folder layout that the
+Tauri desktop frontend spawns instead of ``python -m pixiv_pbd_manager.gui_api``.
 
 Build:
 
     pyinstaller pixiv-pbd-api.spec
 
-Output: ``dist/pixiv-pbd-api.exe`` (Windows) — accepts the same JSON
-positional arg / ``--payload-file`` / ``-`` (stdin) forms as the
-``python -m`` invocation.
+Output: ``dist/pixiv-pbd-api/`` containing ``pixiv-pbd-api.exe`` +
+``_internal/`` directory with the Python runtime and dependencies.
+The exe accepts the same JSON positional arg / ``--payload-file`` /
+``-`` (stdin) forms as the ``python -m`` invocation.
 
 Notes:
-- ``--onefile`` mode: single .exe, extracts to %TEMP% on launch
-  (adds ~200-500ms cold-start latency per invocation). Acceptable for
-  the per-command IPC pattern; revisit ``--onedir`` if startup becomes
-  a bottleneck.
+- ``--onedir`` mode: the exe expects ``_internal/`` next to itself.
+  No per-launch extraction → ~50ms cold start (vs ~500ms for the
+  earlier ``--onefile`` build). Also lets the Tauri frontend's
+  kill/stdin propagate directly to the Python process (no bootloader
+  child to lose track of).
 - ``console=True`` is required: the Tauri frontend reads JSON Lines
   from the child's stdout. A windowed (console=False) build would
   attach to a hidden console with no usable pipe.
@@ -56,19 +57,26 @@ pyz = PYZ(a.pure, a.zipped_data)
 exe = EXE(
     pyz,
     a.scripts,
-    a.binaries,
-    a.datas,
     [],
+    exclude_binaries=True,
     name='pixiv-pbd-api',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
     upx=False,
-    runtime_tmpdir=None,
     console=True,
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
+)
+
+coll = COLLECT(
+    exe,
+    a.binaries,
+    a.datas,
+    strip=False,
+    upx=False,
+    name='pixiv-pbd-api',
 )
