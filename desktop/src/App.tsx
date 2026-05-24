@@ -297,6 +297,14 @@ export default function App() {
       setUnmatchedFolders((list) => list.filter((item) => item.path !== path));
       return;
     }
+    // Optimistic UI: drop the row immediately so the user gets feedback
+    // even while the settings.save IPC is in flight (cold sidecar startup
+    // can take ~500ms in the installed build). Restore on failure.
+    let snapshot: UnmatchedFolder[] = [];
+    setUnmatchedFolders((list) => {
+      snapshot = list;
+      return list.filter((item) => item.path !== path);
+    });
     const nextSettings = { ...settings, exclude_roots: [...current, path] };
     setSettings(nextSettings);
     try {
@@ -305,9 +313,10 @@ export default function App() {
         { settings: nextSettings, cookie_consent: cookieConsent },
         handleEvent
       );
-      setUnmatchedFolders((list) => list.filter((item) => item.path !== path));
       appendLog("info", `${t(languageValue, "excludeFolder")}: ${path}`);
     } catch (error) {
+      setUnmatchedFolders(snapshot);
+      setSettings(settings);
       appendLog("error", error instanceof Error ? error.message : String(error));
     }
   };

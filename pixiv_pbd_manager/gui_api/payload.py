@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -25,10 +26,19 @@ from .runtime import JsonDict
 # ``DEFAULT_DB`` and ``DEFAULT_SETTINGS_PATH`` are re-exported from this module
 # for callers that historically imported them from ``gui_api.payload``.
 
-# Project source root (the directory containing the pixiv_pbd_manager/ package).
-# Used as the last-resort fallback when no project root can be detected by
-# searching upward from the cwd or the payload-provided path.
-SOURCE_ROOT = Path(__file__).resolve().parents[2]
+# Project source root (the directory containing the pixiv_pbd_manager/ package),
+# used as a last-resort candidate when no project root is reachable from the
+# payload-supplied path or from cwd.
+#
+# **Disabled when running inside a PyInstaller bundle.** In that case
+# ``__file__`` lives under ``sys._MEIPASS`` — a temp directory that PyInstaller
+# creates on every launch and deletes on exit. If we let resolve_base_dir pick
+# it as the base, writes go to a folder that vanishes seconds later, and the
+# very next IPC call sees an empty database. (Diagnosed from a "scan applied
+# but artists list stays empty" report in an installed build.)
+SOURCE_ROOT: Path | None = (
+    None if getattr(sys, "frozen", False) else Path(__file__).resolve().parents[2]
+)
 
 
 def load_json(path: Path) -> JsonDict:
@@ -109,7 +119,9 @@ def resolve_base_dir(project_root: Any = None) -> Path:
         return _user_data_fallback()
 
     raw = Path(str(project_root)).expanduser()
-    candidates = [raw if raw.is_absolute() else Path.cwd() / raw, Path.cwd(), SOURCE_ROOT]
+    candidates: list[Path] = [raw if raw.is_absolute() else Path.cwd() / raw, Path.cwd()]
+    if SOURCE_ROOT is not None:
+        candidates.append(SOURCE_ROOT)
 
     for candidate in candidates:
         root = _nearest_project_root(candidate)

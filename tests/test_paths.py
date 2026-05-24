@@ -120,6 +120,35 @@ class ResolveBaseDirTests(unittest.TestCase):
             finally:
                 os.environ.pop(paths.DATA_DIR_ENV_VAR, None)
 
+    def test_resolver_skips_meipass_when_source_root_is_disabled(self):
+        # In a PyInstaller bundle, ``__file__`` lives under sys._MEIPASS — a
+        # temp dir that PyInstaller deletes on process exit. The temp dir
+        # CONTAINS pixiv_pbd_manager/ (PyInstaller's extraction), so the
+        # walk-up heuristic ``_looks_like_project_root`` matches it. If we
+        # picked it as base_dir, writes would vanish seconds later. The fix
+        # sets SOURCE_ROOT=None when sys.frozen is set; this test simulates
+        # that and verifies we fall through to APPDATA instead.
+        from pixiv_pbd_manager.gui_api import payload as payload_module
+
+        with TemporaryDirectory() as tmp, ClearEnv(paths.DATA_DIR_ENV_VAR):
+            # Empty cwd with no marker anywhere on the walk-up path.
+            empty_cwd = Path(tmp) / "empty"
+            empty_cwd.mkdir()
+            old_cwd = Path.cwd()
+            os.chdir(empty_cwd)
+            try:
+                fake_appdata = Path(tmp) / "appdata"
+                with patch.object(payload_module, "SOURCE_ROOT", None), patch.object(
+                    payload_module, "_appdata_root", return_value=fake_appdata
+                ):
+                    # project_root is a non-existent relative path so all
+                    # candidates fail _nearest_project_root, forcing the
+                    # fallback path that SOURCE_ROOT used to short-circuit.
+                    base = resolve_base_dir("does-not-resolve")
+                self.assertEqual(base, fake_appdata)
+            finally:
+                os.chdir(old_cwd)
+
     def test_legacy_marker_still_wins_when_present(self):
         with TemporaryDirectory() as tmp, ClearEnv(paths.DATA_DIR_ENV_VAR):
             (Path(tmp) / ".pixiv-pbd-manager").mkdir()
