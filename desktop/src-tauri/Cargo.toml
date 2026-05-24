@@ -1,6 +1,6 @@
 [package]
 name = "pixiv-pbd-manager-desktop"
-version = "0.1.0"
+version = "0.1.1"
 description = "Tauri desktop GUI for Pixiv PBD Manager"
 authors = ["J-FPV"]
 edition = "2021"
