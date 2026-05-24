@@ -150,7 +150,31 @@ CI's `cargo check` uses the main config, so it doesn't need the sidecar exe to p
 
 Note: the current bundle is ~344 MB because `imagehash` transitively pulls in `scipy` + `numpy` + `PyWavelets`. The Tauri installer compresses further; the end-user download will be on the order of ~100 MB. If size becomes a problem, a future optimization can replace `imagehash` with an in-house pHash/dHash that depends only on `numpy`.
 
-P3 adds a GitHub Actions release workflow.
+### Cutting a release
+
+`.github/workflows/release.yml` triggers on:
+- Push of a `v*` tag (automatic)
+- Manual `workflow_dispatch` from the GitHub Actions UI (for dry-runs)
+
+Release procedure:
+
+1. Bump the `version` field in `desktop/src-tauri/tauri.conf.json` (and `pyproject.toml` to keep them in sync).
+2. Commit the version bump.
+3. Tag and push:
+   ```powershell
+   git tag v0.2.0
+   git push origin v0.2.0
+   ```
+4. GitHub Actions automatically:
+   - Sets up Python / Node / Rust on `windows-latest`.
+   - Runs `python scripts/build_sidecar.py` to produce the PyInstaller exe.
+   - Runs `npm run tauri:build` to produce the NSIS + MSI installers.
+   - Uses `softprops/action-gh-release@v2` to create the GitHub Release with both installers attached.
+5. The release appears at https://github.com/J-FPV/Pixiv-PBD-Manager/releases.
+
+**Prerelease auto-detection:** a tag containing `alpha`, `beta`, `rc`, or `dev` (case-insensitive) marks the release as a prerelease, so it does not become "Latest". `v0.2.0-beta.1` is a prerelease; `v0.2.0` is a stable release.
+
+**Dry run:** click "Run workflow" on the release.yml Actions page (`workflow_dispatch`) to build the installers without creating a release. The artifacts are uploaded as a regular workflow artifact for inspection.
 
 ## Data directory resolution
 
