@@ -8,7 +8,7 @@
     "lint": "eslint .",
     "build": "node ./node_modules/typescript/bin/tsc && node ./node_modules/vite/bin/vite.js build",
     "tauri:dev": "tauri dev",
-    "tauri:build": "tauri build"
+    "tauri:build": "tauri build --config src-tauri/tauri.release.conf.json"
   },
   "dependencies": {
     "@tanstack/react-virtual": "^3.13.0",

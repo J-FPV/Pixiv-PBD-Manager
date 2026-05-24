@@ -143,8 +143,10 @@ Standalone sanity check:
 
 ### Dev vs prod runtime behaviour
 
-- **`npm run tauri:dev` (development)**: the frontend detects dev mode via `import.meta.env.DEV === true` and keeps spawning the source backend with `Command.create("python", ["-m", "pixiv_pbd_manager.gui_api", ...])`. Editing Python code is immediate; no exe rebuild required.
-- **`npm run tauri:build` (production)**: the frontend uses `Command.sidecar("binaries/pixiv-pbd-api", ...)`, and Tauri spawns the bundled exe.
+- **`npm run tauri:dev` (development)**: uses the main `tauri.conf.json` (no `externalBin`). The frontend detects dev mode via `import.meta.env.DEV === true` and keeps spawning the source backend with `Command.create("python", ["-m", "pixiv_pbd_manager.gui_api", ...])`. Editing Python code is immediate; no exe rebuild required. **Does not require the sidecar exe to exist.**
+- **`npm run tauri:build` (production)**: invokes `tauri build --config src-tauri/tauri.release.conf.json` to merge in the `externalBin` field. The frontend uses `Command.sidecar("binaries/pixiv-pbd-api", ...)` and Tauri spawns the bundled exe. **You must run `python scripts/build_sidecar.py` first**, otherwise the Rust build fails with `resource path doesn't exist`.
+
+CI's `cargo check` uses the main config, so it doesn't need the sidecar exe to pass.
 
 Note: the current bundle is ~344 MB because `imagehash` transitively pulls in `scipy` + `numpy` + `PyWavelets`. The Tauri installer compresses further; the end-user download will be on the order of ~100 MB. If size becomes a problem, a future optimization can replace `imagehash` with an in-house pHash/dHash that depends only on `numpy`.
 

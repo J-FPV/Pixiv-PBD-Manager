@@ -151,8 +151,10 @@ python scripts/build_sidecar.py
 
 ### dev vs prod 行为
 
-- **`npm run tauri:dev`(开发模式)**:前端通过 `import.meta.env.DEV === true` 检测到自己是开发模式,继续用 `Command.create("python", ["-m", "pixiv_pbd_manager.gui_api", ...])` 跑源码。改 Python 代码不需要重打包 exe。
-- **`npm run tauri:build`(生产构建)**:前端走 `Command.sidecar("binaries/pixiv-pbd-api", ...)`,Tauri 直接拉起嵌入的 exe。
+- **`npm run tauri:dev`(开发模式)**:用 `tauri.conf.json` 主配置(没有 `externalBin`)。前端通过 `import.meta.env.DEV === true` 检测,继续用 `Command.create("python", ["-m", "pixiv_pbd_manager.gui_api", ...])` 跑源码。改 Python 代码不需要重打包 exe。**不依赖 sidecar exe 存在**。
+- **`npm run tauri:build`(生产构建)**:用 `tauri build --config src-tauri/tauri.release.conf.json` 合并出加 `externalBin` 的配置。前端走 `Command.sidecar("binaries/pixiv-pbd-api", ...)`,Tauri 直接拉起嵌入的 exe。**必须先跑 `python scripts/build_sidecar.py`**,否则 Rust 构建会报 `resource path doesn't exist`。
+
+CI(`.github/workflows/checks.yml`)的 `cargo check` 用主配置,所以**不需要 sidecar exe**就能过。
 
 注意:目前 exe 体积 ~344 MB,因为 `imagehash` 拖了 scipy + numpy + PyWavelets。Tauri 安装包打包阶段会进一步压缩,最终用户下载的安装包大小预计 ~100 MB 量级。后续若需要进一步减体积,可以考虑自己实现 phash 替代 imagehash + scipy。
 
