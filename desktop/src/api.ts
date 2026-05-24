@@ -58,11 +58,11 @@ export async function runGuiApi<T>(
   // In development (Vite dev server + tauri:dev) we spawn the source Python
   // backend directly so code edits don't require rebuilding the PyInstaller
   // exe. In production (tauri:build) the backend ships as a PyInstaller
-  // `--onedir` bundle inside the app's resources directory; the capability
-  // allow-list has a single "pixiv-pbd-api" name whose cmd points at the
-  // launcher relative to the resources root. Both the launcher exe and the
-  // `_internal/` folder land together under `resources/pixiv-pbd-api/`, so
-  // PyInstaller's launcher finds `_internal/` next to itself at runtime.
+  // `--onedir` bundle; Tauri 2's NSIS bundler places the `bundle.resources`
+  // folder at the install ROOT (not under a `resources/` subdir, despite the
+  // config name), so the launcher + `_internal/` land at
+  // `<install_dir>/pixiv-pbd-api/`. The capability allow-list uses that
+  // install-relative path; Tauri spawns it with cwd = install dir.
   const command = import.meta.env.DEV
     ? Command.create(
         getPythonCommand(),
