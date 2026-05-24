@@ -2,9 +2,21 @@
 
 [中文 README](README.md)
 
-Pixiv PBD Manager is a local Pixiv image library manager. It scans existing downloads, records artists and save paths, checks for updates, downloads newly found artworks, and helps find visually similar images.
+Pixiv PBD Manager is a local Pixiv image library manager. It scans existing downloads, records artists and save paths, checks for updates, downloads newly found artworks, and helps find visually similar images across different file names, formats, and resolutions.
 
 This README is written for people who just want to use the app. Development notes, CLI details, and implementation notes live in [docs/en](docs/en/).
+
+## Download And Install
+
+Windows x64 installers are available:
+
+1. Open [Releases](https://github.com/J-FPV/Pixiv-PBD-Manager/releases).
+2. Download the latest `Pixiv.PBD.Manager_*_x64-setup.exe`.
+3. Run the installer, then start Pixiv PBD Manager from the Start Menu.
+
+Most users should use the `setup.exe`. An `msi` is also published for environments that prefer MSI installers.
+
+The installer includes the Python backend and dependencies. You do not need to install Python, Node.js, or Rust just to use the app.
 
 ## What It Does
 
@@ -15,6 +27,7 @@ This README is written for people who just want to use the app. Development note
 - Helps resolve old folders that contain artist names but no artist IDs.
 - Skips folders you add to the exclude list.
 - Finds similar images across different file names, formats, and resolutions.
+- Supports thumbnail previews and difference-image comparison.
 - Supports Chinese / English UI switching.
 
 ## Recommended Workflow
@@ -27,32 +40,14 @@ This README is written for people who just want to use the app. Development note
 6. Click Check updates.
 7. Select artists and click Download updated, or click Open selected and use Powerful Pixiv Downloader in the browser.
 
-## Starting The App
-
-There is not yet a final packaged installer. For now, run it from a local development environment:
-
-```powershell
-pip install -e .
-cd desktop
-npm install
-npm run tauri:dev
-```
-
-Requirements:
-
-- Python 3.9 or newer
-- Node.js and npm
-- Rust and Cargo
-
-For everyday use, you can do nearly everything from the desktop UI after startup.
-
 ## First-Time Settings
 
 Open Settings and check these fields first:
 
 - **Download folders**: your Pixiv image library folders.
 - **Exclude folders**: folders that should not be scanned.
-- **Database path**: defaults to `.pixiv-pbd-manager/artists.json`; most users can leave it unchanged.
+- **Similar image folders and excludes**: Similar Images has its own scan folders and exclude folders, saved separately.
+- **Database path**: the installed app defaults to `%APPDATA%\PixivPbdManager\.pixiv-pbd-manager\artists.json`; most users can leave it unchanged.
 - **Browser path**: set this if your default browser is not the one with Powerful Pixiv Downloader installed.
 - **Browser user data directory**: do not set this to your image library. Chrome / Edge will create folders such as `Default`, `ShaderCache`, `Safe Browsing`, and `Webstore Downloads`.
 - **Pixiv Cookie**: only needed for login-only or restricted artworks. A cookie is a login credential, so read the in-app warning before using it.
@@ -89,6 +84,7 @@ Notes:
 - The app only reports results; it does not delete or move files.
 - Different resolutions, light compression, and different image formats can still match.
 - You can skip comparisons between Pixiv split pages such as `{pid}_p0` and `{pid}_p1`.
+- The preview window lets you switch between images in the group and view a generated difference image.
 
 ## Common Questions
 
@@ -110,8 +106,21 @@ No. Public artworks usually do not need one. Login-only, age-restricted, or othe
 
 If you use a cookie, consider a dedicated Pixiv account and revoke the session from Pixiv when done.
 
+### How do I run from source?
+
+Running from source is mainly for development:
+
+```powershell
+pip install -e .
+cd desktop
+npm install
+npm run tauri:dev
+```
+
+Source runs require Python, Node.js/npm, and Rust/Cargo. For normal use, install the Release build instead.
+
 ## More Documentation
 
 - [Advanced usage](docs/en/advanced-usage.md): legacy folder recognition, direct download details, similar image rules, cookie risks, and CLI commands.
-- [Development notes](docs/en/development.md): Tauri setup, project structure, tests, and packaging direction.
+- [Development notes](docs/en/development.md): Tauri setup, project structure, tests, packaging, and release workflow.
 - [Manual test checklist](docs/zh/manual-test-checklist.md): GUI regression checklist, currently maintained in Chinese.
