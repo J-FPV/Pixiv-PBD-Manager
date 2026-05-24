@@ -1,12 +1,11 @@
 import { useState } from "react";
 import type { ReactNode } from "react";
-import { Folder, Globe, Key, Save, Search, SlidersHorizontal } from "lucide-react";
+import { Folder, Globe, Key, Search, SlidersHorizontal } from "lucide-react";
 import { browsePath } from "../api";
 import type { PathPickKind } from "../api";
 import { t } from "../i18n";
 import type { AppSettings, Language } from "../types";
 import { isUnsafeUserDataDir, joinLines, splitLines } from "../utils/paths";
-import { Button } from "./Button";
 
 type SettingsSection = "general" | "folders" | "scan" | "browser" | "cookie";
 
@@ -24,7 +23,6 @@ export function SettingsView({
   setPixivCookie,
   setProjectRootValue,
   setPythonCommandValue,
-  saveSettings,
   notify
 }: {
   language: Language;
@@ -40,7 +38,6 @@ export function SettingsView({
   setPixivCookie: (value: string) => void;
   setProjectRootValue: (value: string) => void;
   setPythonCommandValue: (value: string) => void;
-  saveSettings: () => void;
   notify: (message: string) => void;
 }) {
   const [section, setSection] = useState<SettingsSection>("general");
@@ -353,11 +350,6 @@ export function SettingsView({
             </div>
           ) : null}
 
-          <div className="settingsActions">
-            <Button icon={<Save size={16} />} variant="primary" onClick={saveSettings}>
-              {t(language, "save")}
-            </Button>
-          </div>
         </div>
       </div>
     </section>

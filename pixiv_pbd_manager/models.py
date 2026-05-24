@@ -5,13 +5,18 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from .text_safety import repair_surrogate_mojibake
+from .text_safety import (
+    repair_path_mojibake_if_existing,
+    repair_surrogate_mojibake,
+    repair_text_mojibake_from_context,
+)
 
 
-def _safe_optional_text(value: Any) -> str | None:
+def _safe_optional_text(value: Any, context: list[str] | None = None) -> str | None:
     if value is None:
         return None
-    text = repair_surrogate_mojibake(str(value))
+    text = str(value)
+    text = repair_text_mojibake_from_context(text, context or []) if context else repair_surrogate_mojibake(text)
     return text if text else None
 
 
@@ -21,6 +26,10 @@ def _safe_text(value: Any) -> str:
 
 def _safe_text_list(values: Any) -> list[str]:
     return [repair_surrogate_mojibake(str(item)) for item in values or []]
+
+
+def _safe_path_list(values: Any) -> list[str]:
+    return [repair_path_mojibake_if_existing(str(item)) for item in values or []]
 
 
 def utc_now() -> str:
@@ -44,16 +53,19 @@ class ArtistRecord:
 
     @classmethod
     def from_json(cls, raw: dict[str, Any]) -> "ArtistRecord":
+        download_roots = _safe_path_list(raw.get("download_roots"))
+        save_paths = _safe_path_list(raw.get("save_paths"))
+        path_context = [*download_roots, *save_paths]
         return cls(
             id=str(raw["id"]),
-            name=_safe_optional_text(raw.get("name")),
+            name=_safe_optional_text(raw.get("name"), path_context),
             first_seen=_safe_text(raw.get("first_seen")) or utc_now(),
             last_seen=_safe_text(raw.get("last_seen")) or utc_now(),
             last_opened=_safe_optional_text(raw.get("last_opened")),
             last_checked=_safe_optional_text(raw.get("last_checked")),
             sources=_safe_text_list(raw.get("sources")),
-            download_roots=_safe_text_list(raw.get("download_roots")),
-            save_paths=_safe_text_list(raw.get("save_paths")),
+            download_roots=download_roots,
+            save_paths=save_paths,
             work_ids=sorted({str(item) for item in raw.get("work_ids") or []}),
             new_work_ids=sorted({str(item) for item in raw.get("new_work_ids") or []}),
             notes=_safe_text(raw.get("notes")),

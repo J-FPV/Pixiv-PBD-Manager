@@ -12,6 +12,9 @@ import {
   PROGRESS_DOWNLOAD_WORK,
   PROGRESS_DOWNLOAD_WORK_DONE,
   PROGRESS_FUZZY_ARTIST,
+  PROGRESS_REFRESH_NAMES_ARTIST,
+  PROGRESS_REFRESH_NAMES_DONE,
+  PROGRESS_REFRESH_NAMES_START,
   PROGRESS_RESOLVE_ARTIST,
   PROGRESS_SCAN_DONE,
   PROGRESS_SCAN_FILES,
@@ -117,6 +120,31 @@ export function describeProgressEvent(language: Language, event: ApiEvent): Prog
       };
     case PROGRESS_CHECK_FOUND:
       return { logText: `Updates: ${p.artist} ${p.count}`, progressUpdate: null };
+
+    // Artist-name refresh --------------------------------------------------
+    case PROGRESS_REFRESH_NAMES_START:
+      return {
+        logText: `Refreshing names for ${p.total} artist(s)`,
+        progressUpdate: () => ({
+          main: { label: t(language, "refreshArtistNames"), current: 0, total: numberValue(p.total) }
+        })
+      };
+    case PROGRESS_REFRESH_NAMES_ARTIST:
+      return {
+        logText: `Refreshing name: ${p.current}/${p.total} ${p.artist_id}`,
+        progressUpdate: () => ({
+          main: {
+            label: `${t(language, "refreshArtistNames")}: ${String(p.artist ?? p.artist_id ?? "")}`,
+            current: numberValue(p.current),
+            total: numberValue(p.total)
+          }
+        })
+      };
+    case PROGRESS_REFRESH_NAMES_DONE:
+      return {
+        logText: `Refreshed names: ${p.changed} changed, ${p.failed} failed`,
+        progressUpdate: () => ({ main: { label: t(language, "refreshArtistNames"), current: 1, total: 1 } })
+      };
 
     // Download pipeline -----------------------------------------------------
     case PROGRESS_DOWNLOAD_START:

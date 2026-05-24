@@ -30,11 +30,11 @@ FOLDER_ARTIST_PATTERNS = [
 ]
 
 # Numeric threshold below which a folder-name match is rejected by default.
-# Pixiv user IDs in this range exist (very old 2007 accounts) but are vastly
-# outnumbered by false positives — most notably date prefixes ``2020-07-01-X``
-# matching the leading-digits pattern with id=2020. The frontend exposes a
-# ``recognize_low_pids`` toggle that lifts this filter for users who actually
-# need the old-account behaviour.
+# Pixiv user IDs in this range exist, but they are vastly outnumbered by false
+# positives, most notably date prefixes like ``2020-07-01-X`` matching the
+# leading-digits pattern with id=2020. The frontend exposes a
+# ``recognize_low_pids`` toggle for libraries that really use user IDs below
+# this threshold in folder names.
 LOW_PID_THRESHOLD = 3000
 
 NAME_ONLY_PIXIV_FOLDER_PATTERNS = [
@@ -72,6 +72,22 @@ class NameOnlyArtistHit:
     folder: Path
     path: Path
     work_ids: set[str] = field(default_factory=set)
+
+
+@dataclass(frozen=True)
+class FolderArtistIdentity:
+    artist_id: str
+    artist_name: str | None
+    source: str
+    folder: Path
+
+
+@dataclass(frozen=True)
+class FolderNameOnlyIdentity:
+    artist_key: str
+    artist_name: str
+    source: str
+    folder: Path
 
 
 @dataclass
@@ -120,7 +136,11 @@ def is_relative_to(path: Path, parent: Path) -> bool:
 
 def is_excluded_path(path: Path, exclude_roots: list[Path]) -> bool:
     resolved = path.expanduser().resolve()
-    return any(resolved == exclude or is_relative_to(resolved, exclude) for exclude in exclude_roots)
+    return is_excluded_resolved_path(resolved, exclude_roots)
+
+
+def is_excluded_resolved_path(path: Path, exclude_roots: list[Path]) -> bool:
+    return any(path == exclude or is_relative_to(path, exclude) for exclude in exclude_roots)
 
 
 def iter_media_files(
@@ -133,9 +153,10 @@ def iter_media_files(
     ``None`` (default) = unlimited; ``0`` = only files directly in ``root``;
     ``N`` = up to ``N`` directories below ``root``.
     """
+    root = root.expanduser().resolve()
     excludes = normalize_exclude_roots(exclude_roots)
     if root.is_file():
-        if not is_excluded_path(root, excludes) and root.suffix.lower() in MEDIA_SUFFIXES:
+        if not is_excluded_resolved_path(root, excludes) and root.suffix.lower() in MEDIA_SUFFIXES:
             yield root
         return
 
@@ -144,7 +165,7 @@ def iter_media_files(
 
     for current_dir, dirnames, filenames in os.walk(root):
         current_path = Path(current_dir)
-        if is_excluded_path(current_path, excludes):
+        if is_excluded_resolved_path(current_path, excludes):
             dirnames[:] = []
             continue
 
@@ -156,7 +177,7 @@ def iter_media_files(
         kept_dirnames = []
         for dirname in dirnames:
             child_dir = current_path / dirname
-            if not is_excluded_path(child_dir, excludes):
+            if not is_excluded_resolved_path(child_dir, excludes):
                 kept_dirnames.append(dirname)
         dirnames[:] = kept_dirnames
 
@@ -235,11 +256,12 @@ def stable_artist_key(root: Path, folder: Path, name: str) -> str:
         folder_text = str(folder.relative_to(root))
     except ValueError:
         folder_text = str(folder)
-    digest = hashlib.sha1(f"{folder_text}|{name}".encode("utf-8")).hexdigest()[:12]
+    digest_source = f"{folder_text}|{name}".encode("utf-8", errors="backslashreplace")
+    digest = hashlib.sha1(digest_source).hexdigest()[:12]
     return f"name:{digest}"
 
 
-def identify_artist(path: Path, root: Path, *, allow_low_pids: bool = False) -> ScanHit | None:
+def _folder_parts_for_path(path: Path, root: Path) -> tuple[list[str], list[tuple[str, Path]]]:
     relative_parts = []
     try:
         relative_parts = list(path.relative_to(root).parts)
@@ -252,21 +274,25 @@ def identify_artist(path: Path, root: Path, *, allow_low_pids: bool = False) -> 
     for part in folder_parts:
         current_folder = current_folder / part
         folder_paths.append((part, current_folder))
+    return relative_parts, folder_paths
 
+
+def identify_artist_folder(path: Path, root: Path, *, allow_low_pids: bool = False) -> FolderArtistIdentity | None:
+    _, folder_paths = _folder_parts_for_path(path, root)
     for part, folder_path in reversed(folder_paths):
         found = find_artist_in_text(part, include_loose_patterns=True, allow_low_pids=allow_low_pids)
         if found:
             artist_id, artist_name, pattern = found
-            return ScanHit(
+            return FolderArtistIdentity(
                 artist_id=artist_id,
                 artist_name=artist_name,
                 source=f"folder:{pattern}",
-                root=root,
                 folder=folder_path,
-                path=path,
-                work_ids=extract_work_ids(path),
             )
+    return None
 
+
+def identify_artist_in_filename(path: Path, root: Path, *, allow_low_pids: bool = False) -> ScanHit | None:
     found = find_artist_in_text(path.name, include_loose_patterns=False, allow_low_pids=allow_low_pids)
     if found:
         artist_id, artist_name, pattern = found
@@ -282,31 +308,51 @@ def identify_artist(path: Path, root: Path, *, allow_low_pids: bool = False) -> 
     return None
 
 
-def identify_name_only_artist(path: Path, root: Path) -> NameOnlyArtistHit | None:
-    relative_parts = []
-    try:
-        relative_parts = list(path.relative_to(root).parts)
-    except ValueError:
-        relative_parts = list(path.parts)
+def identify_artist(path: Path, root: Path, *, allow_low_pids: bool = False) -> ScanHit | None:
+    folder_identity = identify_artist_folder(path, root, allow_low_pids=allow_low_pids)
+    if folder_identity:
+        return ScanHit(
+            artist_id=folder_identity.artist_id,
+            artist_name=folder_identity.artist_name,
+            source=folder_identity.source,
+            root=root,
+            folder=folder_identity.folder,
+            path=path,
+            work_ids=extract_work_ids(path),
+        )
 
-    folder_parts = relative_parts[:-1]
-    folder_path = root
-    for index, part in enumerate(folder_parts):
-        folder_path = folder_path / part
+    return identify_artist_in_filename(path, root, allow_low_pids=allow_low_pids)
+
+
+def identify_name_only_folder(path: Path, root: Path) -> FolderNameOnlyIdentity | None:
+    _, folder_paths = _folder_parts_for_path(path, root)
+    for part, folder_path in folder_paths:
         found = find_name_only_pixiv_artist(part)
         if not found:
             continue
         artist_name, pattern = found
-        return NameOnlyArtistHit(
+        return FolderNameOnlyIdentity(
             artist_key=stable_artist_key(root, folder_path, artist_name),
             artist_name=artist_name,
             source=f"folder_name_only:{pattern}",
-            root=root,
             folder=folder_path,
-            path=path,
-            work_ids=extract_work_ids(path),
         )
     return None
+
+
+def identify_name_only_artist(path: Path, root: Path) -> NameOnlyArtistHit | None:
+    folder_identity = identify_name_only_folder(path, root)
+    if not folder_identity:
+        return None
+    return NameOnlyArtistHit(
+        artist_key=folder_identity.artist_key,
+        artist_name=folder_identity.artist_name,
+        source=folder_identity.source,
+        root=root,
+        folder=folder_identity.folder,
+        path=path,
+        work_ids=extract_work_ids(path),
+    )
 
 
 def scan_roots(
@@ -320,6 +366,8 @@ def scan_roots(
 ) -> ScanSummary:
     summary = ScanSummary()
     excludes = normalize_exclude_roots(exclude_roots)
+    artist_folder_cache: dict[tuple[Path, Path, bool], FolderArtistIdentity | None] = {}
+    name_only_folder_cache: dict[tuple[Path, Path], FolderNameOnlyIdentity | None] = {}
     for root in roots:
         root = root.expanduser().resolve()
         root_excludes = [
@@ -332,15 +380,50 @@ def scan_roots(
             summary.files_seen += 1
             if progress_callback and progress_interval > 0 and summary.files_seen % progress_interval == 0:
                 progress_callback(summary)
-            hit = identify_artist(path, root, allow_low_pids=allow_low_pids)
+            parent = path.parent
+            artist_cache_key = (root, parent, allow_low_pids)
+            if artist_cache_key not in artist_folder_cache:
+                artist_folder_cache[artist_cache_key] = identify_artist_folder(
+                    path, root, allow_low_pids=allow_low_pids
+                )
+            folder_identity = artist_folder_cache[artist_cache_key]
+            if folder_identity:
+                hit = ScanHit(
+                    artist_id=folder_identity.artist_id,
+                    artist_name=folder_identity.artist_name,
+                    source=folder_identity.source,
+                    root=root,
+                    folder=folder_identity.folder,
+                    path=path,
+                    work_ids=extract_work_ids(path),
+                )
+            else:
+                hit = identify_artist_in_filename(path, root, allow_low_pids=allow_low_pids)
             if hit:
                 summary.add_hit(hit)
                 continue
-            name_only_hit = identify_name_only_artist(path, root)
+
+            name_cache_key = (root, parent)
+            if name_cache_key not in name_only_folder_cache:
+                name_only_folder_cache[name_cache_key] = identify_name_only_folder(path, root)
+            name_folder_identity = name_only_folder_cache[name_cache_key]
+            name_only_hit = (
+                NameOnlyArtistHit(
+                    artist_key=name_folder_identity.artist_key,
+                    artist_name=name_folder_identity.artist_name,
+                    source=name_folder_identity.source,
+                    root=root,
+                    folder=name_folder_identity.folder,
+                    path=path,
+                    work_ids=extract_work_ids(path),
+                )
+                if name_folder_identity
+                else None
+            )
             if name_only_hit:
                 summary.add_name_only_hit(name_only_hit)
             else:
-                parent_resolved = path.parent.resolve()
+                parent_resolved = parent.resolve()
                 # The scan root itself is the library starting point, not a
                 # folder the user needs to attribute or exclude. Loose files at
                 # that top level should not surface the root in the GUI list.

@@ -32,6 +32,7 @@ COMMANDS: dict[str, Callable[[JsonDict, Emitter], JsonDict]] = {
     "artists.add": artists.add_artist,
     "artists.assign_folder": artists.assign_folder,
     "artists.remove": artists.remove_artists,
+    "artists.refresh_names": artists.refresh_names,
     "artists.rename": artists.rename_artist,
     "artists.set_save_path": artists.set_save_path,
     "scan.run": scan.run,

@@ -99,7 +99,7 @@ export interface AppSettings {
   scan_local_subfolders?: boolean;
   // -1 = unlimited; 0 = root level only; N = walk N levels under each download root.
   scan_max_depth?: number;
-  // Allow folder names with numeric ID < 3000 to be recognised as PIDs.
+  // Allow folder names with numeric ID < 3000 to be recognised as Pixiv user IDs.
   // Off by default so date prefixes like ``2020-07-01-X`` aren't misread.
   scan_recognize_low_pids?: boolean;
   // -1 = unlimited; 0 = artist save_path top level only.
@@ -139,6 +139,16 @@ export interface ArtistsPayload {
   artists: Artist[];
   db_path: string;
   project_root?: string;
+}
+
+export interface ArtistNameRefreshResult {
+  requested: number;
+  checked: number;
+  changed: number;
+  failed: number;
+  errors: string[];
+  refreshed: { artist_id: string; old_name: string; name: string; changed: boolean }[];
+  artists: Artist[];
 }
 
 export interface ProgressEvent {

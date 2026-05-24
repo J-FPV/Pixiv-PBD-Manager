@@ -64,6 +64,39 @@ class DatabaseLoadResilienceTests(unittest.TestCase):
         self.assertEqual(db.artists["31133701"].name, "カンザリン")
         self.assertTrue(db.artists["31133701"].save_paths[0].endswith("illus-カンザリン"))
 
+    def test_load_repairs_surrogate_free_mojibake_when_repaired_path_exists(self):
+        with TemporaryDirectory() as tmp:
+            path = Path(tmp) / "artists.json"
+            real_folder = Path(tmp) / "illus-針金紳士"
+            real_folder.mkdir()
+            mojibake_name = "針金紳士".encode("utf-8").decode("gbk")
+            mojibake_path = str(real_folder).encode("utf-8").decode("gbk")
+
+            path.write_text(
+                json.dumps(
+                    {
+                        "version": 1,
+                        "artists": {
+                            "123456": {
+                                "id": "123456",
+                                "name": mojibake_name,
+                                "save_paths": [mojibake_path],
+                                "sources": [],
+                                "download_roots": [],
+                                "work_ids": [],
+                                "new_work_ids": [],
+                            }
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            db = ArtistDatabase.load(path)
+
+        self.assertEqual(db.artists["123456"].name, "針金紳士")
+        self.assertEqual(db.artists["123456"].save_paths, [str(real_folder)])
+
 
 class DatabaseTests(unittest.TestCase):
     def test_rename_artist_id_preserves_record_data(self):

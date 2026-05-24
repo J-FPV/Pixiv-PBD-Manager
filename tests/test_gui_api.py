@@ -223,6 +223,32 @@ class GuiApiTests(unittest.TestCase):
         self.assertNotIn("111", db.artists)
         self.assertIn("222", db.artists)
 
+    def test_artists_refresh_names_fetches_profile_names(self):
+        with TemporaryDirectory() as tmp:
+            root = _isolate(tmp)
+            old_cwd = Path.cwd()
+            try:
+                os.chdir(root)
+                db = ArtistDatabase.load(root / ".pixiv-pbd-manager" / "artists.json")
+                db.upsert("123456", name="Broken Name")
+                db.save()
+
+                with patch(
+                    "pixiv_pbd_manager.resolver.fetch_user_profile",
+                    return_value=PixivUserProfile(id="123456", name="Online Artist"),
+                ):
+                    exit_code, events = invoke("artists.refresh_names", {"artist_ids": ["123456"]})
+                db = ArtistDatabase.load(root / ".pixiv-pbd-manager" / "artists.json")
+            finally:
+                os.chdir(old_cwd)
+
+        self.assertEqual(exit_code, 0)
+        self.assertTrue(any(event.get("key") == "progress_refresh_names_artist" for event in events))
+        payload = events[-1]["payload"]
+        self.assertEqual(payload["changed"], 1)
+        self.assertEqual(payload["artists"][0]["name"], "Online Artist")
+        self.assertEqual(db.artists["123456"].name, "Online Artist")
+
     def test_subprocess_outputs_utf8_json_for_cjk_and_emoji_artist_names(self):
         repo_root = Path(__file__).resolve().parents[1]
         with TemporaryDirectory() as tmp:

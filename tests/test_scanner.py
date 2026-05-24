@@ -7,6 +7,7 @@ from pixiv_pbd_manager.scanner import (
     identify_name_only_artist,
     iter_media_files,
     scan_roots,
+    stable_artist_key,
 )
 
 
@@ -150,9 +151,9 @@ class ScannerTests(unittest.TestCase):
             assert name_only is not None
             self.assertEqual(name_only.artist_name, "カンザリン")
 
-    def test_low_pid_toggle_unlocks_old_4_digit_ids(self):
-        # Users with very old Pixiv accounts (4-digit IDs registered in 2007)
-        # can opt in to recognise IDs below the LOW_PID threshold.
+    def test_low_pid_toggle_unlocks_user_ids_below_threshold(self):
+        # Libraries that really use Pixiv user IDs below the LOW_PID threshold
+        # can opt in to recognise those folder names.
         with TemporaryDirectory() as tmp:
             root = Path(tmp)
             path = root / "1234 LegacyArtist" / "98765432-work.jpg"
@@ -165,6 +166,14 @@ class ScannerTests(unittest.TestCase):
             self.assertIsNotNone(opted_in)
             assert opted_in is not None
             self.assertEqual(opted_in.artist_id, "1234")
+
+    def test_stable_artist_key_survives_lone_surrogates(self):
+        root = Path("root")
+        folder = root / "bad\udc80"
+
+        key = stable_artist_key(root, folder, "name\udc81")
+
+        self.assertRegex(key, r"^name:[0-9a-f]{12}$")
 
     def test_iter_media_files_respects_max_depth(self):
         with TemporaryDirectory() as tmp:

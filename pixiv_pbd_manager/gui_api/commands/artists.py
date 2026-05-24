@@ -11,6 +11,11 @@ from __future__ import annotations
 from ... import resolver
 from ...cookie_store import load_cookie
 from ...database import ArtistDatabase
+from ...events import (
+    PROGRESS_REFRESH_NAMES_ARTIST,
+    PROGRESS_REFRESH_NAMES_DONE,
+    PROGRESS_REFRESH_NAMES_START,
+)
 from ...operations import collect_local_work_ids
 from ..payload import base_dir, db_path, resolve_path
 from ..runtime import Emitter, JsonDict
@@ -96,6 +101,76 @@ def remove_artists(payload: JsonDict, _emit_event: Emitter) -> JsonDict:
     if removed:
         db.save()
     return {"removed": len(removed), "artist_ids": removed}
+
+
+def refresh_names(payload: JsonDict, emit_event: Emitter) -> JsonDict:
+    settings = load_settings_for_payload(payload)
+    db = ArtistDatabase.load(db_path(payload, settings))
+    requested_ids = [str(item).strip() for item in payload.get("artist_ids") or [] if str(item).strip()]
+    target_ids = requested_ids or sorted(db.artists, key=lambda value: (len(value), value))
+    target_ids = [artist_id for artist_id in target_ids if artist_id in db.artists]
+    cookie = load_cookie()
+    allow_ssl_fallback = bool(settings.get("ssl_fallback", True))
+    changed = 0
+    refreshed: list[JsonDict] = []
+    errors: list[str] = []
+
+    emit_event({"type": "progress", "key": PROGRESS_REFRESH_NAMES_START, "payload": {"total": len(target_ids)}})
+    for index, artist_id in enumerate(target_ids, 1):
+        artist = db.artists[artist_id]
+        emit_event(
+            {
+                "type": "progress",
+                "key": PROGRESS_REFRESH_NAMES_ARTIST,
+                "payload": {
+                    "current": index,
+                    "total": len(target_ids),
+                    "artist_id": artist_id,
+                    "artist": artist.name or artist_id,
+                },
+            }
+        )
+        try:
+            profile = resolver.fetch_user_profile(
+                artist_id,
+                cookie=cookie,
+                allow_insecure_ssl_fallback=allow_ssl_fallback,
+            )
+        except resolver.PixivResolveError as exc:
+            errors.append(f"{artist_id}: {exc}")
+            continue
+
+        new_name = (profile.name or "").strip()
+        if not new_name or new_name == artist_id:
+            continue
+        old_name = artist.name or ""
+        name_changed = new_name != old_name
+        if name_changed:
+            artist.name = new_name
+            source = "name_refreshed:pixiv_profile"
+            if source not in artist.sources:
+                artist.sources.append(source)
+            changed += 1
+        refreshed.append({"artist_id": artist_id, "old_name": old_name, "name": new_name, "changed": name_changed})
+
+    if changed:
+        db.save()
+    emit_event(
+        {
+            "type": "progress",
+            "key": PROGRESS_REFRESH_NAMES_DONE,
+            "payload": {"total": len(target_ids), "changed": changed, "failed": len(errors)},
+        }
+    )
+    return {
+        "requested": len(requested_ids),
+        "checked": len(target_ids),
+        "changed": changed,
+        "failed": len(errors),
+        "errors": errors,
+        "refreshed": refreshed,
+        "artists": [artist_to_json(artist) for artist in db.get_many()],
+    }
 
 
 def rename_artist(payload: JsonDict, _emit_event: Emitter) -> JsonDict:

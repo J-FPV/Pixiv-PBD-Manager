@@ -26,6 +26,11 @@ PROGRESS_CHECK_START = "progress_check_start"
 PROGRESS_CHECK_ARTIST = "progress_check_artist"
 PROGRESS_CHECK_FOUND = "progress_check_found"
 
+# Artist-name refresh (fetch current Pixiv profile names by user id)
+PROGRESS_REFRESH_NAMES_START = "progress_refresh_names_start"
+PROGRESS_REFRESH_NAMES_ARTIST = "progress_refresh_names_artist"
+PROGRESS_REFRESH_NAMES_DONE = "progress_refresh_names_done"
+
 # Download pipeline (multi-artist, multi-work, multi-page)
 PROGRESS_DOWNLOAD_START = "progress_download_start"
 PROGRESS_DOWNLOAD_ARTIST = "progress_download_artist"

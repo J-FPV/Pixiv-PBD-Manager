@@ -25,6 +25,7 @@ import type {
   ApiEvent,
   AppSettings,
   Artist,
+  ArtistNameRefreshResult,
   ArtistsPayload,
   ConfirmState,
   DownloadResult,
@@ -66,6 +67,21 @@ import { UnmatchedView } from "./components/UnmatchedView";
 
 const INITIAL_UI_STATE = normalizedUiState();
 
+const settingsAutosaveSignature = (
+  settings: AppSettings,
+  cookieConsent: boolean,
+  pixivCookie: string,
+  projectRoot: string,
+  pythonCommand: string
+) =>
+  JSON.stringify({
+    settings,
+    cookieConsent,
+    pixivCookie,
+    projectRoot,
+    pythonCommand
+  });
+
 export default function App() {
   const [activeTab, setActiveTab] = useState<TabKey>(INITIAL_UI_STATE.activeTab || "artists");
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
@@ -106,12 +122,17 @@ export default function App() {
   const [scanPreview, setScanPreview] = useState<ScanPreviewPayload | null>(null);
   const [toastMessage, setToastMessage] = useState("");
   const toastTimerRef = useRef<number | null>(null);
+  const settingsAutosaveReadyRef = useRef(false);
+  const lastSettingsSignatureRef = useRef("");
+  const settingsSaveSeqRef = useRef(0);
 
   const languageValue = settings.language || language;
 
   const appendLog = (level: LogEntry["level"], message: string) => {
     setLogs((current) => [...current.slice(-999), { id: Date.now() + Math.random(), level, message }]);
   };
+  const handleEventRef = useRef<(event: ApiEvent) => void>(() => undefined);
+  const appendLogRef = useRef<(level: LogEntry["level"], message: string) => void>(() => undefined);
 
   const taskRunner = useTaskRunner(languageValue, appendLog);
   const {
@@ -150,6 +171,11 @@ export default function App() {
     }
   };
 
+  useEffect(() => {
+    handleEventRef.current = handleEvent;
+    appendLogRef.current = appendLog;
+  });
+
   const applySettingsPayload = (payload: SettingsPayload) => {
     const merged = { ...DEFAULT_SETTINGS, ...payload.settings };
     if (
@@ -167,6 +193,7 @@ export default function App() {
       setProjectRootState(payload.project_root);
       setProjectRoot(payload.project_root);
     }
+    return merged;
   };
 
   const loadArtists = async () => {
@@ -181,13 +208,21 @@ export default function App() {
   const loadInitial = async () => {
     try {
       const payload = await runGuiApi<SettingsPayload>("settings.get", {}, handleEvent);
-      applySettingsPayload(payload);
+      const mergedSettings = applySettingsPayload(payload);
       const artistPayload = await runGuiApi<ArtistsPayload>("artists.list", {}, handleEvent);
       setArtists(artistPayload.artists);
       if (artistPayload.project_root) {
         setProjectRootState(artistPayload.project_root);
         setProjectRoot(artistPayload.project_root);
       }
+      lastSettingsSignatureRef.current = settingsAutosaveSignature(
+        mergedSettings,
+        payload.cookie_consent,
+        payload.pixiv_cookie || "",
+        artistPayload.project_root || payload.project_root || projectRootValue,
+        pythonCommandValue
+      );
+      settingsAutosaveReadyRef.current = true;
       appendLog("info", "Desktop GUI ready");
       setStatus(t(payload.settings.language || "zh", "ready"));
     } catch (error) {
@@ -246,17 +281,49 @@ export default function App() {
     setSettings({ ...settings, language: value });
   };
 
-  const saveSettings = async () => {
-    setProjectRoot(projectRootValue);
-    setPythonCommand(pythonCommandValue);
-    const payload = await runGuiApi<SettingsPayload>(
-      "settings.save",
-      { settings, cookie_consent: cookieConsent, pixiv_cookie: pixivCookie },
-      handleEvent
+  useEffect(() => {
+    const signature = settingsAutosaveSignature(
+      settings,
+      cookieConsent,
+      pixivCookie,
+      projectRootValue,
+      pythonCommandValue
     );
-    applySettingsPayload(payload);
-    appendLog("info", "Settings saved");
-  };
+    if (!settingsAutosaveReadyRef.current) {
+      lastSettingsSignatureRef.current = signature;
+      return undefined;
+    }
+    if (signature === lastSettingsSignatureRef.current) {
+      return undefined;
+    }
+
+    const saveSeq = settingsSaveSeqRef.current + 1;
+    settingsSaveSeqRef.current = saveSeq;
+    const timer = window.setTimeout(() => {
+      setProjectRoot(projectRootValue);
+      setPythonCommand(pythonCommandValue);
+      void runGuiApi<SettingsPayload>(
+        "settings.save",
+        { settings, cookie_consent: cookieConsent, pixiv_cookie: pixivCookie },
+        (event) => handleEventRef.current(event)
+      )
+        .then(() => {
+          if (settingsSaveSeqRef.current === saveSeq) {
+            lastSettingsSignatureRef.current = signature;
+          }
+        })
+        .catch((error) => {
+          if (settingsSaveSeqRef.current === saveSeq) {
+            appendLogRef.current(
+              "error",
+              `Auto-save settings failed: ${error instanceof Error ? error.message : String(error)}`
+            );
+          }
+        });
+    }, 800);
+
+    return () => window.clearTimeout(timer);
+  }, [settings, cookieConsent, pixivCookie, projectRootValue, pythonCommandValue]);
 
   const selectedIds = Array.from(selected);
 
@@ -392,6 +459,30 @@ export default function App() {
       }
       await loadArtists();
     });
+
+  const refreshArtistNames = () => {
+    if (!selectedIds.length) {
+      appendLog("warn", t(languageValue, "noSelection"));
+      return;
+    }
+    runTask(t(languageValue, "refreshArtistNames"), async (signal, registerControls) => {
+      const result = await runGuiApi<ArtistNameRefreshResult>(
+        "artists.refresh_names",
+        { artist_ids: selectedIds, database: settings.database },
+        handleEvent,
+        { signal, onStart: registerControls }
+      );
+      if (Array.isArray(result.artists)) {
+        setArtists(result.artists);
+      } else {
+        await loadArtists();
+      }
+      appendLog("info", `${t(languageValue, "refreshArtistNames")}: ${result.changed}/${result.checked}`);
+      for (const err of result.errors) {
+        appendLog("error", err);
+      }
+    });
+  };
 
   const downloadUpdated = () =>
     runTask(t(languageValue, "downloadUpdated"), async (signal, registerControls) => {
@@ -677,6 +768,7 @@ export default function App() {
             clearAll={() => setSelected(new Set())}
             scan={scan}
             checkUpdates={checkUpdates}
+            refreshArtistNames={refreshArtistNames}
             downloadUpdated={downloadUpdated}
             openSelected={openSelected}
             copyUrls={copyUrls}
@@ -736,7 +828,6 @@ export default function App() {
             setPixivCookie={setPixivCookie}
             setProjectRootValue={setProjectRootState}
             setPythonCommandValue={setPythonCommandState}
-            saveSettings={saveSettings}
             notify={(message) => appendLog("warn", message)}
           />
         ) : null}

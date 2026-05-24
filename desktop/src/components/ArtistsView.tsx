@@ -51,6 +51,7 @@ export function ArtistsView({
   clearAll,
   scan,
   checkUpdates,
+  refreshArtistNames,
   downloadUpdated,
   openSelected,
   copyUrls,
@@ -72,6 +73,7 @@ export function ArtistsView({
   clearAll: () => void;
   scan: () => void;
   checkUpdates: () => void;
+  refreshArtistNames: () => void;
   downloadUpdated: () => void;
   openSelected: () => void;
   copyUrls: () => void;
@@ -204,6 +206,9 @@ export function ArtistsView({
         </Button>
         <Button icon={<RefreshCw size={16} />} disabled={busy} onClick={checkUpdates}>
           {t(language, "checkUpdates")}
+        </Button>
+        <Button icon={<RefreshCw size={16} />} disabled={busy || selected.size === 0} onClick={refreshArtistNames}>
+          {t(language, "refreshArtistNames")}{selected.size ? ` (${selected.size})` : ""}
         </Button>
         <Button icon={<Download size={16} />} disabled={busy} onClick={downloadUpdated}>
           {t(language, "downloadUpdated")}

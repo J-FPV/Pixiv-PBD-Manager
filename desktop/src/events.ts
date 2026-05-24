@@ -16,6 +16,11 @@ export const PROGRESS_CHECK_START = "progress_check_start";
 export const PROGRESS_CHECK_ARTIST = "progress_check_artist";
 export const PROGRESS_CHECK_FOUND = "progress_check_found";
 
+// Artist-name refresh
+export const PROGRESS_REFRESH_NAMES_START = "progress_refresh_names_start";
+export const PROGRESS_REFRESH_NAMES_ARTIST = "progress_refresh_names_artist";
+export const PROGRESS_REFRESH_NAMES_DONE = "progress_refresh_names_done";
+
 // Download pipeline
 export const PROGRESS_DOWNLOAD_START = "progress_download_start";
 export const PROGRESS_DOWNLOAD_ARTIST = "progress_download_artist";
