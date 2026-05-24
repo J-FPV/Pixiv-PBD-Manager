@@ -559,6 +559,20 @@ export default function App() {
     await runGuiApi<{ opened: boolean }>("file.reveal", { path }, handleEvent);
   };
 
+  const openReleasePage = async () => {
+    try {
+      const releaseUrl = "https://github.com/J-FPV/Pixiv-PBD-Manager/releases";
+      const result = await runGuiApi<{ opened: number }>(
+        "browser.open",
+        { ...settings, urls: [releaseUrl] },
+        handleEvent
+      );
+      appendLog("info", `Opened ${result.opened} page(s)`);
+    } catch (error) {
+      appendLog("error", error instanceof Error ? error.message : String(error));
+    }
+  };
+
   const copyUrls = async () => {
     const chosen = selected.size ? artists.filter((artist) => selected.has(artist.id)) : artists;
     const text = chosen.map((artist) => artist.pixiv_url).join("\n");
@@ -843,6 +857,7 @@ export default function App() {
             setPixivCookie={setPixivCookie}
             setProjectRootValue={setProjectRootState}
             setPythonCommandValue={setPythonCommandState}
+            openReleasePage={openReleasePage}
             notify={(message) => appendLog("warn", message)}
           />
         ) : null}

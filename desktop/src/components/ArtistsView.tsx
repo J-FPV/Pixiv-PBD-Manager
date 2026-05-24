@@ -258,12 +258,18 @@ export function ArtistsView({
                   <span className="centerNumeric">{artist.works}</span>
                   <span className="centerNumeric strong">{artist.new_works}</span>
                   <span
-                    className={`pathText ${artist.save_paths.length ? "clickablePath" : ""}`}
+                    className={`pathText pathCell ${artist.save_paths.length ? "clickablePath" : ""}`}
                     title={artist.save_paths[0] || ""}
-                    onDoubleClick={(event) => {
+                    onClick={(event) => {
+                      if (!artist.save_paths[0]) {
+                        return;
+                      }
                       event.stopPropagation();
+                      openPath(artist.save_paths[0]);
+                    }}
+                    onDoubleClick={(event) => {
                       if (artist.save_paths[0]) {
-                        openPath(artist.save_paths[0]);
+                        event.stopPropagation();
                       }
                     }}
                   >

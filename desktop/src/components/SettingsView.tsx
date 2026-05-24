@@ -1,13 +1,18 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
-import { Folder, Globe, Key, Search, SlidersHorizontal } from "lucide-react";
+import { ExternalLink, Folder, Globe, Key, Search, SlidersHorizontal } from "lucide-react";
+import { getVersion } from "@tauri-apps/api/app";
 import { browsePath } from "../api";
 import type { PathPickKind } from "../api";
 import { t } from "../i18n";
 import type { AppSettings, Language } from "../types";
 import { isUnsafeUserDataDir, joinLines, splitLines } from "../utils/paths";
+import { clampTextareaHeight } from "../utils/textarea";
 
 type SettingsSection = "general" | "folders" | "scan" | "browser" | "cookie";
+type DirectoryBoxHeightKey = "download_roots_textarea_height" | "exclude_roots_textarea_height";
+
+const RELEASES_URL = "https://github.com/J-FPV/Pixiv-PBD-Manager/releases";
 
 export function SettingsView({
   language,
@@ -23,6 +28,7 @@ export function SettingsView({
   setPixivCookie,
   setProjectRootValue,
   setPythonCommandValue,
+  openReleasePage,
   notify
 }: {
   language: Language;
@@ -38,13 +44,33 @@ export function SettingsView({
   setPixivCookie: (value: string) => void;
   setProjectRootValue: (value: string) => void;
   setPythonCommandValue: (value: string) => void;
+  openReleasePage: () => void;
   notify: (message: string) => void;
 }) {
   const [section, setSection] = useState<SettingsSection>("general");
   const [showCookie, setShowCookie] = useState(false);
+  const [appVersion, setAppVersion] = useState("");
   const update = <K extends keyof AppSettings>(key: K, value: AppSettings[K]) => {
     setSettings({ ...settings, [key]: value });
   };
+
+  useEffect(() => {
+    let mounted = true;
+    void getVersion()
+      .then((version) => {
+        if (mounted) {
+          setAppVersion(version);
+        }
+      })
+      .catch(() => {
+        if (mounted) {
+          setAppVersion("");
+        }
+      });
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   const pick = async (kind: PathPickKind, apply: (value: string) => void) => {
     const picked = await browsePath(kind);
@@ -61,6 +87,13 @@ export function SettingsView({
     const current = settings[key] || [];
     if (!current.includes(picked)) {
       update(key, [...current, picked]);
+    }
+  };
+
+  const rememberDirectoryBoxHeight = (key: DirectoryBoxHeightKey, element: HTMLTextAreaElement) => {
+    const height = clampTextareaHeight(element.offsetHeight);
+    if (height && Math.abs((settings[key] || 0) - height) > 1) {
+      update(key, height);
     }
   };
 
@@ -150,6 +183,17 @@ export function SettingsView({
                   <span>{t(language, "showProgressPercent")}</span>
                 </label>
               </div>
+              <div className="versionCard">
+                <div className="versionCardText">
+                  <span className="versionLabel">{t(language, "softwareVersion")}</span>
+                  <strong>{appVersion ? `v${appVersion}` : "..."}</strong>
+                  <p>{t(language, "releasePageHint")}</p>
+                </div>
+                <button type="button" className="button" onClick={openReleasePage} title={RELEASES_URL}>
+                  <ExternalLink size={16} />
+                  {t(language, "releasePage")}
+                </button>
+              </div>
             </div>
           ) : null}
 
@@ -161,7 +205,18 @@ export function SettingsView({
                   <span>{t(language, "downloadRoots")}</span>
                   <textarea
                     value={joinLines(settings.download_roots)}
+                    style={
+                      settings.download_roots_textarea_height
+                        ? { height: `${settings.download_roots_textarea_height}px` }
+                        : undefined
+                    }
                     onChange={(event) => update("download_roots", splitLines(event.target.value))}
+                    onMouseUp={(event) =>
+                      rememberDirectoryBoxHeight("download_roots_textarea_height", event.currentTarget)
+                    }
+                    onBlur={(event) =>
+                      rememberDirectoryBoxHeight("download_roots_textarea_height", event.currentTarget)
+                    }
                   />
                   <button type="button" className="button browseButton" onClick={() => void appendFolder("download_roots")}>
                     {t(language, "addFolder")}
@@ -171,7 +226,18 @@ export function SettingsView({
                   <span>{t(language, "excludeRoots")}</span>
                   <textarea
                     value={joinLines(settings.exclude_roots)}
+                    style={
+                      settings.exclude_roots_textarea_height
+                        ? { height: `${settings.exclude_roots_textarea_height}px` }
+                        : undefined
+                    }
                     onChange={(event) => update("exclude_roots", splitLines(event.target.value))}
+                    onMouseUp={(event) =>
+                      rememberDirectoryBoxHeight("exclude_roots_textarea_height", event.currentTarget)
+                    }
+                    onBlur={(event) =>
+                      rememberDirectoryBoxHeight("exclude_roots_textarea_height", event.currentTarget)
+                    }
                   />
                   <button type="button" className="button browseButton" onClick={() => void appendFolder("exclude_roots")}>
                     {t(language, "addFolder")}

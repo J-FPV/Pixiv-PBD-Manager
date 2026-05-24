@@ -469,6 +469,13 @@ body.col-resizing .colHandle::after {
   white-space: nowrap;
 }
 
+.pathCell {
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
 .clickablePath {
   cursor: pointer;
 }
@@ -808,6 +815,38 @@ body.col-resizing .colHandle::after {
 .fieldGrid textarea {
   min-height: 120px;
   resize: vertical;
+}
+
+.versionCard {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-muted);
+}
+
+.versionCardText {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.versionLabel {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.versionCard strong {
+  font-size: 15px;
+}
+
+.versionCard p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
 }
 
 .checkColumn {

@@ -83,7 +83,9 @@ export interface AppSettings {
   language?: Language;
   database?: string;
   download_roots?: string[];
+  download_roots_textarea_height?: number;
   exclude_roots?: string[];
+  exclude_roots_textarea_height?: number;
   browser?: string;
   user_data_dir?: string;
   delay?: number;
