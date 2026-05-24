@@ -41,13 +41,24 @@ a = Analysis(
     hooksconfig={},
     runtime_hooks=[],
     excludes=[
-        # Slim the bundle: we don't use these even though Pillow may pull them
-        # in via optional dependencies.
+        # Slim the bundle: explicitly exclude packages PyInstaller's static
+        # import analysis pulls in transitively but we never use at runtime.
+        # Pillow's optional GUI integrations and numpy/scipy's optional interop
+        # modules can each balloon the bundle by hundreds of MB.
         'tkinter',
         'PyQt5',
         'PyQt6',
         'PySide2',
         'PySide6',
+        'torch',
+        'pandas',
+        'matplotlib',
+        'sklearn',
+        'jupyter',
+        'IPython',
+        'notebook',
+        'pytest',
+        'sphinx',
     ],
     noarchive=False,
 )

@@ -90,7 +90,11 @@ def _read_payload_source(command: str, argv: list[str]) -> tuple[str, int]:
         return "{}", 0
     first = argv[0]
     if first == "-":
-        return sys.stdin.read(), 0
+        # ``readline`` (not ``read``) so the same stdin stream can carry
+        # subsequent ``{"control":"pause"}`` / ``{"control":"resume"}`` lines
+        # for the control reader. Frontend writes one compact JSON line +
+        # newline as the payload, then keeps stdin open for control messages.
+        return sys.stdin.readline(), 0
     if first == "--payload-file":
         if len(argv) < 2:
             emit_event({"type": "error", "command": command, "message": "--payload-file requires a path"})

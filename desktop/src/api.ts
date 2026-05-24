@@ -55,6 +55,15 @@ export async function runGuiApi<T>(
   }
   const projectRoot = getProjectRoot();
   const payloadJson = JSON.stringify({ ...payload, project_root: projectRoot });
+  // Windows CreateProcess caps the command line at 32K chars. A large
+  // scan.apply payload (hundreds of proposed changes, each carrying paths)
+  // blows past that and we get "os error 206" ("filename or extension too
+  // long"). For large payloads, pass "-" as the payload-argv and pipe the
+  // JSON into the child's stdin; the same stream then carries pause/resume
+  // control messages, so the gui_api stdin reader must use readline() rather
+  // than read().
+  const PAYLOAD_STDIN_THRESHOLD = 8 * 1024;
+  const payloadArg = payloadJson.length > PAYLOAD_STDIN_THRESHOLD ? "-" : payloadJson;
   // In development (Vite dev server + tauri:dev) we spawn the source Python
   // backend directly so code edits don't require rebuilding the PyInstaller
   // exe. In production (tauri:build) the backend ships as a PyInstaller
@@ -66,10 +75,10 @@ export async function runGuiApi<T>(
   const command = import.meta.env.DEV
     ? Command.create(
         getPythonCommand(),
-        ["-m", "pixiv_pbd_manager.gui_api", commandName, payloadJson],
+        ["-m", "pixiv_pbd_manager.gui_api", commandName, payloadArg],
         { cwd: projectRoot, env: { PYTHONPATH: projectRoot } }
       )
-    : Command.create("pixiv-pbd-api", [commandName, payloadJson]);
+    : Command.create("pixiv-pbd-api", [commandName, payloadArg]);
 
   let stdoutBuffer = "";
   let stderrText = "";
@@ -121,6 +130,13 @@ export async function runGuiApi<T>(
       await child.kill();
     }
     const activeChild = child;
+    // Feed the payload via stdin when argv mode would overflow CreateProcess's
+    // 32K limit. Newline-terminated so the Python side's readline() returns
+    // exactly the payload; subsequent control-message writes use the same
+    // stream.
+    if (payloadArg === "-") {
+      void activeChild.write(payloadJson + "\n");
+    }
     options.onStart?.({
       pause: () => {
         void activeChild.write('{"control":"pause"}\n');

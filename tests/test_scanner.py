@@ -119,6 +119,32 @@ class ScannerTests(unittest.TestCase):
             assert hit is not None
             self.assertEqual(hit.artist_name, "一条レイ")
 
+    def test_date_prefixed_folder_is_not_mistaken_for_pid(self):
+        # A fanbox-style nested folder ``2020-07-01-title`` previously matched
+        # the leading-digits pattern with id=2020 (year as artist ID). The
+        # tightened ``\d{5,12}`` minimum on that specific pattern rules out
+        # 4-digit years; the file should fall through to the name-only
+        # detector and attribute under the outer ``illus-XX`` folder.
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            path = (
+                root
+                / "illus-カンザリン-impasto-H-laplace"
+                / "fanbox"
+                / "2020-07-01-シャニマス催眠エロ"
+                / "file.jpg"
+            )
+            path.parent.mkdir(parents=True)
+            path.write_bytes(b"")
+
+            hit = identify_artist(path, root)
+            self.assertIsNone(hit, "year prefix must not be parsed as an artist ID")
+
+            name_only = identify_name_only_artist(path, root)
+            self.assertIsNotNone(name_only)
+            assert name_only is not None
+            self.assertEqual(name_only.artist_name, "カンザリン")
+
 
 if __name__ == "__main__":
     unittest.main()

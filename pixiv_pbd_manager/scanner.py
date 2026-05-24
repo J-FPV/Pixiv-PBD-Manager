@@ -26,7 +26,13 @@ FOLDER_ARTIST_PATTERNS = [
     re.compile(r"^(?P<name>.+?)-(?P<id>\d{3,12})$"),
     re.compile(r"^(?P<name>.+?)\s*\((?P<id>\d{3,12})\)$"),
     re.compile(r"^\[(?P<id>\d{3,12})\]\s*(?P<name>.+)$"),
-    re.compile(r"^(?P<id>\d{3,12})[_ -]+(?P<name>.+)$"),
+    # ``\d{5,12}`` here (not ``\d{3,12}`` like the structured forms above)
+    # because the leading-digits form has no anchoring delimiter to prove the
+    # number is meant as an ID. Date-prefixed folders ``2020-07-01-title``
+    # otherwise match with id=2020 — bumping the minimum to 5 digits rules
+    # out 4-digit years while still catching real Pixiv IDs (5-digit IDs are
+    # the floor for any Pixiv account active in the last decade).
+    re.compile(r"^(?P<id>\d{5,12})[_ -]+(?P<name>.+)$"),
 ]
 
 NAME_ONLY_PIXIV_FOLDER_PATTERNS = [
