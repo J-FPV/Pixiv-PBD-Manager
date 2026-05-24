@@ -4,8 +4,26 @@ from __future__ import annotations
 
 from ...consent import is_cookie_consent_recorded, record_cookie_consent, revoke_cookie_consent
 from ...cookie_store import clear_cookie, load_cookie, save_cookie, storage_label
+from ...text_safety import repair_path_mojibake_if_existing
 from ..payload import base_dir, load_json, save_json, settings_path
 from ..runtime import Emitter, JsonDict
+
+
+PATH_LIST_KEYS = {"download_roots", "exclude_roots"}
+PATH_TEXT_KEYS = {"database", "browser", "user_data_dir"}
+
+
+def repair_settings_paths(settings: JsonDict) -> JsonDict:
+    repaired = dict(settings)
+    for key in PATH_LIST_KEYS:
+        values = repaired.get(key)
+        if isinstance(values, list):
+            repaired[key] = [repair_path_mojibake_if_existing(str(value)) for value in values]
+    for key in PATH_TEXT_KEYS:
+        value = repaired.get(key)
+        if isinstance(value, str) and value:
+            repaired[key] = repair_path_mojibake_if_existing(value)
+    return repaired
 
 
 def _settings_result(settings: JsonDict, payload: JsonDict) -> JsonDict:
@@ -24,7 +42,7 @@ def _settings_result(settings: JsonDict, payload: JsonDict) -> JsonDict:
 
 def load_settings_for_payload(payload: JsonDict) -> JsonDict:
     """Read the on-disk settings JSON for this payload's project root."""
-    return load_json(settings_path(payload))
+    return repair_settings_paths(load_json(settings_path(payload)))
 
 
 def get(payload: JsonDict, _emit_event: Emitter) -> JsonDict:
@@ -32,7 +50,7 @@ def get(payload: JsonDict, _emit_event: Emitter) -> JsonDict:
 
 
 def save(payload: JsonDict, _emit_event: Emitter) -> JsonDict:
-    settings = dict(payload.get("settings") or {})
+    settings = repair_settings_paths(dict(payload.get("settings") or {}))
     save_json(settings_path(payload), settings)
 
     if "cookie_consent" in payload:

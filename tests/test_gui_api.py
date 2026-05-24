@@ -93,6 +93,26 @@ class GuiApiTests(unittest.TestCase):
         self.assertFalse(cookie_bin_exists)
         self.assertFalse(cookie_txt_exists)
 
+    def test_settings_get_repairs_legacy_mojibake_paths(self):
+        with TemporaryDirectory() as tmp:
+            root = _isolate(tmp)
+            library = root / "参考图"
+            library.mkdir()
+            mojibake_library = str(library).encode("utf-8").decode("gbk", errors="surrogateescape")
+            settings_text = json.dumps({"download_roots": [mojibake_library]}, ensure_ascii=False)
+            (root / ".pixiv-pbd-manager" / "gui_settings.json").write_bytes(
+                settings_text.encode("utf-8", errors="backslashreplace")
+            )
+            old_cwd = Path.cwd()
+            try:
+                os.chdir(root)
+                exit_code, events = invoke("settings.get")
+            finally:
+                os.chdir(old_cwd)
+
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(events[-1]["payload"]["settings"]["download_roots"], [str(library)])
+
     def test_project_root_resolves_from_tauri_nested_directory(self):
         with TemporaryDirectory() as tmp:
             root = Path(tmp)

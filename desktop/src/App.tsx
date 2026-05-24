@@ -336,6 +336,21 @@ export default function App() {
       appendLog("info", `Scan preview: ${result.files_seen} files, ${result.changes.length} proposed change(s)`);
       setUnmatchedFolders(result.unmatched_folders || []);
       if (result.changes.length === 0) {
+        if (result.name_only_artists > 0 && !settings.resolve_online) {
+          appendLog(
+            "warn",
+            t(languageValue, "scanNameOnlyNeedsResolve").replace("{count}", String(result.name_only_artists))
+          );
+        } else if (
+          result.name_only_artists > 0 &&
+          result.resolved_name_only === 0 &&
+          result.fuzzy_resolved_name_only === 0
+        ) {
+          appendLog(
+            "warn",
+            t(languageValue, "scanNameOnlyUnresolved").replace("{count}", String(result.name_only_artists))
+          );
+        }
         appendLog("info", t(languageValue, "scanNoChanges"));
         return;
       }

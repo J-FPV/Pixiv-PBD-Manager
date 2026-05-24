@@ -32,6 +32,16 @@ export function setPythonCommand(value: string): void {
   localStorage.setItem(PYTHON_COMMAND_KEY, value === "py" ? "py" : "python");
 }
 
+function toAsciiJson(value: unknown): string {
+  const json = JSON.stringify(value);
+  let output = "";
+  for (let index = 0; index < json.length; index += 1) {
+    const code = json.charCodeAt(index);
+    output += code > 0x7f ? `\\u${code.toString(16).padStart(4, "0")}` : json[index];
+  }
+  return output;
+}
+
 export class GuiApiCancelledError extends Error {
   constructor(commandName: string) {
     super(`${commandName} cancelled`);
@@ -54,7 +64,7 @@ export async function runGuiApi<T>(
     throw new GuiApiCancelledError(commandName);
   }
   const projectRoot = getProjectRoot();
-  const payloadJson = JSON.stringify({ ...payload, project_root: projectRoot });
+  const payloadJson = toAsciiJson({ ...payload, project_root: projectRoot });
   // Windows CreateProcess caps the command line at 32K chars. A large
   // scan.apply payload (hundreds of proposed changes, each carrying paths)
   // blows past that and we get "os error 206" ("filename or extension too
@@ -76,9 +86,11 @@ export async function runGuiApi<T>(
     ? Command.create(
         getPythonCommand(),
         ["-m", "pixiv_pbd_manager.gui_api", commandName, payloadArg],
-        { cwd: projectRoot, env: { PYTHONPATH: projectRoot } }
+        { cwd: projectRoot, env: { PYTHONIOENCODING: "utf-8", PYTHONUTF8: "1", PYTHONPATH: projectRoot } }
       )
-    : Command.create("pixiv-pbd-api", [commandName, payloadArg]);
+    : Command.create("pixiv-pbd-api", [commandName, payloadArg], {
+        env: { PYTHONIOENCODING: "utf-8", PYTHONUTF8: "1" }
+      });
 
   let stdoutBuffer = "";
   let stderrText = "";
