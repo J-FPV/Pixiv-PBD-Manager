@@ -5,6 +5,32 @@ import unittest
 from pixiv_pbd_manager.database import ArtistDatabase
 
 
+class DatabaseLoadResilienceTests(unittest.TestCase):
+    def test_load_empty_file_returns_empty_db(self):
+        # An interrupted save (or the prior os-error-206 crash) can leave a
+        # zero-byte artists.json. ``load`` must not raise — every downstream
+        # IPC command depends on it.
+        with TemporaryDirectory() as tmp:
+            path = Path(tmp) / "artists.json"
+            path.write_text("", encoding="utf-8")
+            db = ArtistDatabase.load(path)
+            self.assertEqual(db.artists, {})
+
+    def test_load_corrupt_json_returns_empty_db(self):
+        with TemporaryDirectory() as tmp:
+            path = Path(tmp) / "artists.json"
+            path.write_text("{not json", encoding="utf-8")
+            db = ArtistDatabase.load(path)
+            self.assertEqual(db.artists, {})
+
+    def test_load_non_dict_top_level_returns_empty_db(self):
+        with TemporaryDirectory() as tmp:
+            path = Path(tmp) / "artists.json"
+            path.write_text("[1, 2, 3]", encoding="utf-8")
+            db = ArtistDatabase.load(path)
+            self.assertEqual(db.artists, {})
+
+
 class DatabaseTests(unittest.TestCase):
     def test_rename_artist_id_preserves_record_data(self):
         with TemporaryDirectory() as tmp:

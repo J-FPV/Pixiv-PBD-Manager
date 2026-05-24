@@ -17,7 +17,25 @@ class ArtistDatabase:
         db = cls(Path(path or DEFAULT_DB))
         if not db.path.exists():
             return db
-        raw = json.loads(db.path.read_text(encoding="utf-8"))
+        # Tolerate empty / corrupt artists.json files: an interrupted save (e.g.
+        # the prior ``os error 206`` payload-too-long crash) can leave a zero-
+        # byte or partially-written file. Without this guard, every subsequent
+        # ``artists.list`` / ``scan.*`` / ``updates.*`` IPC bombs out with
+        # ``Expecting value: line 1 column 1 (char 0)`` from json.loads, and
+        # the user has no way to recover from inside the app. Treat broken
+        # files as "empty DB" so the user can rescan to repopulate.
+        try:
+            text = db.path.read_text(encoding="utf-8")
+        except OSError:
+            return db
+        if not text.strip():
+            return db
+        try:
+            raw = json.loads(text)
+        except json.JSONDecodeError:
+            return db
+        if not isinstance(raw, dict):
+            return db
         for artist_id, artist in (raw.get("artists") or {}).items():
             record = ArtistRecord.from_json({**artist, "id": str(artist.get("id") or artist_id)})
             db.artists[record.id] = record

@@ -133,9 +133,16 @@ export async function runGuiApi<T>(
     // Feed the payload via stdin when argv mode would overflow CreateProcess's
     // 32K limit. Newline-terminated so the Python side's readline() returns
     // exactly the payload; subsequent control-message writes use the same
-    // stream.
+    // stream. Awaited (not fire-and-forget) so a write failure surfaces as
+    // an api error instead of Python silently reading an empty stdin.
     if (payloadArg === "-") {
-      void activeChild.write(payloadJson + "\n");
+      try {
+        await activeChild.write(payloadJson + "\n");
+      } catch (writeError) {
+        throw new Error(
+          `Failed to send payload via stdin: ${writeError instanceof Error ? writeError.message : String(writeError)}`
+        );
+      }
     }
     options.onStart?.({
       pause: () => {
