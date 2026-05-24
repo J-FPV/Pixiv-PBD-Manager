@@ -24,9 +24,11 @@ under its historic names (``database.DEFAULT_DB``, ``consent.CONSENT_PATH``,
 
 from __future__ import annotations
 
+import json
 import os
 import sys
 from pathlib import Path
+from typing import Any
 
 
 LEGACY_DATA_DIR_NAME = ".pixiv-pbd-manager"
@@ -60,6 +62,23 @@ def _find_legacy_data_dir(start: Path) -> Path | None:
         if legacy.is_dir():
             return legacy
     return None
+
+
+def write_json_atomic(path: Path, data: Any) -> None:
+    """Serialize ``data`` to JSON and write it to ``path``.
+
+    Uses ``errors='backslashreplace'`` on the final UTF-8 encode so lone
+    surrogates that occasionally appear in Windows path strings (the
+    ``\\udc80``-range chars from ``surrogateescape`` decode of MBCS bytes)
+    serialise as printable escapes instead of crashing the write with
+    ``'utf-8' codec can't encode character '\\udc80'``. The resulting file is
+    still valid JSON; surrogate-bearing paths round-trip as their backslash
+    escape form, which loses fidelity for the actual filesystem path but
+    keeps the rest of the data intact.
+    """
+    path.parent.mkdir(parents=True, exist_ok=True)
+    text = json.dumps(data, ensure_ascii=False, indent=2) + "\n"
+    path.write_bytes(text.encode("utf-8", errors="backslashreplace"))
 
 
 def resolve_data_dir(start: Path | None = None) -> Path:

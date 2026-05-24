@@ -59,13 +59,16 @@ _EMIT_LOCK = threading.Lock()
 def emit_event(event: JsonDict) -> None:
     """Write one JSON line to stdout, lock-protected so threads don't interleave.
 
-    Uses ``errors='backslashreplace'`` on the final UTF-8 encode so lone
-    surrogates that occasionally surface from Windows path APIs (the
-    ``\\udc81`` "surrogates not allowed" crash users hit during scans) get
-    serialised as the literal text ``\\udc81`` rather than aborting the IPC.
+    Uses ASCII JSON escapes so CJK names cannot be mojibaked by an intermediate
+    Windows codepage decode, and lone surrogates are serialised as literal
+    ``\\udc81``-style escapes rather than aborting the IPC.
     """
-    line = json.dumps(event, ensure_ascii=False) + "\n"
-    data = line.encode("utf-8", errors="backslashreplace")
+    # Keep the IPC stream ASCII-only. Some Windows/Tauri stdout paths can
+    # decode raw UTF-8 bytes through the local ANSI codepage before JavaScript
+    # sees them, which turns names like "カンザリン" into mojibake. Escaped JSON
+    # round-trips the same data without putting non-ASCII bytes on stdout.
+    line = json.dumps(event, ensure_ascii=True) + "\n"
+    data = line.encode("ascii", errors="backslashreplace")
     with _EMIT_LOCK:
         buffer = getattr(sys.stdout, "buffer", None)
         if buffer is not None:

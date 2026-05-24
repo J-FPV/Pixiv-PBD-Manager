@@ -1,5 +1,6 @@
 from pathlib import Path
 from tempfile import TemporaryDirectory
+import json
 import unittest
 
 from pixiv_pbd_manager.database import ArtistDatabase
@@ -29,6 +30,39 @@ class DatabaseLoadResilienceTests(unittest.TestCase):
             path.write_text("[1, 2, 3]", encoding="utf-8")
             db = ArtistDatabase.load(path)
             self.assertEqual(db.artists, {})
+
+    def test_load_repairs_utf8_text_decoded_as_gbk_with_surrogates(self):
+        with TemporaryDirectory() as tmp:
+            path = Path(tmp) / "artists.json"
+            mojibake_name = "カンザリン".encode("utf-8").decode("gbk", errors="surrogateescape")
+            mojibake_path = str(Path(tmp) / "illus-カンザリン").encode("utf-8").decode(
+                "gbk",
+                errors="surrogateescape",
+            )
+            path.write_text(
+                json.dumps(
+                    {
+                        "version": 1,
+                        "artists": {
+                            "31133701": {
+                                "id": "31133701",
+                                "name": mojibake_name,
+                                "save_paths": [mojibake_path],
+                                "sources": [],
+                                "download_roots": [],
+                                "work_ids": [],
+                                "new_work_ids": [],
+                            }
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            db = ArtistDatabase.load(path)
+
+        self.assertEqual(db.artists["31133701"].name, "カンザリン")
+        self.assertTrue(db.artists["31133701"].save_paths[0].endswith("illus-カンザリン"))
 
 
 class DatabaseTests(unittest.TestCase):

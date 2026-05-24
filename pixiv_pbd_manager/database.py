@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 
 from .models import ArtistRecord
-from .paths import DEFAULT_DB  # re-exported for callers that import it from here
+from .paths import DEFAULT_DB, write_json_atomic  # re-exported for callers that import them from here
 
 
 class ArtistDatabase:
@@ -42,7 +42,6 @@ class ArtistDatabase:
         return db
 
     def save(self) -> None:
-        self.path.parent.mkdir(parents=True, exist_ok=True)
         payload = {
             "version": 1,
             "artists": {
@@ -50,10 +49,7 @@ class ArtistDatabase:
                 for artist_id in sorted(self.artists, key=lambda value: (len(value), value))
             },
         }
-        self.path.write_text(
-            json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
-            encoding="utf-8",
-        )
+        write_json_atomic(self.path, payload)
 
     def upsert(
         self,

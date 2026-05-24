@@ -5,6 +5,23 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from .text_safety import repair_surrogate_mojibake
+
+
+def _safe_optional_text(value: Any) -> str | None:
+    if value is None:
+        return None
+    text = repair_surrogate_mojibake(str(value))
+    return text if text else None
+
+
+def _safe_text(value: Any) -> str:
+    return repair_surrogate_mojibake(str(value or ""))
+
+
+def _safe_text_list(values: Any) -> list[str]:
+    return [repair_surrogate_mojibake(str(item)) for item in values or []]
+
 
 def utc_now() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
@@ -29,17 +46,17 @@ class ArtistRecord:
     def from_json(cls, raw: dict[str, Any]) -> "ArtistRecord":
         return cls(
             id=str(raw["id"]),
-            name=raw.get("name"),
-            first_seen=raw.get("first_seen") or utc_now(),
-            last_seen=raw.get("last_seen") or utc_now(),
-            last_opened=raw.get("last_opened"),
-            last_checked=raw.get("last_checked"),
-            sources=list(raw.get("sources") or []),
-            download_roots=list(raw.get("download_roots") or []),
-            save_paths=list(raw.get("save_paths") or []),
+            name=_safe_optional_text(raw.get("name")),
+            first_seen=_safe_text(raw.get("first_seen")) or utc_now(),
+            last_seen=_safe_text(raw.get("last_seen")) or utc_now(),
+            last_opened=_safe_optional_text(raw.get("last_opened")),
+            last_checked=_safe_optional_text(raw.get("last_checked")),
+            sources=_safe_text_list(raw.get("sources")),
+            download_roots=_safe_text_list(raw.get("download_roots")),
+            save_paths=_safe_text_list(raw.get("save_paths")),
             work_ids=sorted({str(item) for item in raw.get("work_ids") or []}),
             new_work_ids=sorted({str(item) for item in raw.get("new_work_ids") or []}),
-            notes=raw.get("notes") or "",
+            notes=_safe_text(raw.get("notes")),
         )
 
     def to_json(self) -> dict[str, Any]:

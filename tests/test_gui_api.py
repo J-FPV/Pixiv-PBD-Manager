@@ -447,11 +447,10 @@ class GuiApiTests(unittest.TestCase):
         # (``\udc81``-range chars produced by ``surrogateescape`` decode of
         # mbcs bytes). A user-reported crash was ``'utf-8' codec can't encode
         # character '\\udc81' ...`` originating from the JSON-encode step of
-        # ``emit_event``. ``backslashreplace`` on the final encode now turns
-        # the offending char into a printable escape instead of aborting.
+        # ``emit_event``. The IPC line is ASCII-only so both lone surrogates
+        # and CJK artist names survive Windows stdout decoding paths.
         from pixiv_pbd_manager.gui_api import runtime
         import io as _io
-        import contextlib
 
         buf = _io.BytesIO()
 
@@ -467,8 +466,11 @@ class GuiApiTests(unittest.TestCase):
 
         stub = _Stub(buf)
         with patch.object(runtime, "sys", new=type("S", (), {"stdout": stub})):
-            runtime.emit_event({"type": "progress", "path": "test\udc81"})
-        self.assertIn(b"\\udc81", buf.getvalue())
+            runtime.emit_event({"type": "progress", "path": "test\udc81", "name": "カンザリン"})
+        data = buf.getvalue()
+        self.assertIn(b"\\udc81", data)
+        self.assertIn(b"\\u30ab\\u30f3\\u30b6\\u30ea\\u30f3", data)
+        self.assertNotIn("カンザリン".encode("utf-8"), data)
 
     def test_unknown_command_outputs_error_event(self):
         exit_code, events = invoke("missing.command")

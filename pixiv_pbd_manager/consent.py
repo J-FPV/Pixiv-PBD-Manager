@@ -4,7 +4,7 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 
-from .paths import DEFAULT_CONSENT as CONSENT_PATH  # re-exported as consent.CONSENT_PATH
+from .paths import DEFAULT_CONSENT as CONSENT_PATH, write_json_atomic  # re-exported as consent.CONSENT_PATH
 
 COOKIE_CONSENT_VERSION = "1"
 
