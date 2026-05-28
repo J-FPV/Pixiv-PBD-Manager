@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
-import { ExternalLink, Folder, Globe, Key, Search, SlidersHorizontal } from "lucide-react";
+import { ExternalLink, Folder, FolderOpen, Globe, Key, RotateCcw, Search, SlidersHorizontal } from "lucide-react";
 import { getVersion } from "@tauri-apps/api/app";
 import { browsePath } from "../api";
 import type { PathPickKind } from "../api";
@@ -29,6 +29,9 @@ export function SettingsView({
   setProjectRootValue,
   setPythonCommandValue,
   openReleasePage,
+  openPath,
+  resetSettings,
+  busy,
   notify
 }: {
   language: Language;
@@ -45,6 +48,9 @@ export function SettingsView({
   setProjectRootValue: (value: string) => void;
   setPythonCommandValue: (value: string) => void;
   openReleasePage: () => void;
+  openPath: (path: string) => void;
+  resetSettings: () => void;
+  busy: boolean;
   notify: (message: string) => void;
 }) {
   const [section, setSection] = useState<SettingsSection>("general");
@@ -100,6 +106,13 @@ export function SettingsView({
   const browseButton = (kind: PathPickKind, apply: (value: string) => void) => (
     <button type="button" className="button browseButton" onClick={() => void pick(kind, apply)}>
       {t(language, "browse")}
+    </button>
+  );
+
+  const locationButton = (path: string) => (
+    <button type="button" className="button browseButton" disabled={!path.trim()} onClick={() => openPath(path)}>
+      <FolderOpen size={16} />
+      {t(language, "openLocation")}
     </button>
   );
 
@@ -163,6 +176,7 @@ export function SettingsView({
                   <div className="pathRow">
                     <input value={projectRoot} onChange={(event) => setProjectRootValue(event.target.value)} />
                     {browseButton("folder", setProjectRootValue)}
+                    {locationButton(projectRoot)}
                   </div>
                 </label>
                 <label className="full">
@@ -170,6 +184,7 @@ export function SettingsView({
                   <div className="pathRow">
                     <input value={settings.database || ""} onChange={(event) => update("database", event.target.value)} />
                     {browseButton("save", (value) => update("database", value))}
+                    {locationButton(settings.database || "")}
                   </div>
                 </label>
               </div>
@@ -416,6 +431,16 @@ export function SettingsView({
             </div>
           ) : null}
 
+          <div className="settingsActions resetSettingsAction">
+            <div>
+              <strong>{t(language, "resetSettings")}</strong>
+              <p>{t(language, "resetSettingsHint")}</p>
+            </div>
+            <button type="button" className="button danger" disabled={busy} onClick={resetSettings}>
+              <RotateCcw size={16} />
+              {t(language, "resetSettings")}
+            </button>
+          </div>
         </div>
       </div>
     </section>

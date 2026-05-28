@@ -628,6 +628,44 @@ export default function App() {
     });
   };
 
+  const resetSettings = () => {
+    setConfirm({
+      title: t(languageValue, "resetSettings"),
+      body: t(languageValue, "confirmResetSettings"),
+      confirmLabel: t(languageValue, "resetSettings"),
+      onConfirm: async () => {
+        const resetValues: AppSettings = {
+          ...DEFAULT_SETTINGS,
+          database: settings.database || DEFAULT_SETTINGS.database
+        };
+        try {
+          const payload = await runGuiApi<SettingsPayload>(
+            "settings.save",
+            {
+              settings: resetValues,
+              cookie_consent: false,
+              pixiv_cookie: ""
+            },
+            handleEvent
+          );
+          applySettingsPayload(payload);
+          setPythonCommandState("python");
+          setPythonCommand("python");
+          setSimilarRoots("");
+          setSimilarExcludes("");
+          setSimilarRootBoxHeight(undefined);
+          setSimilarExcludeBoxHeight(undefined);
+          setExpandedGroups(new Set());
+          const message = t(languageValue, "settingsReset");
+          appendLog("info", message);
+          showToast(message);
+        } catch (error) {
+          appendLog("error", error instanceof Error ? error.message : String(error));
+        }
+      }
+    });
+  };
+
   const addArtist = () => {
     setPrompt({
       title: t(languageValue, "addArtist"),
@@ -858,6 +896,9 @@ export default function App() {
             setProjectRootValue={setProjectRootState}
             setPythonCommandValue={setPythonCommandState}
             openReleasePage={openReleasePage}
+            openPath={revealFile}
+            resetSettings={resetSettings}
+            busy={busy}
             notify={(message) => appendLog("warn", message)}
           />
         ) : null}

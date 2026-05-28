@@ -887,6 +887,28 @@ body.col-resizing .colHandle::after {
   border-top: 1px solid var(--line);
 }
 
+.resetSettingsAction {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.resetSettingsAction div {
+  display: grid;
+  gap: 5px;
+}
+
+.resetSettingsAction strong {
+  font-size: 14px;
+}
+
+.resetSettingsAction p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
 .pathRow {
   display: flex;
   gap: 8px;
