@@ -1,0 +1,25 @@
+# Line-ending policy for the repository.
+#
+# Every text file is stored with LF in Git. Pinning the working tree to LF as
+# well (eol=lf) means no checkout-time conversion happens, which silences the
+# "LF will be replaced by CRLF the next time Git touches it" warnings that
+# core.autocrlf=true emits on Windows. The toolchain here (Node, Rust, Python)
+# is happy with LF on every platform.
+* text=auto eol=lf
+
+# Binary assets — Git must never apply line-ending or text filters to these.
+*.ico  binary
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.webp binary
+*.woff binary
+*.woff2 binary
+*.ttf  binary
+*.otf  binary
+*.zip  binary
+*.gz   binary
+*.exe  binary
+*.dll  binary
+*.msi  binary
