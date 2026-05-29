@@ -28,7 +28,7 @@ import {
   PROGRESS_SIMILAR_START
 } from "../events";
 import { t } from "../i18n";
-import type { ApiEvent, Language, TaskProgressState } from "../types";
+import type { ApiEvent, Language, ProgressEvent, TaskProgressState } from "../types";
 import { numberValue } from "./format";
 
 // What a single API event tells the UI to do.
@@ -48,20 +48,16 @@ export interface ProgressEventDescriptor {
 
 const NOTHING: ProgressEventDescriptor = { logText: null, progressUpdate: null };
 
-// Single switch over event.key. Previously we had two switches in this file
-// (one returning a log string, one mutating progress state); they had to be
-// kept in sync by hand. Folding them into one function with a struct return
-// value collapses that to a single point of edit per event key.
-export function describeProgressEvent(language: Language, event: ApiEvent): ProgressEventDescriptor {
-  if (event.type === "error") {
-    return { logText: `${t(language, "error")}: ${event.message}`, progressUpdate: null };
-  }
-  if (event.type !== "progress") {
-    return NOTHING;
-  }
+// Each pipeline owns a describe* function below that switches over the event
+// keys it knows and returns ``null`` for everything else. describeProgressEvent
+// is then just a dispatcher: it tries each pipeline in turn and falls back to a
+// raw dump for unrecognised keys. Splitting per pipeline keeps every switch
+// short and lets a single event family be edited without scrolling past the
+// others.
+
+function describeScan(language: Language, event: ProgressEvent): ProgressEventDescriptor | null {
   const p = event.payload;
   switch (event.key) {
-    // Local-scan pipeline ---------------------------------------------------
     case PROGRESS_SCAN_START:
       return {
         logText: `Scan started: ${p.roots} folder(s)`,
@@ -98,8 +94,14 @@ export function describeProgressEvent(language: Language, event: ApiEvent): Prog
           }
         })
       };
+    default:
+      return null;
+  }
+}
 
-    // Update-check ----------------------------------------------------------
+function describeUpdateCheck(language: Language, event: ProgressEvent): ProgressEventDescriptor | null {
+  const p = event.payload;
+  switch (event.key) {
     case PROGRESS_CHECK_START:
       return {
         logText: `Checking ${p.total} artist(s)`,
@@ -120,8 +122,14 @@ export function describeProgressEvent(language: Language, event: ApiEvent): Prog
       };
     case PROGRESS_CHECK_FOUND:
       return { logText: `Updates: ${p.artist} ${p.count}`, progressUpdate: null };
+    default:
+      return null;
+  }
+}
 
-    // Artist-name refresh --------------------------------------------------
+function describeRefreshNames(language: Language, event: ProgressEvent): ProgressEventDescriptor | null {
+  const p = event.payload;
+  switch (event.key) {
     case PROGRESS_REFRESH_NAMES_START:
       return {
         logText: `Refreshing names for ${p.total} artist(s)`,
@@ -145,8 +153,14 @@ export function describeProgressEvent(language: Language, event: ApiEvent): Prog
         logText: `Refreshed names: ${p.changed} changed, ${p.failed} failed`,
         progressUpdate: () => ({ main: { label: t(language, "refreshArtistNames"), current: 1, total: 1 } })
       };
+    default:
+      return null;
+  }
+}
 
-    // Download pipeline -----------------------------------------------------
+function describeDownload(language: Language, event: ProgressEvent): ProgressEventDescriptor | null {
+  const p = event.payload;
+  switch (event.key) {
     case PROGRESS_DOWNLOAD_START:
       return {
         logText: `Downloading ${p.artists} artist(s), ${p.total_works ?? 0} artwork(s)`,
@@ -203,8 +217,14 @@ export function describeProgressEvent(language: Language, event: ApiEvent): Prog
       };
     case PROGRESS_DOWNLOAD_ERROR:
       return { logText: `${t(language, "error")}: ${p.work_id} - ${p.error}`, progressUpdate: null };
+    default:
+      return null;
+  }
+}
 
-    // Similar-image scan ----------------------------------------------------
+function describeSimilar(language: Language, event: ProgressEvent): ProgressEventDescriptor | null {
+  const p = event.payload;
+  switch (event.key) {
     case PROGRESS_SIMILAR_START:
       return {
         logText: `Similar scan started: ${p.roots} folder(s)`,
@@ -265,10 +285,27 @@ export function describeProgressEvent(language: Language, event: ApiEvent): Prog
         logText: `Similar done: ${p.files} files, ${p.indexed} indexed, ${p.groups} groups`,
         progressUpdate: () => ({ main: { label: t(language, "findSimilar"), current: 1, total: 1 } })
       };
-
     default:
-      return { logText: `${event.key}: ${JSON.stringify(p)}`, progressUpdate: null };
+      return null;
   }
+}
+
+// Dispatcher: error/non-progress events resolve here, everything else is routed
+// to the pipeline describers above, with a raw JSON dump as the last resort.
+export function describeProgressEvent(language: Language, event: ApiEvent): ProgressEventDescriptor {
+  if (event.type === "error") {
+    return { logText: `${t(language, "error")}: ${event.message}`, progressUpdate: null };
+  }
+  if (event.type !== "progress") {
+    return NOTHING;
+  }
+  return (
+    describeScan(language, event) ||
+    describeUpdateCheck(language, event) ||
+    describeRefreshNames(language, event) ||
+    describeDownload(language, event) ||
+    describeSimilar(language, event) || { logText: `${event.key}: ${JSON.stringify(event.payload)}`, progressUpdate: null }
+  );
 }
 
 // Thin convenience for callers that only want the progress side. Used by the
