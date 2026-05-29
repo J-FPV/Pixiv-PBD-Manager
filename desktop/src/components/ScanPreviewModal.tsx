@@ -1,9 +1,9 @@
-import { useState } from "react";
-import { ExternalLink } from "lucide-react";
 import { t } from "../i18n";
 import type { Language, ScanChange, ScanChangeKind, ScanPreviewPayload } from "../types";
+import { useScanSelection } from "../hooks/useScanSelection";
 import { Button } from "./Button";
 import { ModalOverlay } from "./ModalOverlay";
+import { ScanChangeRow } from "./ScanChangeRow";
 
 export function ScanPreviewModal({
   language,
@@ -18,41 +18,7 @@ export function ScanPreviewModal({
   onCancel: () => void;
   openArtist: (artistId: string) => void;
 }) {
-  // Default-on for additions, default-off for mutations of existing data — that
-  // preserves "rule A": never silently overwrite a manually-set name or path.
-  const defaultSelected = (kind: ScanChangeKind) => kind === "new_artist" || kind === "add_work_ids";
-  const [selected, setSelected] = useState<Record<string, boolean>>(() => {
-    const init: Record<string, boolean> = {};
-    for (const change of preview.changes) {
-      init[change.id] = defaultSelected(change.kind);
-    }
-    return init;
-  });
-
-  const toggle = (id: string) =>
-    setSelected((current) => ({ ...current, [id]: !current[id] }));
-
-  const setGroupSelected = (kind: ScanChangeKind, value: boolean) => {
-    setSelected((current) => {
-      const next = { ...current };
-      for (const change of preview.changes) {
-        if (change.kind === kind) {
-          next[change.id] = value;
-        }
-      }
-      return next;
-    });
-  };
-
-  const setAllSelected = (value: boolean) => {
-    setSelected((current) => {
-      const next: Record<string, boolean> = {};
-      for (const key of Object.keys(current)) {
-        next[key] = value;
-      }
-      return next;
-    });
-  };
+  const { selected, toggle, setGroupSelected, setAllSelected, accepted } = useScanSelection(preview.changes);
 
   const titleFor = (kind: ScanChangeKind) => {
     switch (kind) {
@@ -72,51 +38,6 @@ export function ScanPreviewModal({
     .map((kind) => ({ kind, items: preview.changes.filter((change) => change.kind === kind) }))
     .filter((group) => group.items.length > 0);
 
-  const accepted = preview.changes.filter((change) => selected[change.id]);
-  const selectedCount = accepted.length;
-
-  const renderDetail = (change: ScanChange) => {
-    if (change.kind === "new_artist") {
-      const savePath = change.save_paths[0] || "";
-      return (
-        <>
-          <span className="scanChangeName">{change.name || "—"}</span>
-          <span className="scanChangeDetail">
-            {change.work_ids.length} {t(language, "scanWorksLabel")}
-            {savePath ? ` · ${savePath}` : ""}
-          </span>
-        </>
-      );
-    }
-    if (change.kind === "name_change") {
-      return (
-        <span className="scanChangeDetail warning">
-          {t(language, "scanExistingName")}: "{change.old_name || "—"}" → {t(language, "scanNewName")}: "{change.new_name}"
-        </span>
-      );
-    }
-    if (change.kind === "add_save_paths") {
-      const first = change.paths[0] || "";
-      const extra = change.paths.length > 1 ? ` (+${change.paths.length - 1})` : "";
-      return (
-        <>
-          <span className="scanChangeName">{change.name || "—"}</span>
-          <span className="scanChangeDetail warning" title={change.paths.join("\n")}>
-            {t(language, "scanNewlyAdded")} {first}{extra}
-          </span>
-        </>
-      );
-    }
-    return (
-      <>
-        <span className="scanChangeName">{change.name || "—"}</span>
-        <span className="scanChangeDetail">
-          {t(language, "scanNewlyAdded")} {change.work_ids.length} {t(language, "scanWorksLabel")} · {t(language, "scanExistingWorks")} {change.existing_count}
-        </span>
-      </>
-    );
-  };
-
   return (
     <ModalOverlay onClose={onCancel}>
       <div className="modal scanPreviewModal" onClick={(event) => event.stopPropagation()}>
@@ -126,7 +47,7 @@ export function ScanPreviewModal({
           <Button onClick={() => setAllSelected(true)}>{t(language, "scanSelectAll")}</Button>
           <Button onClick={() => setAllSelected(false)}>{t(language, "scanDeselectAll")}</Button>
           <span className="summary">
-            {selectedCount} / {preview.changes.length}
+            {accepted.length} / {preview.changes.length}
           </span>
         </div>
         <div className="scanPreviewList">
@@ -144,42 +65,14 @@ export function ScanPreviewModal({
                 </button>
               </div>
               {group.items.map((change) => (
-                <div
+                <ScanChangeRow
                   key={change.id}
-                  className="scanChangeRow"
-                  role="button"
-                  tabIndex={0}
-                  onClick={() => toggle(change.id)}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter" || event.key === " ") {
-                      event.preventDefault();
-                      toggle(change.id);
-                    }
-                  }}
-                >
-                  <input
-                    type="checkbox"
-                    checked={!!selected[change.id]}
-                    onClick={(event) => event.stopPropagation()}
-                    onChange={() => toggle(change.id)}
-                  />
-                  <span className="scanChangeId">{change.artist_id}</span>
-                  <div className="scanChangeMain">{renderDetail(change)}</div>
-                  <button
-                    type="button"
-                    className="button quiet scanOpenArtistButton"
-                    title={t(language, "openArtistPage")}
-                    aria-label={t(language, "openArtistPage")}
-                    onClick={(event) => {
-                      event.preventDefault();
-                      event.stopPropagation();
-                      openArtist(change.artist_id);
-                    }}
-                  >
-                    <ExternalLink size={14} />
-                    <span className="srOnly">{t(language, "openArtistPage")}</span>
-                  </button>
-                </div>
+                  language={language}
+                  change={change}
+                  checked={!!selected[change.id]}
+                  onToggle={toggle}
+                  onOpenArtist={openArtist}
+                />
               ))}
             </div>
           ))}

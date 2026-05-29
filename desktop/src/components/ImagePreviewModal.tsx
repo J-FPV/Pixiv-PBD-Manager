@@ -1,13 +1,10 @@
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { runGuiApi } from "../api";
 import { t } from "../i18n";
-import type { ImageDifferencePayload, ImageThumbnailPayload, Language } from "../types";
+import type { Language } from "../types";
+import { useImagePreview, type PreviewMode } from "../hooks/useImagePreview";
 import { Button } from "./Button";
 import { ModalOverlay } from "./ModalOverlay";
-import { thumbnailCache } from "./thumbnailCache";
-
-type PreviewMode = "image" | "difference";
 
 export function ImagePreviewModal({
   language,
@@ -24,15 +21,13 @@ export function ImagePreviewModal({
   onClose: () => void;
   revealFile: (path: string) => void;
 }) {
-  const [image, setImage] = useState<ImageThumbnailPayload | null>(() => thumbnailCache.get(path) || null);
-  const [difference, setDifference] = useState<ImageDifferencePayload | null>(null);
-  const [error, setError] = useState("");
   const [mode, setMode] = useState<PreviewMode>("image");
   const [comparePath, setComparePath] = useState("");
   const uniquePaths = useMemo(() => Array.from(new Set(paths)), [paths]);
   const currentIndex = Math.max(0, uniquePaths.indexOf(path));
   const compareChoices = useMemo(() => uniquePaths.filter((item) => item !== path), [path, uniquePaths]);
   const canSwitch = uniquePaths.length > 1;
+  const { image, difference, error } = useImagePreview(path, comparePath, mode);
 
   useEffect(() => {
     if (!compareChoices.length) {
@@ -44,56 +39,6 @@ export function ImagePreviewModal({
       setComparePath(compareChoices[0]);
     }
   }, [compareChoices, comparePath, path]);
-
-  useEffect(() => {
-    let cancelled = false;
-    setError("");
-    setImage(thumbnailCache.get(path) || null);
-    void runGuiApi<ImageThumbnailPayload>("image.thumbnail", { path, max_size: 1200 })
-      .then((payload) => {
-        if (!cancelled) {
-          thumbnailCache.set(path, payload);
-          setImage(payload);
-        }
-      })
-      .catch((reason) => {
-        if (!cancelled) {
-          setError(reason instanceof Error ? reason.message : String(reason));
-        }
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [path]);
-
-  useEffect(() => {
-    let cancelled = false;
-    setDifference(null);
-    if (mode !== "difference" || !comparePath || comparePath === path) {
-      return () => {
-        cancelled = true;
-      };
-    }
-    setError("");
-    void runGuiApi<ImageDifferencePayload>("image.difference", {
-      base_path: path,
-      compare_path: comparePath,
-      max_size: 1200
-    })
-      .then((payload) => {
-        if (!cancelled) {
-          setDifference(payload);
-        }
-      })
-      .catch((reason) => {
-        if (!cancelled) {
-          setError(reason instanceof Error ? reason.message : String(reason));
-        }
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [comparePath, mode, path]);
 
   const switchBy = (offset: number) => {
     if (!canSwitch || !onPathChange) {
