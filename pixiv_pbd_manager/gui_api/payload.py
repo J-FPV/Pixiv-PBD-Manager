@@ -20,6 +20,7 @@ from ..paths import (
     DEFAULT_DB,
     DEFAULT_GUI_SETTINGS as DEFAULT_SETTINGS_PATH,
     _appdata_root,
+    write_json_atomic,
 )
 from .runtime import JsonDict
 
@@ -52,8 +53,7 @@ def load_json(path: Path) -> JsonDict:
 
 
 def save_json(path: Path, data: JsonDict) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    write_json_atomic(path, data)
 
 
 def _looks_like_project_root(path: Path) -> bool:

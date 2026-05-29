@@ -228,6 +228,9 @@ export function ArtistsView({
             ? `${t(language, "clearAll")}${selected.size ? ` (${selected.size})` : ""}`
             : t(language, "selectAll")}
         </Button>
+        <Button icon={<Plus size={16} />} onClick={addArtist}>
+          {t(language, "add")}
+        </Button>
         <Button icon={<Play size={16} />} disabled={busy} onClick={scan} variant="primary">
           {t(language, "scan")}
         </Button>
@@ -237,16 +240,6 @@ export function ArtistsView({
         <Button icon={<Download size={16} />} disabled={busy} onClick={downloadUpdated}>
           {t(language, "downloadUpdatedShort")}
         </Button>
-        {selected.size ? (
-          <Button
-            icon={<ExternalLink size={16} />}
-            onClick={openSelected}
-            title={`${t(language, "openSelected")} (${selected.size})`}
-            iconOnly
-          >
-            {t(language, "openSelected")}
-          </Button>
-        ) : null}
         <span className="toolbarSpacer" />
         <div className="toolbarMenuWrap">
           <button
@@ -263,13 +256,14 @@ export function ArtistsView({
             <div className="toolbarDropdown alignRight">
               <button
                 type="button"
+                disabled={selected.size === 0}
                 onClick={() => {
-                  addArtist();
+                  openSelected();
                   setToolbarMenu(null);
                 }}
               >
-                <Plus size={15} />
-                <span>{t(language, "addArtist")}</span>
+                <ExternalLink size={15} />
+                <span>{t(language, "openSelected")}{selected.size ? ` (${selected.size})` : ""}</span>
               </button>
               <button
                 type="button"

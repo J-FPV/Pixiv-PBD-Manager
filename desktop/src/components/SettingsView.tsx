@@ -30,6 +30,7 @@ export function SettingsView({
   setPythonCommandValue,
   openReleasePage,
   openPath,
+  resetWindowLayout,
   resetSettings,
   busy,
   notify
@@ -49,6 +50,7 @@ export function SettingsView({
   setPythonCommandValue: (value: string) => void;
   openReleasePage: () => void;
   openPath: (path: string) => void;
+  resetWindowLayout: () => void;
   resetSettings: () => void;
   busy: boolean;
   notify: (message: string) => void;
@@ -218,6 +220,26 @@ export function SettingsView({
                 <button type="button" className="button" onClick={openReleasePage} title={RELEASES_URL}>
                   <ExternalLink size={16} />
                   {t(language, "releasePage")}
+                </button>
+              </div>
+              <div className="settingsActions resetSettingsAction">
+                <div>
+                  <strong>{t(language, "resetWindowLayout")}</strong>
+                  <p>{t(language, "resetWindowLayoutHint")}</p>
+                </div>
+                <button type="button" className="button" onClick={resetWindowLayout}>
+                  <RotateCcw size={16} />
+                  {t(language, "resetWindowLayout")}
+                </button>
+              </div>
+              <div className="settingsActions resetSettingsAction">
+                <div>
+                  <strong>{t(language, "resetSettings")}</strong>
+                  <p>{t(language, "resetSettingsHint")}</p>
+                </div>
+                <button type="button" className="button danger" disabled={busy} onClick={resetSettings}>
+                  <RotateCcw size={16} />
+                  {t(language, "resetSettings")}
                 </button>
               </div>
             </div>
@@ -441,17 +463,6 @@ export function SettingsView({
               </div>
             </div>
           ) : null}
-
-          <div className="settingsActions resetSettingsAction">
-            <div>
-              <strong>{t(language, "resetSettings")}</strong>
-              <p>{t(language, "resetSettingsHint")}</p>
-            </div>
-            <button type="button" className="button danger" disabled={busy} onClick={resetSettings}>
-              <RotateCcw size={16} />
-              {t(language, "resetSettings")}
-            </button>
-          </div>
         </div>
       </div>
     </section>

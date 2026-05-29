@@ -24,8 +24,7 @@ def _read(path: Path) -> dict:
 
 
 def _write(data: dict, path: Path) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    write_json_atomic(path, data)
 
 
 def is_cookie_consent_recorded(path: Path = CONSENT_PATH) -> bool:

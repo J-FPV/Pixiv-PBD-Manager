@@ -10,7 +10,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from ..paths import DEFAULT_IMAGE_INDEX
+from ..paths import DEFAULT_IMAGE_INDEX, write_json_atomic
 from .fingerprint import ImageFingerprint
 
 
@@ -41,4 +41,4 @@ def save_image_index(entries: list[ImageFingerprint], path: Path = DEFAULT_IMAGE
         "version": 1,
         "entries": {entry.path: entry.to_json() for entry in sorted(entries, key=lambda item: item.path.lower())},
     }
-    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    write_json_atomic(path, payload)

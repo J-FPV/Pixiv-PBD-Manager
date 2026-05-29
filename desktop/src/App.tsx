@@ -52,6 +52,7 @@ import { joinLines, splitLines } from "./utils/paths";
 import { loadJson, persistJson } from "./utils/storage";
 import { normalizedUiState } from "./utils/uiState";
 import { describeProgressEvent } from "./utils/progressEvents";
+import { resetCurrentWindowLayout } from "./utils/window";
 import { useTaskRunner } from "./hooks/useTaskRunner";
 import { useWindowStatePersistence } from "./hooks/useWindowStatePersistence";
 import { ArtistsView } from "./components/ArtistsView";
@@ -688,6 +689,17 @@ export default function App() {
     });
   };
 
+  const resetWindowLayout = async () => {
+    try {
+      await resetCurrentWindowLayout();
+      const message = t(languageValue, "windowLayoutReset");
+      appendLog("info", message);
+      showToast(message);
+    } catch (error) {
+      appendLog("error", error instanceof Error ? error.message : String(error));
+    }
+  };
+
   const addArtist = () => {
     setPrompt({
       title: t(languageValue, "addArtist"),
@@ -919,6 +931,7 @@ export default function App() {
             setPythonCommandValue={setPythonCommandState}
             openReleasePage={openReleasePage}
             openPath={revealFile}
+            resetWindowLayout={() => void resetWindowLayout()}
             resetSettings={resetSettings}
             busy={busy}
             notify={(message) => appendLog("warn", message)}
