@@ -5,7 +5,7 @@ import { getVersion } from "@tauri-apps/api/app";
 import { browsePath } from "../api";
 import type { PathPickKind } from "../api";
 import { t } from "../i18n";
-import type { AppSettings, Language } from "../types";
+import type { AppSettings, Language, ThemeMode } from "../types";
 import { isUnsafeUserDataDir, joinLines, splitLines } from "../utils/paths";
 import { clampTextareaHeight } from "../utils/textarea";
 
@@ -162,6 +162,17 @@ export function SettingsView({
                   <select value={language} onChange={(event) => setLanguage(event.target.value as Language)}>
                     <option value="zh">中文</option>
                     <option value="en">English</option>
+                  </select>
+                </label>
+                <label>
+                  <span>{t(language, "theme")}</span>
+                  <select
+                    value={settings.theme || "system"}
+                    onChange={(event) => update("theme", event.target.value as ThemeMode)}
+                  >
+                    <option value="system">{t(language, "themeSystem")}</option>
+                    <option value="light">{t(language, "themeLight")}</option>
+                    <option value="dark">{t(language, "themeDark")}</option>
                   </select>
                 </label>
                 <label>

@@ -20,9 +20,11 @@ Notes:
   earlier ``--onefile`` build). Also lets the Tauri frontend's
   kill/stdin propagate directly to the Python process (no bootloader
   child to lose track of).
-- ``console=True`` is required: the Tauri frontend reads JSON Lines
-  from the child's stdout. A windowed (console=False) build would
-  attach to a hidden console with no usable pipe.
+- The PyInstaller worker stays ``console=True`` so stdout/stderr/stdin are
+  normal pipes. On Windows, ``scripts/build_sidecar.py`` compiles a tiny
+  GUI-subsystem launcher named ``pixiv-pbd-api.exe`` that starts this worker
+  with ``CREATE_NO_WINDOW`` and proxies the pipes. This keeps the GUI clean
+  without breaking JSON Lines IPC.
 """
 
 from PyInstaller.utils.hooks import collect_submodules
@@ -70,7 +72,7 @@ exe = EXE(
     a.scripts,
     [],
     exclude_binaries=True,
-    name='pixiv-pbd-api',
+    name='pixiv-pbd-api-worker',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,

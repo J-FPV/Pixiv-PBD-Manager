@@ -38,6 +38,7 @@ import type {
   SettingsPayload,
   SimilarResult,
   TabKey,
+  ThemeMode,
   UnmatchedFolder,
   UpdateResult
 } from "./types";
@@ -66,6 +67,11 @@ import { SimilarView } from "./components/SimilarView";
 import { UnmatchedView } from "./components/UnmatchedView";
 
 const INITIAL_UI_STATE = normalizedUiState();
+
+type EffectiveTheme = Exclude<ThemeMode, "system">;
+
+const readSystemTheme = (): EffectiveTheme =>
+  window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
 
 const settingsAutosaveSignature = (
   settings: AppSettings,
@@ -121,18 +127,34 @@ export default function App() {
   const [disclaimer, setDisclaimer] = useState<"accept" | "view" | null>(null);
   const [scanPreview, setScanPreview] = useState<ScanPreviewPayload | null>(null);
   const [toastMessage, setToastMessage] = useState("");
+  const [systemTheme, setSystemTheme] = useState<EffectiveTheme>(() => readSystemTheme());
   const toastTimerRef = useRef<number | null>(null);
   const settingsAutosaveReadyRef = useRef(false);
   const lastSettingsSignatureRef = useRef("");
   const settingsSaveSeqRef = useRef(0);
 
   const languageValue = settings.language || language;
+  const themeMode = settings.theme || "system";
+  const effectiveTheme: EffectiveTheme = themeMode === "system" ? systemTheme : themeMode;
 
   const appendLog = (level: LogEntry["level"], message: string) => {
     setLogs((current) => [...current.slice(-999), { id: Date.now() + Math.random(), level, message }]);
   };
   const handleEventRef = useRef<(event: ApiEvent) => void>(() => undefined);
   const appendLogRef = useRef<(level: LogEntry["level"], message: string) => void>(() => undefined);
+
+  useEffect(() => {
+    const media = window.matchMedia("(prefers-color-scheme: dark)");
+    const updateTheme = () => setSystemTheme(media.matches ? "dark" : "light");
+    updateTheme();
+    media.addEventListener("change", updateTheme);
+    return () => media.removeEventListener("change", updateTheme);
+  }, []);
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = effectiveTheme;
+    document.documentElement.style.colorScheme = effectiveTheme;
+  }, [effectiveTheme]);
 
   const taskRunner = useTaskRunner(languageValue, appendLog);
   const {

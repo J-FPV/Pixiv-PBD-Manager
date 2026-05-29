@@ -1,6 +1,7 @@
 import type { PathPickKind } from "./api";
 
 export type Language = "zh" | "en";
+export type ThemeMode = "system" | "light" | "dark";
 
 export const TAB_KEYS = ["artists", "unmatched", "similar", "settings", "logs"] as const;
 export type TabKey = typeof TAB_KEYS[number];
@@ -81,6 +82,7 @@ export interface ScanApplyPayload {
 
 export interface AppSettings {
   language?: Language;
+  theme?: ThemeMode;
   database?: string;
   download_roots?: string[];
   download_roots_textarea_height?: number;

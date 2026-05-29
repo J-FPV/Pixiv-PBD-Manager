@@ -10,8 +10,67 @@
   --accent: #0f9f6e;
   --accent-strong: #067a53;
   --danger: #c43838;
+  --danger-strong: #9f2d2d;
   --warn: #95680b;
+  --input-bg: #ffffff;
+  --button-active: #e7ecf1;
+  --row-border: #eef1f4;
+  --row-hover: #f4faf7;
+  --row-checked: #e9f7f1;
+  --subtle-row: #f7f8fa;
+  --accent-soft: #eef8f3;
+  --progress-bg: #dfe7ee;
+  --preview-bg: #111820;
+  --preview-text: #d9e2ec;
+  --preview-error: #ffd6d6;
+  --modal-overlay: rgba(15, 23, 32, 0.4);
+  --toast-bg: #e9f7f1;
+  --toast-border: #b8dfcf;
+  --log-bg: #101820;
+  --log-text: #dbe7ef;
+  --log-warn: #f2c94c;
+  --log-error: #ff7b7b;
   --shadow: 0 1px 2px rgba(20, 30, 40, 0.08);
+  --shadow-popover: 0 14px 34px rgba(20, 30, 40, 0.18);
+  --shadow-modal: 0 12px 40px rgba(20, 30, 40, 0.25);
+  --shadow-toast: 0 10px 28px rgba(20, 30, 40, 0.18);
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0f141a;
+  --surface: #171d24;
+  --surface-muted: #202832;
+  --line: #2d3743;
+  --text: #e6edf3;
+  --muted: #9aa7b3;
+  --accent: #13a875;
+  --accent-strong: #68d8a8;
+  --danger: #d05252;
+  --danger-strong: #a83a3a;
+  --warn: #f1b85b;
+  --input-bg: #12171d;
+  --button-active: #27313c;
+  --row-border: #242c35;
+  --row-hover: #162a24;
+  --row-checked: #123c2d;
+  --subtle-row: #1c242d;
+  --accent-soft: #183b2d;
+  --progress-bg: #2b3540;
+  --preview-bg: #05080c;
+  --preview-text: #dbe7ef;
+  --preview-error: #ffc7c7;
+  --modal-overlay: rgba(0, 0, 0, 0.58);
+  --toast-bg: #123c2d;
+  --toast-border: #1f7a58;
+  --log-bg: #080d13;
+  --log-text: #dbe7ef;
+  --log-warn: #f5c25b;
+  --log-error: #ff8b8b;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.28);
+  --shadow-popover: 0 16px 38px rgba(0, 0, 0, 0.45);
+  --shadow-modal: 0 16px 46px rgba(0, 0, 0, 0.5);
+  --shadow-toast: 0 12px 30px rgba(0, 0, 0, 0.38);
 }
 
 * {
@@ -143,13 +202,13 @@ footer {
 .button.primary {
   border-color: var(--accent);
   background: var(--accent);
-  color: white;
+  color: #ffffff;
 }
 
 .button.danger {
   border-color: var(--danger);
   background: var(--danger);
-  color: white;
+  color: #ffffff;
 }
 
 .button.quiet {
@@ -158,7 +217,7 @@ footer {
 }
 
 .button:active:not(:disabled) {
-  background: #e7ecf1;
+  background: var(--button-active);
 }
 
 .button.primary:active:not(:disabled) {
@@ -166,7 +225,26 @@ footer {
 }
 
 .button.danger:active:not(:disabled) {
-  background: #9f2d2d;
+  background: var(--danger-strong);
+}
+
+.button.iconOnly {
+  width: 34px;
+  min-width: 34px;
+  padding: 0;
+  gap: 0;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .toolbarMenuWrap {
@@ -197,7 +275,7 @@ footer {
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--surface);
-  box-shadow: 0 14px 34px rgba(20, 30, 40, 0.18);
+  box-shadow: var(--shadow-popover);
 }
 
 .toolbarDropdown.alignRight {
@@ -308,7 +386,7 @@ footer {
   height: 8px;
   overflow: hidden;
   border-radius: 999px;
-  background: #dfe7ee;
+  background: var(--progress-bg);
 }
 
 .progressFill {
@@ -399,7 +477,7 @@ footer {
 
 .colHandle:hover::after,
 body.col-resizing .colHandle::after {
-  background: var(--accent, #2563eb);
+  background: var(--accent);
 }
 
 .colResizeOverlay {
@@ -412,7 +490,7 @@ body.col-resizing .colHandle::after {
 }
 
 .unmatchedRow:hover {
-  background: #f4faf7;
+  background: var(--row-hover);
 }
 
 .tableRow.pending {
@@ -495,18 +573,18 @@ body.col-resizing .colHandle::after {
   right: 0;
   height: 42px;
   border: 0;
-  border-bottom: 1px solid #eef1f4;
+  border-bottom: 1px solid var(--row-border);
   background: var(--surface);
   color: var(--text);
   text-align: left;
 }
 
 .tableRow:hover {
-  background: #f4faf7;
+  background: var(--row-hover);
 }
 
 .tableRow.checked {
-  background: #e9f7f1;
+  background: var(--row-checked);
 }
 
 .checkbox {
@@ -554,7 +632,7 @@ body.col-resizing .colHandle::after {
 
 .similarGroupRow {
   font-weight: 650;
-  background: #f7f8fa;
+  background: var(--subtle-row);
 }
 
 .similarGroupTitle {
@@ -566,7 +644,7 @@ body.col-resizing .colHandle::after {
 
 .similarGroupChevron {
   flex: 0 0 auto;
-  color: #52616f;
+  color: var(--muted);
   transition: transform 150ms ease, color 150ms ease;
 }
 
@@ -580,7 +658,7 @@ body.col-resizing .colHandle::after {
 
 .similarEntryRow {
   height: 76px;
-  color: #3e4c59;
+  color: var(--muted);
   cursor: default;
 }
 
@@ -592,13 +670,13 @@ body.col-resizing .colHandle::after {
   padding: 0;
   border: 1px solid var(--line);
   border-radius: 6px;
-  background: #f7f8fa;
+  background: var(--subtle-row);
   overflow: hidden;
 }
 
 .thumbnailButton:hover {
   border-color: var(--accent);
-  background: #eef8f3;
+  background: var(--accent-soft);
 }
 
 .thumbnailButton img {
@@ -671,7 +749,7 @@ body.col-resizing .colHandle::after {
   border: 1px solid var(--line);
   border-radius: 6px;
   color: var(--text);
-  background: var(--surface);
+  background: var(--input-bg);
 }
 
 .imagePreviewBody {
@@ -681,8 +759,8 @@ body.col-resizing .colHandle::after {
   min-height: 0;
   overflow: auto;
   border-radius: 8px;
-  background: #111820;
-  color: #d9e2ec;
+  background: var(--preview-bg);
+  color: var(--preview-text);
 }
 
 .imagePreviewBody img {
@@ -723,7 +801,7 @@ body.col-resizing .colHandle::after {
 
 .previewError {
   padding: 12px;
-  color: #ffd6d6;
+  color: var(--preview-error);
 }
 
 .segmented {
@@ -748,7 +826,7 @@ body.col-resizing .colHandle::after {
 
 .segmented button.active {
   background: var(--accent);
-  color: white;
+  color: #ffffff;
 }
 
 .summary {
@@ -783,7 +861,7 @@ body.col-resizing .colHandle::after {
   border-radius: 6px;
   padding: 7px 9px;
   color: var(--text);
-  background: #fff;
+  background: var(--input-bg);
 }
 
 .emptyState {
@@ -835,7 +913,7 @@ body.col-resizing .colHandle::after {
 }
 
 .settingsNav button:hover {
-  background: #e7ecf1;
+  background: var(--button-active);
 }
 
 .settingsNav button.active {
@@ -897,7 +975,7 @@ body.col-resizing .colHandle::after {
   border-radius: 6px;
   padding: 7px 9px;
   color: var(--text);
-  background: #fff;
+  background: var(--input-bg);
 }
 
 .fieldGrid textarea {
@@ -1020,7 +1098,7 @@ body.col-resizing .colHandle::after {
   inset: 0;
   display: grid;
   place-items: center;
-  background: rgba(15, 23, 32, 0.4);
+  background: var(--modal-overlay);
   z-index: 50;
 }
 
@@ -1033,7 +1111,7 @@ body.col-resizing .colHandle::after {
   border: 1px solid var(--line);
   border-radius: 10px;
   background: var(--surface);
-  box-shadow: 0 12px 40px rgba(20, 30, 40, 0.25);
+  box-shadow: var(--shadow-modal);
 }
 
 .modal h3 {
@@ -1055,7 +1133,7 @@ body.col-resizing .colHandle::after {
   border-radius: 6px;
   padding: 7px 9px;
   color: var(--text);
-  background: #fff;
+  background: var(--input-bg);
 }
 
 .modalActions {
@@ -1075,11 +1153,11 @@ body.col-resizing .colHandle::after {
   max-width: min(360px, calc(100vw - 36px));
   min-height: 38px;
   padding: 0 13px;
-  border: 1px solid #b8dfcf;
+  border: 1px solid var(--toast-border);
   border-radius: 7px;
-  background: #e9f7f1;
+  background: var(--toast-bg);
   color: var(--accent-strong);
-  box-shadow: 0 10px 28px rgba(20, 30, 40, 0.18);
+  box-shadow: var(--shadow-toast);
   font-size: 13px;
   font-weight: 600;
 }
@@ -1232,7 +1310,7 @@ body.col-resizing .colHandle::after {
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--surface);
-  box-shadow: 0 8px 28px rgba(20, 30, 40, 0.22);
+  box-shadow: var(--shadow-popover);
 }
 
 .contextMenu button {
@@ -1258,8 +1336,8 @@ body.col-resizing .colHandle::after {
   padding: 10px;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: #101820;
-  color: #dbe7ef;
+  background: var(--log-bg);
+  color: var(--log-text);
   font-family: Consolas, "Cascadia Mono", monospace;
   font-size: 13px;
 }
@@ -1270,9 +1348,9 @@ body.col-resizing .colHandle::after {
 }
 
 .logLine.warn {
-  color: #f2c94c;
+  color: var(--log-warn);
 }
 
 .logLine.error {
-  color: #ff7b7b;
+  color: var(--log-error);
 }

@@ -168,6 +168,8 @@ export function ScanPreviewModal({
                   <button
                     type="button"
                     className="button quiet scanOpenArtistButton"
+                    title={t(language, "openArtistPage")}
+                    aria-label={t(language, "openArtistPage")}
                     onClick={(event) => {
                       event.preventDefault();
                       event.stopPropagation();
@@ -175,7 +177,7 @@ export function ScanPreviewModal({
                     }}
                   >
                     <ExternalLink size={14} />
-                    <span>{t(language, "openArtistPage")}</span>
+                    <span className="srOnly">{t(language, "openArtistPage")}</span>
                   </button>
                 </div>
               ))}

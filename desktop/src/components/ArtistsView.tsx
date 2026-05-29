@@ -249,13 +249,18 @@ export function ArtistsView({
           {t(language, "scan")}
         </Button>
         <Button icon={<RefreshCw size={16} />} disabled={busy} onClick={checkUpdates}>
-          {t(language, "checkUpdates")}
+          {t(language, "checkUpdatesShort")}
         </Button>
         <Button icon={<Download size={16} />} disabled={busy} onClick={downloadUpdated}>
-          {t(language, "downloadUpdated")}
+          {t(language, "downloadUpdatedShort")}
         </Button>
         {selected.size ? (
-          <Button icon={<ExternalLink size={16} />} onClick={openSelected}>
+          <Button
+            icon={<ExternalLink size={16} />}
+            onClick={openSelected}
+            title={`${t(language, "openSelected")} (${selected.size})`}
+            iconOnly
+          >
             {t(language, "openSelected")}
           </Button>
         ) : null}
@@ -304,22 +309,21 @@ export function ArtistsView({
                 <Copy size={15} />
                 <span>{t(language, "copyUrls")}</span>
               </button>
-              <div className="toolbarMenuSeparator" />
-              <button
-                type="button"
-                className="dangerItem"
-                disabled={busy || selected.size === 0}
-                onClick={() => {
-                  removeSelectedArtists();
-                  setToolbarMenu(null);
-                }}
-              >
-                <Trash2 size={15} />
-                <span>{t(language, "removeSelectedArtists")}{selected.size ? ` (${selected.size})` : ""}</span>
-              </button>
             </div>
           ) : null}
         </div>
+        {selected.size ? (
+          <Button
+            icon={<Trash2 size={16} />}
+            disabled={busy}
+            onClick={removeSelectedArtists}
+            variant="danger"
+            title={`${t(language, "removeSelectedArtists")} (${selected.size})`}
+            iconOnly
+          >
+            {t(language, "removeSelectedArtists")}
+          </Button>
+        ) : null}
       </div>
 
       <div className="table artistsTable" style={tableStyle}>

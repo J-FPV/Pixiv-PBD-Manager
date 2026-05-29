@@ -3,6 +3,7 @@ import type { AppSettings } from "./types";
 // Default settings used when the backend has not yet returned a settings.get payload.
 export const DEFAULT_SETTINGS: AppSettings = {
   language: "zh",
+  theme: "system",
   database: ".pixiv-pbd-manager/artists.json",
   download_roots: [],
   exclude_roots: [],
