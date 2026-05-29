@@ -87,7 +87,7 @@ export function ArtistsView({
   openPath: (path: string) => void;
 }) {
   const [menu, setMenu] = useState<{ x: number; y: number; artistId: string } | null>(null);
-  const [toolbarMenu, setToolbarMenu] = useState<"select" | "more" | null>(null);
+  const [toolbarMenu, setToolbarMenu] = useState<"more" | null>(null);
   const [sortKey, setSortKey] = useState<ArtistSortKey>("id");
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
   const { gridTemplate, leftHandle, rightHandle, overlay } = useColumnWidths<ArtistColumn>(
@@ -196,6 +196,16 @@ export function ArtistsView({
     estimateSize: () => 42,
     overscan: 14
   });
+  const visibleIds = visibleArtists.map((artist) => artist.id);
+  const hasVisibleArtists = visibleIds.length > 0;
+  const allVisibleSelected = hasVisibleArtists && visibleIds.every((id) => selected.has(id));
+  const toggleVisibleSelection = () => {
+    if (allVisibleSelected) {
+      clearAll();
+      return;
+    }
+    selectAll(visibleIds);
+  };
 
   return (
     <section className="panel">
@@ -209,42 +219,15 @@ export function ArtistsView({
             </button>
           ) : null}
         </div>
-        <div className="toolbarMenuWrap">
-          <button
-            type="button"
-            className="button toolbarMenuButton"
-            onClick={() => setToolbarMenu((current) => (current === "select" ? null : "select"))}
-            aria-expanded={toolbarMenu === "select"}
-          >
-            <CheckSquare size={16} />
-            <span>{t(language, "selection")}{selected.size ? ` (${selected.size})` : ""}</span>
-            <ChevronDown className={`toolbarChevron${toolbarMenu === "select" ? " open" : ""}`} size={15} />
-          </button>
-          {toolbarMenu === "select" ? (
-            <div className="toolbarDropdown">
-              <button
-                type="button"
-                onClick={() => {
-                  selectAll(visibleArtists.map((artist) => artist.id));
-                  setToolbarMenu(null);
-                }}
-              >
-                <CheckSquare size={15} />
-                <span>{t(language, "selectAll")}</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  clearAll();
-                  setToolbarMenu(null);
-                }}
-              >
-                <Square size={15} />
-                <span>{t(language, "clearAll")}{selected.size ? ` (${selected.size})` : ""}</span>
-              </button>
-            </div>
-          ) : null}
-        </div>
+        <Button
+          icon={allVisibleSelected ? <Square size={16} /> : <CheckSquare size={16} />}
+          disabled={!hasVisibleArtists}
+          onClick={toggleVisibleSelection}
+        >
+          {allVisibleSelected
+            ? `${t(language, "clearAll")}${selected.size ? ` (${selected.size})` : ""}`
+            : t(language, "selectAll")}
+        </Button>
         <Button icon={<Play size={16} />} disabled={busy} onClick={scan} variant="primary">
           {t(language, "scan")}
         </Button>
@@ -358,16 +341,10 @@ export function ArtistsView({
                   <span
                     className={`pathText pathCell ${artist.save_paths.length ? "clickablePath" : ""}`}
                     title={artist.save_paths[0] || ""}
-                    onClick={(event) => {
-                      if (!artist.save_paths[0]) {
-                        return;
-                      }
-                      event.stopPropagation();
-                      openPath(artist.save_paths[0]);
-                    }}
                     onDoubleClick={(event) => {
                       if (artist.save_paths[0]) {
                         event.stopPropagation();
+                        openPath(artist.save_paths[0]);
                       }
                     }}
                   >
