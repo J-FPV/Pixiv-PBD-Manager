@@ -1,6 +1,7 @@
 import { t } from "../i18n";
 import type { Language } from "../types";
 import { Button } from "./Button";
+import { ModalOverlay } from "./ModalOverlay";
 
 export function DisclaimerModal({
   language,
@@ -14,7 +15,7 @@ export function DisclaimerModal({
   onClose: () => void;
 }) {
   return (
-    <div className="modalOverlay" onClick={onClose}>
+    <ModalOverlay onClose={onClose}>
       <div className="modal disclaimerModal" onClick={(event) => event.stopPropagation()}>
         <h3>{t(language, "disclaimerTitle")}</h3>
         <div className="disclaimerBody">{t(language, "disclaimerBody")}</div>
@@ -33,6 +34,6 @@ export function DisclaimerModal({
           )}
         </div>
       </div>
-    </div>
+    </ModalOverlay>
   );
 }

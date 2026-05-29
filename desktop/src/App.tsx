@@ -951,6 +951,7 @@ export default function App() {
           preview={scanPreview}
           onApply={applyScanChanges}
           onCancel={() => setScanPreview(null)}
+          openArtist={openArtist}
         />
       ) : null}
       {toastMessage ? (

@@ -116,8 +116,10 @@ footer {
   gap: 8px;
   align-items: center;
   min-width: 0;
-  overflow-x: auto;
+  overflow: visible;
   padding: 2px;
+  position: relative;
+  z-index: 20;
 }
 
 .toolbarSpacer {
@@ -165,6 +167,71 @@ footer {
 
 .button.danger:active:not(:disabled) {
   background: #9f2d2d;
+}
+
+.toolbarMenuWrap {
+  position: relative;
+  flex: 0 0 auto;
+}
+
+.toolbarMenuButton {
+  min-width: 0;
+}
+
+.toolbarChevron {
+  color: var(--muted);
+  transition: transform 150ms ease;
+}
+
+.toolbarChevron.open {
+  transform: rotate(180deg);
+}
+
+.toolbarDropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 60;
+  min-width: 190px;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: 0 14px 34px rgba(20, 30, 40, 0.18);
+}
+
+.toolbarDropdown.alignRight {
+  left: auto;
+  right: 0;
+}
+
+.toolbarDropdown button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 32px;
+  padding: 0 9px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.toolbarDropdown button:hover:not(:disabled) {
+  background: var(--surface-muted);
+}
+
+.toolbarDropdown button.dangerItem {
+  color: var(--danger);
+}
+
+.toolbarMenuSeparator {
+  height: 1px;
+  margin: 5px 2px;
+  background: var(--line);
 }
 
 .searchBox {
@@ -488,6 +555,27 @@ body.col-resizing .colHandle::after {
 .similarGroupRow {
   font-weight: 650;
   background: #f7f8fa;
+}
+
+.similarGroupTitle {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+}
+
+.similarGroupChevron {
+  flex: 0 0 auto;
+  color: #52616f;
+  transition: transform 150ms ease, color 150ms ease;
+}
+
+.similarGroupRow:hover .similarGroupChevron {
+  color: var(--accent);
+}
+
+.similarGroupRow.expanded .similarGroupChevron {
+  transform: rotate(90deg);
 }
 
 .similarEntryRow {
@@ -1080,7 +1168,7 @@ body.col-resizing .colHandle::after {
 
 .scanChangeRow {
   display: grid;
-  grid-template-columns: 22px 96px 1fr;
+  grid-template-columns: 22px 96px minmax(0, 1fr) auto;
   gap: 10px;
   align-items: center;
   padding: 6px 4px;
@@ -1122,6 +1210,11 @@ body.col-resizing .colHandle::after {
 
 .scanChangeDetail.warning {
   color: var(--warn);
+}
+
+.scanOpenArtistButton {
+  min-height: 30px;
+  padding: 0 8px;
 }
 
 .menuOverlay {

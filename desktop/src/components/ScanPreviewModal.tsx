@@ -1,18 +1,22 @@
 import { useState } from "react";
+import { ExternalLink } from "lucide-react";
 import { t } from "../i18n";
 import type { Language, ScanChange, ScanChangeKind, ScanPreviewPayload } from "../types";
 import { Button } from "./Button";
+import { ModalOverlay } from "./ModalOverlay";
 
 export function ScanPreviewModal({
   language,
   preview,
   onApply,
-  onCancel
+  onCancel,
+  openArtist
 }: {
   language: Language;
   preview: ScanPreviewPayload;
   onApply: (operations: ScanChange[]) => void;
   onCancel: () => void;
+  openArtist: (artistId: string) => void;
 }) {
   // Default-on for additions, default-off for mutations of existing data — that
   // preserves "rule A": never silently overwrite a manually-set name or path.
@@ -114,7 +118,7 @@ export function ScanPreviewModal({
   };
 
   return (
-    <div className="modalOverlay" onClick={onCancel}>
+    <ModalOverlay onClose={onCancel}>
       <div className="modal scanPreviewModal" onClick={(event) => event.stopPropagation()}>
         <h3>{t(language, "scanPreviewTitle")}</h3>
         <p className="fieldHint">{t(language, "scanPreviewSummary")}</p>
@@ -140,15 +144,40 @@ export function ScanPreviewModal({
                 </button>
               </div>
               {group.items.map((change) => (
-                <label key={change.id} className="scanChangeRow">
+                <div
+                  key={change.id}
+                  className="scanChangeRow"
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => toggle(change.id)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      toggle(change.id);
+                    }
+                  }}
+                >
                   <input
                     type="checkbox"
                     checked={!!selected[change.id]}
+                    onClick={(event) => event.stopPropagation()}
                     onChange={() => toggle(change.id)}
                   />
                   <span className="scanChangeId">{change.artist_id}</span>
                   <div className="scanChangeMain">{renderDetail(change)}</div>
-                </label>
+                  <button
+                    type="button"
+                    className="button quiet scanOpenArtistButton"
+                    onClick={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      openArtist(change.artist_id);
+                    }}
+                  >
+                    <ExternalLink size={14} />
+                    <span>{t(language, "openArtistPage")}</span>
+                  </button>
+                </div>
               ))}
             </div>
           ))}
@@ -160,6 +189,6 @@ export function ScanPreviewModal({
           </Button>
         </div>
       </div>
-    </div>
+    </ModalOverlay>
   );
 }

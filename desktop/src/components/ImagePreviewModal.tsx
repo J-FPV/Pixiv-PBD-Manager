@@ -4,6 +4,7 @@ import { runGuiApi } from "../api";
 import { t } from "../i18n";
 import type { ImageDifferencePayload, ImageThumbnailPayload, Language } from "../types";
 import { Button } from "./Button";
+import { ModalOverlay } from "./ModalOverlay";
 import { thumbnailCache } from "./thumbnailCache";
 
 type PreviewMode = "image" | "difference";
@@ -106,7 +107,7 @@ export function ImagePreviewModal({
   const loadingText = mode === "difference" ? t(language, "loadingDifference") : t(language, "loadingPreview");
 
   return (
-    <div className="modalOverlay" onClick={onClose}>
+    <ModalOverlay onClose={onClose}>
       <div className="modal imagePreviewModal" onClick={(event) => event.stopPropagation()}>
         <div className="previewTitleRow">
           <h3>{t(language, "preview")}</h3>
@@ -159,6 +160,6 @@ export function ImagePreviewModal({
           </div>
         </div>
       </div>
-    </div>
+    </ModalOverlay>
   );
 }

@@ -1,6 +1,7 @@
 import { t } from "../i18n";
 import type { ConfirmState, Language } from "../types";
 import { Button } from "./Button";
+import { ModalOverlay } from "./ModalOverlay";
 
 export function ConfirmModal({
   language,
@@ -17,7 +18,7 @@ export function ConfirmModal({
   };
 
   return (
-    <div className="modalOverlay" onClick={onClose}>
+    <ModalOverlay onClose={onClose}>
       <div className="modal confirmModal" onClick={(event) => event.stopPropagation()}>
         <h3>{state.title}</h3>
         <div className="confirmBody">{state.body}</div>
@@ -28,6 +29,6 @@ export function ConfirmModal({
           </Button>
         </div>
       </div>
-    </div>
+    </ModalOverlay>
   );
 }

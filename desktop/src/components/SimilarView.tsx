@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState } from "react";
 import type { CSSProperties, RefObject } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { Image as ImageIcon } from "lucide-react";
+import { ChevronRight, Image as ImageIcon } from "lucide-react";
 import { browsePath } from "../api";
 import { SIMILAR_COL_WIDTHS_KEY } from "../constants";
 import { useColumnWidths } from "../hooks/useColumnWidths";
@@ -231,12 +231,16 @@ export function SimilarView({
                   const isExpanded = expanded.has(item.group.id);
                   return (
                     <button
-                      className="tableRow similarGroupRow"
+                      className={`tableRow similarGroupRow${isExpanded ? " expanded" : ""}`}
                       key={`group-${item.group.id}`}
                       style={{ transform: `translateY(${row.start}px)` }}
                       onClick={() => toggleGroup(item.group.id)}
+                      aria-expanded={isExpanded}
                     >
-                      <span>{isExpanded ? "v" : ">"} {t(language, "group")} {item.group.id}</span>
+                      <span className="similarGroupTitle">
+                        <ChevronRight className="similarGroupChevron" size={17} aria-hidden="true" />
+                        <span>{t(language, "group")} {item.group.id}</span>
+                      </span>
                       <span>{t(language, item.group.kind === "exact" ? "exact" : item.group.kind)}</span>
                       <span />
                       <span>{item.group.entries.length} files, pHash {item.group.best_phash_distance}, dHash {item.group.best_dhash_distance}</span>

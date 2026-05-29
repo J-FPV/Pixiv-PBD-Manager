@@ -3,6 +3,7 @@ import { browsePath } from "../api";
 import { t } from "../i18n";
 import type { Language, PromptState } from "../types";
 import { Button } from "./Button";
+import { ModalOverlay } from "./ModalOverlay";
 
 export function PromptModal({
   language,
@@ -23,7 +24,7 @@ export function PromptModal({
   };
 
   return (
-    <div className="modalOverlay" onClick={onClose}>
+    <ModalOverlay onClose={onClose}>
       <div className="modal" onClick={(event) => event.stopPropagation()}>
         <h3>{state.title}</h3>
         {state.fields.map((field, index) => (
@@ -64,6 +65,6 @@ export function PromptModal({
           </Button>
         </div>
       </div>
-    </div>
+    </ModalOverlay>
   );
 }

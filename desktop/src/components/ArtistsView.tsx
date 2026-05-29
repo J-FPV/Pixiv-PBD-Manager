@@ -2,11 +2,13 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, MouseEvent as ReactMouseEvent } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import {
+  ChevronDown,
   CheckSquare,
   Copy,
   Download,
   ExternalLink,
   FolderOpen,
+  MoreHorizontal,
   Pencil,
   Play,
   Plus,
@@ -85,6 +87,7 @@ export function ArtistsView({
   openPath: (path: string) => void;
 }) {
   const [menu, setMenu] = useState<{ x: number; y: number; artistId: string } | null>(null);
+  const [toolbarMenu, setToolbarMenu] = useState<"select" | "more" | null>(null);
   const [sortKey, setSortKey] = useState<ArtistSortKey>("id");
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
   const { gridTemplate, leftHandle, rightHandle, overlay } = useColumnWidths<ArtistColumn>(
@@ -176,6 +179,17 @@ export function ArtistsView({
     }
   }, [filter, sortDirection, sortKey]);
 
+  useEffect(() => {
+    const closeToolbarMenu = (event: PointerEvent) => {
+      const target = event.target;
+      if (!(target instanceof Element) || !target.closest(".toolbarMenuWrap")) {
+        setToolbarMenu(null);
+      }
+    };
+    document.addEventListener("pointerdown", closeToolbarMenu);
+    return () => document.removeEventListener("pointerdown", closeToolbarMenu);
+  }, []);
+
   const virtualizer = useVirtualizer({
     count: visibleArtists.length,
     getScrollElement: () => parentRef.current,
@@ -195,37 +209,117 @@ export function ArtistsView({
             </button>
           ) : null}
         </div>
-        <Button icon={<CheckSquare size={16} />} onClick={() => selectAll(visibleArtists.map((artist) => artist.id))}>
-          {t(language, "selectAll")}
-        </Button>
-        <Button icon={<Square size={16} />} onClick={clearAll}>
-          {t(language, "clearAll")}{selected.size ? ` (${selected.size})` : ""}
-        </Button>
+        <div className="toolbarMenuWrap">
+          <button
+            type="button"
+            className="button toolbarMenuButton"
+            onClick={() => setToolbarMenu((current) => (current === "select" ? null : "select"))}
+            aria-expanded={toolbarMenu === "select"}
+          >
+            <CheckSquare size={16} />
+            <span>{t(language, "selection")}{selected.size ? ` (${selected.size})` : ""}</span>
+            <ChevronDown className={`toolbarChevron${toolbarMenu === "select" ? " open" : ""}`} size={15} />
+          </button>
+          {toolbarMenu === "select" ? (
+            <div className="toolbarDropdown">
+              <button
+                type="button"
+                onClick={() => {
+                  selectAll(visibleArtists.map((artist) => artist.id));
+                  setToolbarMenu(null);
+                }}
+              >
+                <CheckSquare size={15} />
+                <span>{t(language, "selectAll")}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  clearAll();
+                  setToolbarMenu(null);
+                }}
+              >
+                <Square size={15} />
+                <span>{t(language, "clearAll")}{selected.size ? ` (${selected.size})` : ""}</span>
+              </button>
+            </div>
+          ) : null}
+        </div>
         <Button icon={<Play size={16} />} disabled={busy} onClick={scan} variant="primary">
           {t(language, "scan")}
         </Button>
         <Button icon={<RefreshCw size={16} />} disabled={busy} onClick={checkUpdates}>
           {t(language, "checkUpdates")}
         </Button>
-        <Button icon={<RefreshCw size={16} />} disabled={busy || selected.size === 0} onClick={refreshArtistNames}>
-          {t(language, "refreshArtistNames")}{selected.size ? ` (${selected.size})` : ""}
-        </Button>
         <Button icon={<Download size={16} />} disabled={busy} onClick={downloadUpdated}>
           {t(language, "downloadUpdated")}
         </Button>
-        <Button icon={<Plus size={16} />} onClick={addArtist}>
-          {t(language, "addArtist")}
-        </Button>
-        <Button icon={<Copy size={16} />} onClick={copyUrls}>
-          {t(language, "copyUrls")}
-        </Button>
-        <Button icon={<ExternalLink size={16} />} onClick={openSelected}>
-          {t(language, "openSelected")}
-        </Button>
+        {selected.size ? (
+          <Button icon={<ExternalLink size={16} />} onClick={openSelected}>
+            {t(language, "openSelected")}
+          </Button>
+        ) : null}
         <span className="toolbarSpacer" />
-        <Button icon={<Trash2 size={16} />} disabled={busy || selected.size === 0} onClick={removeSelectedArtists} variant="danger">
-          {t(language, "removeSelectedArtists")}{selected.size ? ` (${selected.size})` : ""}
-        </Button>
+        <div className="toolbarMenuWrap">
+          <button
+            type="button"
+            className="button toolbarMenuButton"
+            onClick={() => setToolbarMenu((current) => (current === "more" ? null : "more"))}
+            aria-expanded={toolbarMenu === "more"}
+          >
+            <MoreHorizontal size={17} />
+            <span>{t(language, "moreActions")}</span>
+            <ChevronDown className={`toolbarChevron${toolbarMenu === "more" ? " open" : ""}`} size={15} />
+          </button>
+          {toolbarMenu === "more" ? (
+            <div className="toolbarDropdown alignRight">
+              <button
+                type="button"
+                onClick={() => {
+                  addArtist();
+                  setToolbarMenu(null);
+                }}
+              >
+                <Plus size={15} />
+                <span>{t(language, "addArtist")}</span>
+              </button>
+              <button
+                type="button"
+                disabled={busy || selected.size === 0}
+                onClick={() => {
+                  refreshArtistNames();
+                  setToolbarMenu(null);
+                }}
+              >
+                <RefreshCw size={15} />
+                <span>{t(language, "refreshArtistNames")}{selected.size ? ` (${selected.size})` : ""}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  copyUrls();
+                  setToolbarMenu(null);
+                }}
+              >
+                <Copy size={15} />
+                <span>{t(language, "copyUrls")}</span>
+              </button>
+              <div className="toolbarMenuSeparator" />
+              <button
+                type="button"
+                className="dangerItem"
+                disabled={busy || selected.size === 0}
+                onClick={() => {
+                  removeSelectedArtists();
+                  setToolbarMenu(null);
+                }}
+              >
+                <Trash2 size={15} />
+                <span>{t(language, "removeSelectedArtists")}{selected.size ? ` (${selected.size})` : ""}</span>
+              </button>
+            </div>
+          ) : null}
+        </div>
       </div>
 
       <div className="table artistsTable" style={tableStyle}>
