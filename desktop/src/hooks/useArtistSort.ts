@@ -49,7 +49,8 @@ export function useArtistSort(artists: Artist[], filter: string) {
       } else if (sortKey === "new_works") {
         result = left.new_works - right.new_works;
       } else {
-        result = lastSeenTimestamp(left.last_seen) - lastSeenTimestamp(right.last_seen);
+        // The "lastSeen" sort id is historical; it now orders by last update-check time.
+        result = lastSeenTimestamp(left.last_checked) - lastSeenTimestamp(right.last_checked);
       }
       if (result === 0) {
         result = left.id.localeCompare(right.id, undefined, { numeric: true });

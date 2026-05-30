@@ -5,6 +5,7 @@ import { CheckSquare, Square } from "lucide-react";
 import { ARTISTS_COL_WIDTHS_KEY } from "../constants";
 import { useColumnWidths } from "../hooks/useColumnWidths";
 import type { ColumnDef } from "../hooks/useColumnWidths";
+import { useNow } from "../hooks/useNow";
 import type { ArtistSortKey, SortDirection } from "../hooks/useArtistSort";
 import { t } from "../i18n";
 import type { Artist, Language } from "../types";
@@ -60,6 +61,8 @@ export function ArtistsTable({
     estimateSize: () => 42,
     overscan: 14
   });
+  // Re-render every 30s so the relative "last check" times stay current while idle.
+  const now = useNow(30_000);
 
   useEffect(() => {
     if (parentRef.current) {
@@ -129,7 +132,8 @@ export function ArtistsTable({
                 >
                   {artist.save_paths.join("; ")}
                 </span>
-                <span title={artist.last_seen}>{formatRelativeTime(language, artist.last_seen)}</span>
+                {/* The "lastSeen" column id is historical; it now shows the last update-check time. */}
+                <span title={artist.last_checked ?? ""}>{formatRelativeTime(language, artist.last_checked, now)}</span>
               </button>
             );
           })}
