@@ -1033,7 +1033,7 @@ body.col-resizing .colHandle::after {
 
 .fieldGrid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(220px, 1fr));
+  grid-template-columns: minmax(0, 1fr);
   gap: 16px;
   align-items: start;
 }
