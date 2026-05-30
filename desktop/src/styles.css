@@ -422,6 +422,12 @@ footer {
   flex-shrink: 0;
 }
 
+.taskPanelEmpty {
+  padding: 4px 2px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
 .footerProgress {
   flex: 1;
   min-width: 520px;

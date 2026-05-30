@@ -1,16 +1,17 @@
 import { useEffect, useRef, useState } from "react";
-import { ChevronDown, ChevronUp, Loader2, Pause, Play, XCircle } from "lucide-react";
+import { ChevronDown, ChevronUp, ListChecks, Loader2, Pause, Play, XCircle } from "lucide-react";
 import { t } from "../../i18n";
 import { TASK_LANES, type Language, type TaskLane } from "../../types";
 import type { LaneState } from "../../hooks/useTaskRunner";
 import { Button } from "../Button";
 import { ProgressLine } from "../ProgressLine";
 
-// Bottom-right task window. Collapsed it's a single chip ("扫描" / "2 个任务");
-// expanded it lists every running lane with its progress bar(s) and
-// pause/resume + cancel controls. It auto-expands the moment a second
-// concurrent task appears and auto-collapses once everything is idle; in
-// between it honours whatever the user toggled.
+// Bottom-right task window, always present. Collapsed it's a single chip:
+// "无任务" when idle, the task label / "N 个任务" when running. Clicking expands
+// a popover that lists every running lane with its progress bar(s) and
+// pause/resume + cancel controls (or an empty-state line when idle). It
+// auto-expands the moment a second concurrent task appears and auto-collapses
+// once everything is idle; in between it honours whatever the user toggled.
 export function TaskCenter({
   language,
   lanes,
@@ -28,6 +29,7 @@ export function TaskCenter({
 }) {
   const activeLanes = TASK_LANES.filter((lane) => lanes[lane].runningTask);
   const count = activeLanes.length;
+  const idle = count === 0;
   const [expanded, setExpanded] = useState(false);
   const previousCount = useRef(0);
 
@@ -40,17 +42,17 @@ export function TaskCenter({
     previousCount.current = count;
   }, [count]);
 
-  if (count === 0) {
-    return null;
-  }
-
-  const summary =
-    count > 1 ? t(language, "tasksRunning").replace("{count}", String(count)) : lanes[activeLanes[0]].runningTask ?? "";
+  const summary = idle
+    ? t(language, "noTasks")
+    : count > 1
+      ? t(language, "tasksRunning").replace("{count}", String(count))
+      : lanes[activeLanes[0]].runningTask ?? "";
 
   return (
     <div className="taskCenter">
       {expanded ? (
         <div className="taskPanel">
+          {idle ? <div className="taskPanelEmpty">{t(language, "noTasks")}</div> : null}
           {activeLanes.map((lane) => {
             const { paused, taskProgress } = lanes[lane];
             return (
@@ -81,7 +83,7 @@ export function TaskCenter({
         </div>
       ) : null}
       <button className="taskCenterToggle" onClick={() => setExpanded((value) => !value)}>
-        <Loader2 size={15} className="spin" />
+        {idle ? <ListChecks size={15} /> : <Loader2 size={15} className="spin" />}
         <span className="taskCenterSummary">{summary}</span>
         {expanded ? <ChevronDown size={15} /> : <ChevronUp size={15} />}
       </button>

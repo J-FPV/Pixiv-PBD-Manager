@@ -85,18 +85,20 @@ export function ArtistsToolbar({
         refreshArtistNames={refreshArtistNames}
         copyUrls={copyUrls}
       />
-      {selected.size ? (
-        <Button
-          icon={<Trash2 size={16} />}
-          disabled={busy}
-          onClick={removeSelectedArtists}
-          variant="danger"
-          title={`${t(language, "removeSelectedArtists")} (${selected.size})`}
-          iconOnly
-        >
-          {t(language, "removeSelectedArtists")}
-        </Button>
-      ) : null}
+      <Button
+        icon={<Trash2 size={16} />}
+        disabled={busy || selected.size === 0}
+        onClick={removeSelectedArtists}
+        variant="danger"
+        title={
+          selected.size
+            ? `${t(language, "removeSelectedArtists")} (${selected.size})`
+            : t(language, "removeSelectedArtists")
+        }
+        iconOnly
+      >
+        {t(language, "removeSelectedArtists")}
+      </Button>
     </div>
   );
 }
