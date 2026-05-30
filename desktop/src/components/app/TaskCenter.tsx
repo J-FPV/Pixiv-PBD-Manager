@@ -10,8 +10,8 @@ import { ProgressLine } from "../ProgressLine";
 // "无任务" when idle, the task label / "N 个任务" when running. Clicking expands
 // a popover that lists every running lane with its progress bar(s) and
 // pause/resume + cancel controls (or an empty-state line when idle). It
-// auto-expands the moment a second concurrent task appears and auto-collapses
-// once everything is idle; in between it honours whatever the user toggled.
+// auto-expands whenever a new task starts and auto-collapses once everything is
+// idle; in between it honours whatever the user toggled.
 export function TaskCenter({
   language,
   lanes,
@@ -34,7 +34,7 @@ export function TaskCenter({
   const previousCount = useRef(0);
 
   useEffect(() => {
-    if (previousCount.current < 2 && count >= 2) {
+    if (count > previousCount.current) {
       setExpanded(true);
     } else if (count === 0) {
       setExpanded(false);
