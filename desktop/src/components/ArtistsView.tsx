@@ -24,8 +24,7 @@ export function ArtistsView({
   copyUrls,
   removeSelectedArtists,
   addArtist,
-  editArtistId,
-  editSavePath,
+  editArtist,
   removeArtist,
   openArtist,
   openPath
@@ -47,8 +46,7 @@ export function ArtistsView({
   copyUrls: () => void;
   removeSelectedArtists: () => void;
   addArtist: () => void;
-  editArtistId: (id: string) => void;
-  editSavePath: (id: string) => void;
+  editArtist: (id: string) => void;
   removeArtist: (id: string) => void;
   openArtist: (id: string) => void;
   openPath: (path: string) => void;
@@ -98,8 +96,7 @@ export function ArtistsView({
         <ArtistContextMenu
           menu={menu}
           language={language}
-          editArtistId={editArtistId}
-          editSavePath={editSavePath}
+          editArtist={editArtist}
           removeArtist={removeArtist}
           onClose={() => setMenu(null)}
         />

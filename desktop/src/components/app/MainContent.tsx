@@ -40,8 +40,7 @@ export function MainContent({
           copyUrls={artistActions.copyUrls}
           removeSelectedArtists={artistActions.removeSelectedArtists}
           addArtist={artistActions.addArtist}
-          editArtistId={artistActions.editArtistId}
-          editSavePath={artistActions.editSavePath}
+          editArtist={artistActions.editArtist}
           removeArtist={artistActions.removeArtist}
           openArtist={artistActions.openArtist}
           openPath={s.revealFile}

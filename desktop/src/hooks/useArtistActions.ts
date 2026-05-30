@@ -1,5 +1,5 @@
 import type { Dispatch, SetStateAction } from "react";
-import { browsePath, runGuiApi, setProjectRoot } from "../api";
+import { runGuiApi, setProjectRoot } from "../api";
 import { t } from "../i18n";
 import type {
   ApiEvent,
@@ -60,8 +60,7 @@ export interface ArtistActions {
   removeSelectedArtists: () => void;
   removeArtist: (id: string) => void;
   addArtist: () => void;
-  editArtistId: (oldId: string) => void;
-  editSavePath: (artistId: string) => void;
+  editArtist: (id: string) => void;
   openArtist: (id: string) => Promise<void>;
   toggleArtist: (id: string) => void;
 }
@@ -389,24 +388,48 @@ function addArtist(deps: ArtistActionsDeps): void {
   });
 }
 
-function editArtistId(deps: ArtistActionsDeps, oldId: string): void {
-  const { language: languageValue, settings, handleEvent, appendLog, setSelected, setPrompt, runTask } = deps;
-  if (!oldId) {
+function editArtist(deps: ArtistActionsDeps, artistId: string): void {
+  const { language: languageValue, settings, artists, handleEvent, appendLog, setSelected, setPrompt, runTask } = deps;
+  const artist = artists.find((item) => item.id === artistId);
+  if (!artist) {
     return;
   }
+  const originalPath = artist.save_paths[0] || "";
+  // One window for both fields: the ID is a plain input; the save path is
+  // typeable and gets a Browse button (PromptModal renders it for any field
+  // carrying ``browse``). On submit we rename and/or reset the save path,
+  // applying each only when it actually changed.
   setPrompt({
-    title: t(languageValue, "editArtistId"),
-    fields: [{ key: "new_id", label: t(languageValue, "artistId"), value: oldId }],
+    title: t(languageValue, "edit"),
+    fields: [
+      { key: "artist_id", label: t(languageValue, "artistId"), value: artist.id },
+      { key: "save_path", label: t(languageValue, "savePath"), value: originalPath, browse: "folder" }
+    ],
     onSubmit: (values) =>
-      void runTask("library", t(languageValue, "editArtistId"), async (signal) => {
-        const result = await runGuiApi<{ new_id: string; name: string }>(
-          "artists.rename",
-          { old_id: oldId, new_id: values.new_id, database: settings.database },
-          handleEvent,
-          { signal }
-        );
-        appendLog("info", `Renamed ${oldId} -> ${result.new_id}${result.name ? ` (${result.name})` : ""}`);
-        setSelected(new Set([result.new_id]));
+      void runTask("library", t(languageValue, "edit"), async (signal) => {
+        const newId = values.artist_id.trim();
+        const newPath = values.save_path.trim();
+        let currentId = artist.id;
+        if (newId && newId !== artist.id) {
+          const result = await runGuiApi<{ new_id: string; name: string }>(
+            "artists.rename",
+            { old_id: artist.id, new_id: newId, database: settings.database },
+            handleEvent,
+            { signal }
+          );
+          currentId = result.new_id;
+          appendLog("info", `Renamed ${artist.id} -> ${result.new_id}${result.name ? ` (${result.name})` : ""}`);
+        }
+        if (newPath && newPath !== originalPath) {
+          await runGuiApi(
+            "artists.set_save_path",
+            { artist_id: currentId, save_path: newPath, database: settings.database },
+            handleEvent,
+            { signal }
+          );
+          appendLog("info", `Save path set for ${currentId}: ${newPath}`);
+        }
+        setSelected(new Set([currentId]));
         await loadArtists(deps);
       })
   });
@@ -420,27 +443,6 @@ async function openArtist(deps: ArtistActionsDeps, id: string): Promise<void> {
   } catch (error) {
     appendLog("error", error instanceof Error ? error.message : String(error));
   }
-}
-
-function editSavePath(deps: ArtistActionsDeps, artistId: string): void {
-  const { language: languageValue, settings, handleEvent, appendLog, runTask } = deps;
-  void runTask("library", t(languageValue, "editSavePath"), async (signal) => {
-    if (!artistId) {
-      return;
-    }
-    const picked = await browsePath("folder");
-    if (!picked) {
-      return;
-    }
-    await runGuiApi(
-      "artists.set_save_path",
-      { artist_id: artistId, save_path: picked, database: settings.database },
-      handleEvent,
-      { signal }
-    );
-    appendLog("info", `Save path set for ${artistId}: ${picked}`);
-    await loadArtists(deps);
-  });
 }
 
 function toggleArtist(deps: ArtistActionsDeps, id: string): void {
@@ -470,8 +472,7 @@ export function useArtistActions(deps: ArtistActionsDeps): ArtistActions {
     removeSelectedArtists: () => removeSelectedArtists(deps),
     removeArtist: (id) => removeArtist(deps, id),
     addArtist: () => addArtist(deps),
-    editArtistId: (oldId) => editArtistId(deps, oldId),
-    editSavePath: (artistId) => editSavePath(deps, artistId),
+    editArtist: (id) => editArtist(deps, id),
     openArtist: (id) => openArtist(deps, id),
     toggleArtist: (id) => toggleArtist(deps, id)
   };
