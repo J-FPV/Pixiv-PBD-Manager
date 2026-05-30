@@ -1067,6 +1067,12 @@ body.col-resizing .colHandle::after {
   resize: vertical;
 }
 
+.fieldHelp {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
 .versionCard {
   display: flex;
   align-items: center;

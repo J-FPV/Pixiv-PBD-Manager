@@ -185,15 +185,18 @@ function describeDownload(language: Language, event: ProgressEvent): PipelineDes
     case PROGRESS_DOWNLOAD_ARTIST:
       return { logText: `Downloading: ${p.current}/${p.total} ${p.artist}`, progressUpdate: null };
     case PROGRESS_DOWNLOAD_WORK:
+      // ``main.current`` is preserved (advanced only by WORK_DONE's global_done)
+      // so concurrent tasks finishing out of order don't fight over the total
+      // bar. The per-slot bar is left to the FILE_* events below.
       return {
         logText: `Artwork: ${p.current}/${p.total} ${p.work_id}`,
         progressUpdate: (current) => ({
           main: {
             label: `${t(language, "totalProgress")}: ${String(p.artist ?? "")}`,
-            current: Math.max(0, numberValue(p.global_current) - 1),
+            current: current?.main.current ?? Math.max(0, numberValue(p.global_current) - 1),
             total: numberValue(p.global_total)
           },
-          file: current?.file
+          files: current?.files
         })
       };
     case PROGRESS_DOWNLOAD_WORK_DONE:
@@ -205,7 +208,7 @@ function describeDownload(language: Language, event: ProgressEvent): PipelineDes
             current: numberValue(p.global_done),
             total: numberValue(p.global_total)
           },
-          file: current?.file
+          files: current?.files
         })
       };
     case PROGRESS_DOWNLOAD_FILE_START:
@@ -215,12 +218,15 @@ function describeDownload(language: Language, event: ProgressEvent): PipelineDes
         logText: null,
         progressUpdate: (current) => ({
           main: current?.main || { label: t(language, "totalProgress"), current: 0, total: 0, indeterminate: true },
-          file: {
-            label: `${t(language, "currentFile")}: ${String(p.filename ?? p.work_id ?? "")}`,
-            current: numberValue(p.downloaded_bytes),
-            total: numberValue(p.total_bytes),
-            indeterminate: numberValue(p.total_bytes) === 0 && event.key !== PROGRESS_DOWNLOAD_FILE_DONE,
-            speedBps: numberValue(p.speed_bps)
+          files: {
+            ...(current?.files ?? {}),
+            [numberValue(p.slot)]: {
+              label: `${t(language, "currentFile")}: ${String(p.filename ?? p.work_id ?? "")}`,
+              current: numberValue(p.downloaded_bytes),
+              total: numberValue(p.total_bytes),
+              indeterminate: numberValue(p.total_bytes) === 0 && event.key !== PROGRESS_DOWNLOAD_FILE_DONE,
+              speedBps: numberValue(p.speed_bps)
+            }
           }
         })
       };

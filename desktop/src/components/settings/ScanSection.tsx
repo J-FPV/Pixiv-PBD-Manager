@@ -58,6 +58,7 @@ export function ScanSection({
             value={settings.scan_max_depth ?? -1}
             onChange={(event) => update("scan_max_depth", Number(event.target.value))}
           />
+          <small className="fieldHelp">{t(language, "scanMaxDepthHint")}</small>
         </label>
         <label>
           <span>{t(language, "updateCheckDepth")}</span>
@@ -67,6 +68,7 @@ export function ScanSection({
             value={settings.update_check_depth ?? 0}
             onChange={(event) => update("update_check_depth", Number(event.target.value))}
           />
+          <small className="fieldHelp">{t(language, "updateCheckDepthHint")}</small>
         </label>
         <label>
           <span>{t(language, "resolveLimit")}</span>
@@ -75,6 +77,7 @@ export function ScanSection({
             value={settings.resolve_limit ?? 3}
             onChange={(event) => update("resolve_limit", Number(event.target.value))}
           />
+          <small className="fieldHelp">{t(language, "resolveLimitHint")}</small>
         </label>
         <label>
           <span>{t(language, "fuzzyScore")}</span>
@@ -84,6 +87,7 @@ export function ScanSection({
             value={settings.fuzzy_min_score ?? 0.35}
             onChange={(event) => update("fuzzy_min_score", Number(event.target.value))}
           />
+          <small className="fieldHelp">{t(language, "fuzzyScoreHint")}</small>
         </label>
         <label>
           <span>{t(language, "updateCheckPages")}</span>
@@ -93,10 +97,9 @@ export function ScanSection({
             value={settings.update_check_pages ?? 0}
             onChange={(event) => update("update_check_pages", Math.max(0, Number(event.target.value) || 0))}
           />
+          <small className="fieldHelp">{t(language, "updateCheckPagesHint")}</small>
         </label>
       </div>
-      <p className="fieldHint">{t(language, "scanDepthHint")}</p>
-      <p className="fieldHint">{t(language, "updateCheckPagesHint")}</p>
     </div>
   );
 }

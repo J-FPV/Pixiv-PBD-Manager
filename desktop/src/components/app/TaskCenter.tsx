@@ -60,7 +60,11 @@ export function TaskCenter({
                 {taskProgress ? (
                   <div className="footerProgress">
                     <ProgressLine line={taskProgress.main} showPercent={showProgressPercent} />
-                    {taskProgress.file ? <ProgressLine line={taskProgress.file} showPercent={showProgressPercent} /> : null}
+                    {Object.entries(taskProgress.files ?? {})
+                      .sort(([a], [b]) => Number(a) - Number(b))
+                      .map(([slot, line]) => (
+                        <ProgressLine key={slot} line={line} showPercent={showProgressPercent} />
+                      ))}
                   </div>
                 ) : null}
                 <div className="taskPanelControls">

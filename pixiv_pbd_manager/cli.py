@@ -259,6 +259,7 @@ def cmd_download(args: argparse.Namespace) -> int:
             allow_insecure_ssl_fallback=not args.no_ssl_fallback,
             overwrite=args.overwrite,
             delay_seconds=args.delay,
+            download_concurrency=args.concurrency,
             separate_restricted=args.separate_r18,
         )
     except KeyError as exc:
@@ -406,6 +407,7 @@ def build_parser() -> argparse.ArgumentParser:
     download.add_argument("--no-ssl-fallback", action="store_true", help="do not retry with relaxed SSL verification on certificate errors")
     download.add_argument("--overwrite", action="store_true", help="overwrite existing files")
     download.add_argument("--delay", type=positive_float, default=0.3, help="seconds between image downloads")
+    download.add_argument("--concurrency", type=int, default=1, help="parallel artwork downloads, clamped to 1-5")
     download.add_argument(
         "--separate-r18",
         action="store_true",

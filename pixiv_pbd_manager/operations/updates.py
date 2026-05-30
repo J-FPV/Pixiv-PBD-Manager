@@ -6,6 +6,8 @@ pipeline (``_scan_pipeline``) is unrelated.
 
 from __future__ import annotations
 
+import queue
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -51,6 +53,80 @@ class DownloadUpdatesResult:
     ssl_fallback_used: int = 0
     artwork_results: list[ArtworkDownloadResult] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
+
+
+MAX_DOWNLOAD_CONCURRENCY = 5
+
+
+@dataclass(frozen=True)
+class _DownloadTask:
+    artist_id: str
+    artist_label: str
+    save_path: Path
+    work_id: str
+    work_index: int
+    artist_work_total: int
+    global_index: int
+    global_total: int
+
+
+@dataclass(frozen=True)
+class _DownloadTaskResult:
+    task: _DownloadTask
+    artwork: ArtworkDownloadResult
+    slot: int = 0
+
+
+def normalize_download_concurrency(value: int | None) -> int:
+    try:
+        parsed = int(value or 1)
+    except (TypeError, ValueError):
+        return 1
+    return max(1, min(MAX_DOWNLOAD_CONCURRENCY, parsed))
+
+
+def _download_one_task(
+    task: _DownloadTask,
+    *,
+    slot: int = 0,
+    pixiv_cookie: str | None,
+    allow_insecure_ssl_fallback: bool,
+    overwrite: bool,
+    delay_seconds: float,
+    separate_restricted: bool,
+    progress_callback: ProgressCallback | None,
+) -> _DownloadTaskResult:
+    # ``slot`` is this task's progress lane (0..concurrency-1) so the UI can show
+    # one bar per concurrent download. Every event this task emits carries it.
+    emit(
+        progress_callback,
+        PROGRESS_DOWNLOAD_WORK,
+        slot=slot,
+        current=task.work_index,
+        total=task.artist_work_total,
+        global_current=task.global_index,
+        global_total=task.global_total,
+        artist=task.artist_label,
+        work_id=task.work_id,
+    )
+
+    def artwork_progress(key: str, payload: dict[str, object]) -> None:
+        emit(progress_callback, key, artist=task.artist_label, slot=slot, **payload)
+
+    try:
+        artwork_result = downloader.download_artwork(
+            task.work_id,
+            task.save_path,
+            pixiv_cookie=pixiv_cookie,
+            allow_insecure_ssl_fallback=allow_insecure_ssl_fallback,
+            overwrite=overwrite,
+            delay_seconds=delay_seconds,
+            separate_restricted=separate_restricted,
+            progress_callback=artwork_progress,
+        )
+    except Exception as exc:  # pragma: no cover - defensive around external IO
+        artwork_result = ArtworkDownloadResult(work_id=task.work_id, error=str(exc))
+    return _DownloadTaskResult(task=task, artwork=artwork_result, slot=slot)
 
 
 def check_artist_updates(
@@ -114,6 +190,7 @@ def download_artist_updates(
     allow_insecure_ssl_fallback: bool = True,
     overwrite: bool = False,
     delay_seconds: float = 0.3,
+    download_concurrency: int = 1,
     separate_restricted: bool = False,
     progress_callback: ProgressCallback | None = None,
 ) -> DownloadUpdatesResult:
@@ -123,17 +200,30 @@ def download_artist_updates(
     downloadable_artists = [artist for artist in artists if artist.new_work_ids]
     total_works = sum(len(artist.new_work_ids) for artist in downloadable_artists)
     completed_works = 0
-    emit(progress_callback, PROGRESS_DOWNLOAD_START, artists=len(downloadable_artists), total_works=total_works)
+    concurrency = normalize_download_concurrency(download_concurrency)
+    emit(
+        progress_callback,
+        PROGRESS_DOWNLOAD_START,
+        artists=len(downloadable_artists),
+        total_works=total_works,
+        concurrency=concurrency,
+    )
+
+    tasks: list[_DownloadTask] = []
+    completed_by_artist: dict[str, set[str]] = {}
+    downloaded_artists: set[str] = set()
+    global_index = 0
 
     for artist_index, artist in enumerate(downloadable_artists, 1):
         if not artist.new_work_ids:
             continue
+        artist_label = artist.name or artist.id
         emit(
             progress_callback,
             PROGRESS_DOWNLOAD_ARTIST,
             current=artist_index,
             total=len(downloadable_artists),
-            artist=artist.name or artist.id,
+            artist=artist_label,
             works=len(artist.new_work_ids),
         )
         save_path = Path(artist.save_paths[0]) if artist.save_paths else None
@@ -144,65 +234,107 @@ def download_artist_updates(
             save_path = output_root / f"{artist.name or 'artist'}-{artist.id}"
         save_path.mkdir(parents=True, exist_ok=True)
 
-        artist_had_download = False
-        completed_work_ids: set[str] = set()
+        completed_by_artist[artist.id] = set()
         pending_work_ids = list(artist.new_work_ids)
         for work_index, work_id in enumerate(pending_work_ids, 1):
-            emit(
-                progress_callback,
-                PROGRESS_DOWNLOAD_WORK,
-                current=work_index,
-                total=len(pending_work_ids),
-                global_current=completed_works + 1,
-                global_total=total_works,
-                artist=artist.name or artist.id,
-                work_id=work_id,
-            )
-
-            def artwork_progress(key: str, payload: dict[str, object]) -> None:
-                emit(progress_callback, key, artist=artist.name or artist.id, **payload)
-
-            artwork_result = downloader.download_artwork(
-                work_id,
-                save_path,
-                pixiv_cookie=pixiv_cookie,
-                allow_insecure_ssl_fallback=allow_insecure_ssl_fallback,
-                overwrite=overwrite,
-                delay_seconds=delay_seconds,
-                separate_restricted=separate_restricted,
-                progress_callback=artwork_progress,
-            )
-            result.artwork_results.append(artwork_result)
-            if artwork_result.ssl_fallback_used:
-                result.ssl_fallback_used += 1
-            if artwork_result.error:
-                result.errors.append(f"{artist.id}/{work_id}: {artwork_result.error}")
-                emit(
-                    progress_callback,
-                    PROGRESS_DOWNLOAD_ERROR,
-                    artist=artist.name or artist.id,
-                    work_id=work_id,
-                    error=artwork_result.error,
+            global_index += 1
+            tasks.append(
+                _DownloadTask(
+                    artist_id=artist.id,
+                    artist_label=artist_label,
+                    save_path=save_path,
+                    work_id=str(work_id),
+                    work_index=work_index,
+                    artist_work_total=len(pending_work_ids),
+                    global_index=global_index,
+                    global_total=total_works,
                 )
-            else:
-                completed_work_ids.add(str(work_id))
-                result.artworks += 1
-                result.pages_saved += len(artwork_result.saved_files)
-                result.files_skipped += len(artwork_result.skipped_files)
-                artist_had_download = True
-            completed_works += 1
-            emit(
-                progress_callback,
-                PROGRESS_DOWNLOAD_WORK_DONE,
-                global_done=completed_works,
-                global_total=total_works,
-                artist=artist.name or artist.id,
-                work_id=work_id,
             )
 
+    def record_task(task_result: _DownloadTaskResult) -> None:
+        nonlocal completed_works
+        task = task_result.task
+        artwork_result = task_result.artwork
+        result.artwork_results.append(artwork_result)
+        if artwork_result.ssl_fallback_used:
+            result.ssl_fallback_used += 1
+        if artwork_result.error:
+            result.errors.append(f"{task.artist_id}/{task.work_id}: {artwork_result.error}")
+            emit(
+                progress_callback,
+                PROGRESS_DOWNLOAD_ERROR,
+                artist=task.artist_label,
+                work_id=task.work_id,
+                error=artwork_result.error,
+            )
+        else:
+            completed_by_artist.setdefault(task.artist_id, set()).add(str(task.work_id))
+            result.artworks += 1
+            result.pages_saved += len(artwork_result.saved_files)
+            result.files_skipped += len(artwork_result.skipped_files)
+            downloaded_artists.add(task.artist_id)
+        completed_works += 1
+        emit(
+            progress_callback,
+            PROGRESS_DOWNLOAD_WORK_DONE,
+            slot=task_result.slot,
+            global_done=completed_works,
+            global_total=total_works,
+            artist=task.artist_label,
+            work_id=task.work_id,
+        )
+
+    if concurrency <= 1 or len(tasks) <= 1:
+        for task in tasks:
+            record_task(
+                _download_one_task(
+                    task,
+                    slot=0,
+                    pixiv_cookie=pixiv_cookie,
+                    allow_insecure_ssl_fallback=allow_insecure_ssl_fallback,
+                    overwrite=overwrite,
+                    delay_seconds=delay_seconds,
+                    separate_restricted=separate_restricted,
+                    progress_callback=progress_callback,
+                )
+            )
+    else:
+        # A pool of slot ids (0..concurrency-1) gives each in-flight task a stable
+        # progress lane: a worker grabs a free slot, holds it for the whole task,
+        # and returns it on finish. The UI shows one bar per slot.
+        slot_pool: "queue.Queue[int]" = queue.Queue()
+        for slot_id in range(concurrency):
+            slot_pool.put(slot_id)
+
+        def run_with_slot(task: _DownloadTask) -> _DownloadTaskResult:
+            slot = slot_pool.get()
+            try:
+                return _download_one_task(
+                    task,
+                    slot=slot,
+                    pixiv_cookie=pixiv_cookie,
+                    allow_insecure_ssl_fallback=allow_insecure_ssl_fallback,
+                    overwrite=overwrite,
+                    delay_seconds=delay_seconds,
+                    separate_restricted=separate_restricted,
+                    progress_callback=progress_callback,
+                )
+            finally:
+                slot_pool.put(slot)
+
+        with ThreadPoolExecutor(max_workers=concurrency) as executor:
+            futures = [executor.submit(run_with_slot, task) for task in tasks]
+            for future in as_completed(futures):
+                record_task(future.result())
+
+    for artist in downloadable_artists:
+        completed_work_ids = completed_by_artist.get(artist.id) or set()
         if completed_work_ids:
+            save_path = Path(artist.save_paths[0]) if artist.save_paths else None
+            if not save_path and output_root:
+                save_path = output_root / f"{artist.name or 'artist'}-{artist.id}"
             artist.merge(work_ids=completed_work_ids, save_path=save_path)
-        if artist_had_download:
+        if artist.id in downloaded_artists:
             result.artists += 1
 
     db.save()

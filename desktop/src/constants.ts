@@ -9,6 +9,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   exclude_roots: [],
   delay: 1,
   limit: 10,
+  download_concurrency: 1,
   watch_interval: 30,
   resolve_online: true,
   resolve_limit: 3,

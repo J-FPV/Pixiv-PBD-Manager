@@ -13,6 +13,7 @@ from PIL import Image
 
 from pixiv_pbd_manager import gui_api
 from pixiv_pbd_manager.database import ArtistDatabase
+from pixiv_pbd_manager.operations.updates import DownloadUpdatesResult
 from pixiv_pbd_manager.resolver import PixivUserProfile
 
 
@@ -609,6 +610,28 @@ class GuiApiTests(unittest.TestCase):
                         self.assertEqual(events[-1]["type"], "result")
             finally:
                 os.chdir(old_cwd)
+
+    def test_updates_download_passes_download_concurrency(self):
+        with TemporaryDirectory() as tmp:
+            root = _isolate(tmp)
+            db_path = root / ".pixiv-pbd-manager" / "artists.json"
+            old_cwd = Path.cwd()
+            try:
+                os.chdir(root)
+                with patch(
+                    "pixiv_pbd_manager.gui_api.commands.updates.download_artist_updates",
+                    return_value=DownloadUpdatesResult(),
+                ) as download:
+                    exit_code, events = invoke(
+                        "updates.download",
+                        {"db_path": str(db_path), "artist_ids": [], "download_concurrency": 4},
+                    )
+            finally:
+                os.chdir(old_cwd)
+
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(events[-1]["type"], "result")
+        self.assertEqual(download.call_args.kwargs["download_concurrency"], 4)
 
 
 if __name__ == "__main__":

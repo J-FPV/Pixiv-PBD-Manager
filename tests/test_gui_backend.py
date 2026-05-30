@@ -1,11 +1,14 @@
 from pathlib import Path
 from tempfile import TemporaryDirectory
+import threading
+import time
 import unittest
 from unittest.mock import patch
 
 from pixiv_pbd_manager.database import ArtistDatabase
 from pixiv_pbd_manager.downloader import ArtworkDownloadResult
 from pixiv_pbd_manager.operations import check_artist_updates, download_artist_updates, scan_into_database
+from pixiv_pbd_manager.operations.updates import normalize_download_concurrency
 from pixiv_pbd_manager.resolver import PixivUserCandidate, PixivUserWorks, ResolvedArtist
 
 
@@ -202,6 +205,42 @@ class GuiBackendTests(unittest.TestCase):
             self.assertEqual(result.artworks, 1)
             self.assertIn("101", db.artists["123456"].work_ids)
             self.assertNotIn("101", db.artists["123456"].new_work_ids)
+
+    def test_download_artist_updates_can_run_parallel(self):
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp) / "downloads"
+            root.mkdir()
+            db_path = Path(tmp) / "artists.json"
+            db = ArtistDatabase.load(db_path)
+            db.upsert("123456", name="Artist", save_path=root, work_ids={"100"})
+            db.artists["123456"].new_work_ids = ["101", "102", "103", "104"]
+            db.save()
+            lock = threading.Lock()
+            active = 0
+            max_active = 0
+
+            def fake_download(work_id, save_path, **_kwargs):
+                nonlocal active, max_active
+                with lock:
+                    active += 1
+                    max_active = max(max_active, active)
+                time.sleep(0.05)
+                with lock:
+                    active -= 1
+                return ArtworkDownloadResult(work_id=str(work_id), saved_files=[str(Path(save_path) / f"{work_id}_p0.jpg")])
+
+            with patch("pixiv_pbd_manager.downloader.download_artwork", side_effect=fake_download):
+                result = download_artist_updates(db_path, download_concurrency=3)
+            db = ArtistDatabase.load(db_path)
+
+            self.assertGreaterEqual(max_active, 2)
+            self.assertEqual(result.artworks, 4)
+            self.assertEqual(db.artists["123456"].new_work_ids, [])
+
+    def test_download_concurrency_is_clamped(self):
+        self.assertEqual(normalize_download_concurrency(0), 1)
+        self.assertEqual(normalize_download_concurrency(3), 3)
+        self.assertEqual(normalize_download_concurrency(99), 5)
 
 
 if __name__ == "__main__":

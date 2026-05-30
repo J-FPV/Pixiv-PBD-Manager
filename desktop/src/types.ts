@@ -99,6 +99,7 @@ export interface AppSettings {
   user_data_dir?: string;
   delay?: number;
   limit?: number;
+  download_concurrency?: number;
   watch_interval?: number;
   resolve_online?: boolean;
   resolve_limit?: number;
@@ -267,7 +268,9 @@ export interface ProgressLineState {
 
 export interface TaskProgressState {
   main: ProgressLineState;
-  file?: ProgressLineState;
+  // Per-slot download bars, keyed by the backend's concurrency slot id. One
+  // entry per concurrent download; non-download tasks leave this unset.
+  files?: Record<number, ProgressLineState>;
 }
 
 export interface PromptField {

@@ -138,6 +138,19 @@ export function GeneralSection({
             <option value="py">py</option>
           </select>
         </label>
+        <label>
+          <span>{t(language, "downloadConcurrency")}</span>
+          <input
+            type="number"
+            min="1"
+            max="5"
+            value={settings.download_concurrency ?? 1}
+            onChange={(event) =>
+              update("download_concurrency", Math.min(5, Math.max(1, Math.round(Number(event.target.value) || 1))))
+            }
+          />
+          <small className="fieldHelp">{t(language, "downloadConcurrencyHint")}</small>
+        </label>
         <label className="full">
           <span>{t(language, "projectRoot")}</span>
           <div className="pathRow">

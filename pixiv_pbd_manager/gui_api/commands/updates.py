@@ -63,6 +63,7 @@ def download(payload: JsonDict, emit_event: Emitter) -> JsonDict:
         allow_insecure_ssl_fallback=as_bool(payload, "ssl_fallback", bool(settings.get("ssl_fallback", True))),
         overwrite=as_bool(payload, "overwrite", False),
         delay_seconds=as_float(payload, "delay", 0.3),
+        download_concurrency=as_int(payload, "download_concurrency", as_int(settings, "download_concurrency", 1)),
         separate_restricted=as_bool(payload, "separate_r18", bool(settings.get("separate_r18", False))),
         progress_callback=make_progress_callback(emit_event),
     )
