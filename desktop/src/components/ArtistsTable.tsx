@@ -8,6 +8,7 @@ import type { ColumnDef } from "../hooks/useColumnWidths";
 import type { ArtistSortKey, SortDirection } from "../hooks/useArtistSort";
 import { t } from "../i18n";
 import type { Artist, Language } from "../types";
+import { formatRelativeTime } from "../utils/format";
 import { ColumnResizeHandle } from "./ColumnResizeHandle";
 
 type ArtistColumn = "checkbox" | "id" | "name" | "works" | "newWorks" | "savePaths" | "lastSeen";
@@ -95,7 +96,7 @@ export function ArtistsTable({
         {sortHeader("works", "works", t(language, "works"), "center")}
         {sortHeader("new_works", "newWorks", t(language, "newWorks"), "center")}
         {plainHeader("savePaths", t(language, "savePaths"))}
-        {plainHeader("lastSeen", t(language, "lastSeen"))}
+        {sortHeader("lastSeen", "lastSeen", t(language, "lastSeen"))}
       </div>
       <div className="virtualList" ref={parentRef}>
         <div style={{ height: virtualizer.getTotalSize(), position: "relative" }}>
@@ -128,7 +129,7 @@ export function ArtistsTable({
                 >
                   {artist.save_paths.join("; ")}
                 </span>
-                <span>{artist.last_seen}</span>
+                <span title={artist.last_seen}>{formatRelativeTime(language, artist.last_seen)}</span>
               </button>
             );
           })}

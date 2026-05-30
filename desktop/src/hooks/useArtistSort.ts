@@ -1,7 +1,8 @@
 import { useMemo, useState } from "react";
 import type { Artist } from "../types";
+import { lastSeenTimestamp } from "../utils/format";
 
-export type ArtistSortKey = "id" | "name" | "works" | "new_works";
+export type ArtistSortKey = "id" | "name" | "works" | "new_works" | "lastSeen";
 export type SortDirection = "asc" | "desc";
 
 // Filters artists by the search keyword (id / name / save-path / folder name)
@@ -45,8 +46,10 @@ export function useArtistSort(artists: Artist[], filter: string) {
         result = left.name.localeCompare(right.name, undefined, { numeric: true, sensitivity: "base" });
       } else if (sortKey === "works") {
         result = left.works - right.works;
-      } else {
+      } else if (sortKey === "new_works") {
         result = left.new_works - right.new_works;
+      } else {
+        result = lastSeenTimestamp(left.last_seen) - lastSeenTimestamp(right.last_seen);
       }
       if (result === 0) {
         result = left.id.localeCompare(right.id, undefined, { numeric: true });
