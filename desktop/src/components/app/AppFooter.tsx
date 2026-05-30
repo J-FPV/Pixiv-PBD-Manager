@@ -1,6 +1,7 @@
 import { Pause, Play, XCircle } from "lucide-react";
 import { t } from "../../i18n";
-import type { Language, TaskProgressState } from "../../types";
+import { TASK_LANES, type Language, type TaskLane } from "../../types";
+import type { LaneState } from "../../hooks/useTaskRunner";
 import { Button } from "../Button";
 import { ProgressLine } from "../ProgressLine";
 
@@ -9,53 +10,57 @@ export function AppFooter({
   status,
   artistsCount,
   selectedCount,
-  runningTask,
-  paused,
-  taskProgress,
+  lanes,
   showProgressPercent,
-  resumeCurrentTask,
-  pauseCurrentTask,
-  cancelCurrentTask
+  resumeTask,
+  pauseTask,
+  cancelTask
 }: {
   language: Language;
   status: string;
   artistsCount: number;
   selectedCount: number;
-  runningTask: string | null;
-  paused: boolean;
-  taskProgress: TaskProgressState | null;
+  lanes: Record<TaskLane, LaneState>;
   showProgressPercent: boolean;
-  resumeCurrentTask: () => void;
-  pauseCurrentTask: () => void;
-  cancelCurrentTask: () => void;
+  resumeTask: (lane: TaskLane) => void;
+  pauseTask: (lane: TaskLane) => void;
+  cancelTask: (lane: TaskLane) => void;
 }) {
+  // One row per running lane, stacked so a library task and a similar task can
+  // show their own progress + controls at the same time.
+  const activeLanes = TASK_LANES.filter((lane) => lanes[lane].runningTask);
   return (
     <footer>
       <span>{t(language, "status")}: {status}</span>
       <span>{artistsCount} artists</span>
       <span>{selectedCount} selected</span>
-      {runningTask && taskProgress ? (
-        <div className="footerProgress">
-          <ProgressLine line={taskProgress.main} showPercent={showProgressPercent} />
-          {taskProgress.file ? <ProgressLine line={taskProgress.file} showPercent={showProgressPercent} /> : null}
-        </div>
-      ) : null}
-      {runningTask ? (
-        paused ? (
-          <Button icon={<Play size={16} />} onClick={resumeCurrentTask}>
-            {t(language, "resumeTask")}
-          </Button>
-        ) : (
-          <Button icon={<Pause size={16} />} onClick={pauseCurrentTask}>
-            {t(language, "pauseTask")}
-          </Button>
-        )
-      ) : null}
-      {runningTask ? (
-        <Button icon={<XCircle size={16} />} variant="danger" onClick={cancelCurrentTask}>
-          {t(language, "cancelTask")}
-        </Button>
-      ) : null}
+      <div className="footerTasks">
+        {activeLanes.map((lane) => {
+          const { paused, taskProgress } = lanes[lane];
+          return (
+            <div className="footerTask" key={lane}>
+              {taskProgress ? (
+                <div className="footerProgress">
+                  <ProgressLine line={taskProgress.main} showPercent={showProgressPercent} />
+                  {taskProgress.file ? <ProgressLine line={taskProgress.file} showPercent={showProgressPercent} /> : null}
+                </div>
+              ) : null}
+              {paused ? (
+                <Button icon={<Play size={16} />} onClick={() => resumeTask(lane)}>
+                  {t(language, "resumeTask")}
+                </Button>
+              ) : (
+                <Button icon={<Pause size={16} />} onClick={() => pauseTask(lane)}>
+                  {t(language, "pauseTask")}
+                </Button>
+              )}
+              <Button icon={<XCircle size={16} />} variant="danger" onClick={() => cancelTask(lane)}>
+                {t(language, "cancelTask")}
+              </Button>
+            </div>
+          );
+        })}
+      </div>
     </footer>
   );
 }

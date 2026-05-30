@@ -3,6 +3,13 @@ import type { PathPickKind } from "./api";
 export type Language = "zh" | "en";
 export type ThemeMode = "system" | "light" | "dark";
 
+// Independent task lanes. The library lane (scan / update-check / download /
+// name-refresh …) mutates the artist DB and/or hits Pixiv, so its tasks stay
+// serialized among themselves; the similar lane is local image hashing writing
+// a separate index, so it can run in parallel with the library lane.
+export type TaskLane = "library" | "similar";
+export const TASK_LANES: TaskLane[] = ["library", "similar"];
+
 export const TAB_KEYS = ["artists", "unmatched", "similar", "settings", "logs"] as const;
 export type TabKey = typeof TAB_KEYS[number];
 

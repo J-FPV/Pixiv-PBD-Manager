@@ -78,7 +78,7 @@ async function loadArtists(deps: ArtistActionsDeps): Promise<void> {
 function scan(deps: ArtistActionsDeps): void {
   const { language: languageValue, settings, handleEvent, appendLog, setUnmatchedFolders, setScanPreview, runTask } =
     deps;
-  void runTask(t(languageValue, "scan"), async (signal, registerControls) => {
+  void runTask("library", t(languageValue, "scan"), async (signal, registerControls) => {
     const result = await runGuiApi<ScanPreviewPayload>("scan.preview", settings, handleEvent, {
       signal,
       onStart: registerControls
@@ -196,7 +196,7 @@ function assignUnmatchedFolder(deps: ArtistActionsDeps, path: string): void {
         appendLog("error", t(languageValue, "invalidArtistId"));
         return;
       }
-      void runTask(t(languageValue, "assignArtist"), async (signal) => {
+      void runTask("library", t(languageValue, "assignArtist"), async (signal) => {
         const result = await runGuiApi<{ artist_id: string; name: string; save_path: string; work_ids: number }>(
           "artists.assign_folder",
           { artist_id: artistId, folder: path, database: settings.database },
@@ -218,7 +218,7 @@ function assignUnmatchedFolder(deps: ArtistActionsDeps, path: string): void {
 function checkUpdates(deps: ArtistActionsDeps): void {
   const { language: languageValue, settings, selected, handleEvent, appendLog, runTask } = deps;
   const selectedIds = Array.from(selected);
-  void runTask(t(languageValue, "checkUpdates"), async (signal, registerControls) => {
+  void runTask("library", t(languageValue, "checkUpdates"), async (signal, registerControls) => {
     const result = await runGuiApi<UpdateResult>(
       "updates.check",
       { ...settings, artist_ids: selectedIds },
@@ -240,7 +240,7 @@ function refreshArtistNames(deps: ArtistActionsDeps): void {
     appendLog("warn", t(languageValue, "noSelection"));
     return;
   }
-  void runTask(t(languageValue, "refreshArtistNames"), async (signal, registerControls) => {
+  void runTask("library", t(languageValue, "refreshArtistNames"), async (signal, registerControls) => {
     const result = await runGuiApi<ArtistNameRefreshResult>(
       "artists.refresh_names",
       { artist_ids: selectedIds, database: settings.database },
@@ -262,7 +262,7 @@ function refreshArtistNames(deps: ArtistActionsDeps): void {
 function downloadUpdated(deps: ArtistActionsDeps): void {
   const { language: languageValue, settings, selected, handleEvent, appendLog, runTask } = deps;
   const selectedIds = Array.from(selected);
-  void runTask(t(languageValue, "downloadUpdated"), async (signal, registerControls) => {
+  void runTask("library", t(languageValue, "downloadUpdated"), async (signal, registerControls) => {
     const result = await runGuiApi<DownloadResult>(
       "updates.download",
       { ...settings, artist_ids: selectedIds },
@@ -365,7 +365,7 @@ function addArtist(deps: ArtistActionsDeps): void {
       { key: "save_path", label: t(languageValue, "savePath"), value: "", browse: "folder" }
     ],
     onSubmit: (values) =>
-      void runTask(t(languageValue, "addArtist"), async (signal) => {
+      void runTask("library", t(languageValue, "addArtist"), async (signal) => {
         await runGuiApi(
           "artists.add",
           { artist_id: values.artist_id, name: values.name, save_path: values.save_path, database: settings.database },
@@ -387,7 +387,7 @@ function editArtistId(deps: ArtistActionsDeps, oldId: string): void {
     title: t(languageValue, "editArtistId"),
     fields: [{ key: "new_id", label: t(languageValue, "artistId"), value: oldId }],
     onSubmit: (values) =>
-      void runTask(t(languageValue, "editArtistId"), async (signal) => {
+      void runTask("library", t(languageValue, "editArtistId"), async (signal) => {
         const result = await runGuiApi<{ new_id: string; name: string }>(
           "artists.rename",
           { old_id: oldId, new_id: values.new_id, database: settings.database },
@@ -413,7 +413,7 @@ async function openArtist(deps: ArtistActionsDeps, id: string): Promise<void> {
 
 function editSavePath(deps: ArtistActionsDeps, artistId: string): void {
   const { language: languageValue, settings, handleEvent, appendLog, runTask } = deps;
-  void runTask(t(languageValue, "editSavePath"), async (signal) => {
+  void runTask("library", t(languageValue, "editSavePath"), async (signal) => {
     if (!artistId) {
       return;
     }

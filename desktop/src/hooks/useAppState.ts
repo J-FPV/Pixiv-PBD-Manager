@@ -76,7 +76,11 @@ export function useAppState() {
   const appendLogRef = useRef<(level: LogEntry["level"], message: string) => void>(() => undefined);
 
   const taskRunner = useTaskRunner(languageValue, appendLog);
-  const busy = taskRunner.runningTask !== null;
+  // Per-lane busy: the library lane gates scan/update/download buttons, the
+  // similar lane gates Find Similar, so the two can run at the same time.
+  const libraryBusy = taskRunner.lanes.library.runningTask !== null;
+  const similarBusy = taskRunner.lanes.similar.runningTask !== null;
+  const anyBusy = libraryBusy || similarBusy;
 
   const showToast = (message: string) => {
     setToastMessage(message);
@@ -90,9 +94,9 @@ export function useAppState() {
   };
 
   const handleEvent = (event: ApiEvent) => {
-    const { logText, progressUpdate } = describeProgressEvent(languageValue, event);
+    const { logText, progressUpdate, lane } = describeProgressEvent(languageValue, event);
     if (progressUpdate) {
-      taskRunner.setTaskProgress(progressUpdate);
+      taskRunner.setLaneProgress(lane, progressUpdate);
     }
     if (logText) {
       appendLog(event.type === "error" ? "error" : "info", logText);
@@ -120,7 +124,7 @@ export function useAppState() {
 
   return {
     ...taskRunner,
-    busy,
+    libraryBusy, similarBusy, anyBusy,
     language: languageValue,
     initialSimilarSkipPixivPages: INITIAL_UI_STATE.similarSkipPixivPages,
     appendLog, showToast, handleEvent, handleEventRef, appendLogRef, revealFile,

@@ -27,7 +27,7 @@ export function MainContent({
           artists={s.artists}
           selected={s.selected}
           filter={s.filter}
-          busy={s.busy}
+          busy={s.libraryBusy}
           setFilter={s.setFilter}
           toggleArtist={artistActions.toggleArtist}
           selectAll={(ids) => s.setSelected((current) => new Set([...current, ...ids]))}
@@ -62,7 +62,7 @@ export function MainContent({
           result={s.similarResult}
           threshold={s.settings.similar_threshold || "likely"}
           skipPixivPages={Boolean(s.settings.similar_skip_pixiv_pages)}
-          busy={s.busy}
+          busy={s.similarBusy}
           expanded={s.expandedGroups}
           roots={s.similarRoots}
           excludes={s.similarExcludes}
@@ -98,7 +98,7 @@ export function MainContent({
           openPath={s.revealFile}
           resetWindowLayout={() => void settingsActions.resetWindowLayout()}
           resetSettings={settingsActions.resetSettings}
-          busy={s.busy}
+          busy={s.anyBusy}
           notify={(message) => s.appendLog("warn", message)}
         />
       ) : null}

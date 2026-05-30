@@ -40,7 +40,7 @@ export function useSimilarActions(deps: SimilarActionsDeps): SimilarActions {
   } = deps;
 
   const findSimilar = () =>
-    runTask(t(languageValue, "findSimilar"), async (signal, registerControls) => {
+    runTask("similar", t(languageValue, "findSimilar"), async (signal, registerControls) => {
       setActiveTab("similar");
       const threshold = settings.similar_threshold || "likely";
       const result = await runGuiApi<SimilarResult>(

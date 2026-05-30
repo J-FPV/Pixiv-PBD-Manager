@@ -36,13 +36,11 @@ export default function App() {
         status={s.status}
         artistsCount={s.artists.length}
         selectedCount={s.selected.size}
-        runningTask={s.runningTask}
-        paused={s.paused}
-        taskProgress={s.taskProgress}
+        lanes={s.lanes}
         showProgressPercent={s.settings.show_progress_percent !== false}
-        resumeCurrentTask={s.resumeCurrentTask}
-        pauseCurrentTask={s.pauseCurrentTask}
-        cancelCurrentTask={s.cancelCurrentTask}
+        resumeTask={s.resumeTask}
+        pauseTask={s.pauseTask}
+        cancelTask={s.cancelTask}
       />
       <AppModals
         language={s.language}

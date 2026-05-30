@@ -28,7 +28,7 @@ import {
   PROGRESS_SIMILAR_START
 } from "../events";
 import { t } from "../i18n";
-import type { ApiEvent, Language, ProgressEvent, TaskProgressState } from "../types";
+import type { ApiEvent, Language, ProgressEvent, TaskLane, TaskProgressState } from "../types";
 import { numberValue } from "./format";
 
 // What a single API event tells the UI to do.
@@ -39,14 +39,23 @@ import { numberValue } from "./format";
 //
 // ``progressUpdate`` is the React setState reducer for the footer progress
 // bar; null means "leave the bar alone" (errors and non-progress events).
-// The reducer is the same shape setTaskProgress accepts, so the caller can
+// The reducer is the same shape setLaneProgress accepts, so the caller can
 // just pass it through.
-export interface ProgressEventDescriptor {
+//
+// ``lane`` says which task lane the event belongs to, so concurrent tasks
+// drive separate progress bars. The per-pipeline describers below don't set it
+// — the dispatcher attaches it from the pipeline that matched (similar events →
+// the similar lane, everything else → the library lane).
+type PipelineDescriptor = {
   logText: string | null;
   progressUpdate: ((current: TaskProgressState | null) => TaskProgressState | null) | null;
+};
+
+export interface ProgressEventDescriptor extends PipelineDescriptor {
+  lane: TaskLane;
 }
 
-const NOTHING: ProgressEventDescriptor = { logText: null, progressUpdate: null };
+const NOTHING: PipelineDescriptor = { logText: null, progressUpdate: null };
 
 // Each pipeline owns a describe* function below that switches over the event
 // keys it knows and returns ``null`` for everything else. describeProgressEvent
@@ -55,7 +64,7 @@ const NOTHING: ProgressEventDescriptor = { logText: null, progressUpdate: null }
 // short and lets a single event family be edited without scrolling past the
 // others.
 
-function describeScan(language: Language, event: ProgressEvent): ProgressEventDescriptor | null {
+function describeScan(language: Language, event: ProgressEvent): PipelineDescriptor | null {
   const p = event.payload;
   switch (event.key) {
     case PROGRESS_SCAN_START:
@@ -99,7 +108,7 @@ function describeScan(language: Language, event: ProgressEvent): ProgressEventDe
   }
 }
 
-function describeUpdateCheck(language: Language, event: ProgressEvent): ProgressEventDescriptor | null {
+function describeUpdateCheck(language: Language, event: ProgressEvent): PipelineDescriptor | null {
   const p = event.payload;
   switch (event.key) {
     case PROGRESS_CHECK_START:
@@ -127,7 +136,7 @@ function describeUpdateCheck(language: Language, event: ProgressEvent): Progress
   }
 }
 
-function describeRefreshNames(language: Language, event: ProgressEvent): ProgressEventDescriptor | null {
+function describeRefreshNames(language: Language, event: ProgressEvent): PipelineDescriptor | null {
   const p = event.payload;
   switch (event.key) {
     case PROGRESS_REFRESH_NAMES_START:
@@ -158,7 +167,7 @@ function describeRefreshNames(language: Language, event: ProgressEvent): Progres
   }
 }
 
-function describeDownload(language: Language, event: ProgressEvent): ProgressEventDescriptor | null {
+function describeDownload(language: Language, event: ProgressEvent): PipelineDescriptor | null {
   const p = event.payload;
   switch (event.key) {
     case PROGRESS_DOWNLOAD_START:
@@ -222,7 +231,7 @@ function describeDownload(language: Language, event: ProgressEvent): ProgressEve
   }
 }
 
-function describeSimilar(language: Language, event: ProgressEvent): ProgressEventDescriptor | null {
+function describeSimilar(language: Language, event: ProgressEvent): PipelineDescriptor | null {
   const p = event.payload;
   switch (event.key) {
     case PROGRESS_SIMILAR_START:
@@ -290,22 +299,34 @@ function describeSimilar(language: Language, event: ProgressEvent): ProgressEven
   }
 }
 
+// Maps each pipeline to its task lane. Order matters only for matching; the
+// describers return null for keys they don't own, so the first non-null wins.
+const PIPELINES: { lane: TaskLane; describe: (language: Language, event: ProgressEvent) => PipelineDescriptor | null }[] = [
+  { lane: "library", describe: describeScan },
+  { lane: "library", describe: describeUpdateCheck },
+  { lane: "library", describe: describeRefreshNames },
+  { lane: "library", describe: describeDownload },
+  { lane: "similar", describe: describeSimilar }
+];
+
 // Dispatcher: error/non-progress events resolve here, everything else is routed
 // to the pipeline describers above, with a raw JSON dump as the last resort.
+// The matched pipeline's lane is stamped onto the descriptor so concurrent
+// tasks drive their own progress bar.
 export function describeProgressEvent(language: Language, event: ApiEvent): ProgressEventDescriptor {
   if (event.type === "error") {
-    return { logText: `${t(language, "error")}: ${event.message}`, progressUpdate: null };
+    return { lane: "library", logText: `${t(language, "error")}: ${event.message}`, progressUpdate: null };
   }
   if (event.type !== "progress") {
-    return NOTHING;
+    return { lane: "library", ...NOTHING };
   }
-  return (
-    describeScan(language, event) ||
-    describeUpdateCheck(language, event) ||
-    describeRefreshNames(language, event) ||
-    describeDownload(language, event) ||
-    describeSimilar(language, event) || { logText: `${event.key}: ${JSON.stringify(event.payload)}`, progressUpdate: null }
-  );
+  for (const pipeline of PIPELINES) {
+    const descriptor = pipeline.describe(language, event);
+    if (descriptor) {
+      return { lane: pipeline.lane, ...descriptor };
+    }
+  }
+  return { lane: "library", logText: `${event.key}: ${JSON.stringify(event.payload)}`, progressUpdate: null };
 }
 
 // Thin convenience for callers that only want the progress side. Used by the
