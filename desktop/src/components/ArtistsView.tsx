@@ -26,6 +26,7 @@ export function ArtistsView({
   addArtist,
   editArtistId,
   editSavePath,
+  removeArtist,
   openArtist,
   openPath
 }: {
@@ -48,6 +49,7 @@ export function ArtistsView({
   addArtist: () => void;
   editArtistId: (id: string) => void;
   editSavePath: (id: string) => void;
+  removeArtist: (id: string) => void;
   openArtist: (id: string) => void;
   openPath: (path: string) => void;
 }) {
@@ -98,6 +100,7 @@ export function ArtistsView({
           language={language}
           editArtistId={editArtistId}
           editSavePath={editSavePath}
+          removeArtist={removeArtist}
           onClose={() => setMenu(null)}
         />
       ) : null}

@@ -58,6 +58,7 @@ export interface ArtistActions {
   openSelected: () => Promise<void>;
   copyUrls: () => Promise<void>;
   removeSelectedArtists: () => void;
+  removeArtist: (id: string) => void;
   addArtist: () => void;
   editArtistId: (oldId: string) => void;
   editSavePath: (artistId: string) => void;
@@ -313,24 +314,26 @@ async function copyUrls(deps: ArtistActionsDeps): Promise<void> {
   }
 }
 
-function removeSelectedArtists(deps: ArtistActionsDeps): void {
-  const { language: languageValue, settings, artists, selected, handleEvent, appendLog, showToast, setArtists, setSelected, setConfirm } =
+// Shared confirm+remove for both the multi-select toolbar action and the
+// single-artist context-menu delete. ``ids`` is whichever set to remove;
+// ``title`` labels the dialog (both currently resolve to "删除").
+function confirmRemoveArtists(deps: ArtistActionsDeps, ids: string[], title: string): void {
+  const { language: languageValue, settings, artists, handleEvent, appendLog, showToast, setArtists, setSelected, setConfirm } =
     deps;
-  const selectedIds = Array.from(selected);
-  if (!selectedIds.length) {
+  if (!ids.length) {
     appendLog("warn", t(languageValue, "noSelection"));
     return;
   }
-  const ids = [...selectedIds];
+  const idSet = new Set(ids);
   const names = artists
-    .filter((artist) => selected.has(artist.id))
+    .filter((artist) => idSet.has(artist.id))
     .slice(0, 8)
     .map((artist) => `${artist.name || artist.id} (${artist.id})`);
   const more = ids.length > names.length ? `\n... +${ids.length - names.length}` : "";
   setConfirm({
-    title: t(languageValue, "removeSelectedArtists"),
+    title,
     body: `${t(languageValue, "confirmRemoveArtists")}\n\n${names.join("\n")}${more}`,
-    confirmLabel: t(languageValue, "removeSelectedArtists"),
+    confirmLabel: title,
     onConfirm: async () => {
       try {
         const result = await runGuiApi<{ removed: number; artist_ids: string[] }>(
@@ -353,6 +356,14 @@ function removeSelectedArtists(deps: ArtistActionsDeps): void {
       }
     }
   });
+}
+
+function removeSelectedArtists(deps: ArtistActionsDeps): void {
+  confirmRemoveArtists(deps, Array.from(deps.selected), t(deps.language, "removeSelectedArtists"));
+}
+
+function removeArtist(deps: ArtistActionsDeps, artistId: string): void {
+  confirmRemoveArtists(deps, artistId ? [artistId] : [], t(deps.language, "removeSelectedArtists"));
 }
 
 function addArtist(deps: ArtistActionsDeps): void {
@@ -457,6 +468,7 @@ export function useArtistActions(deps: ArtistActionsDeps): ArtistActions {
     openSelected: () => openSelected(deps),
     copyUrls: () => copyUrls(deps),
     removeSelectedArtists: () => removeSelectedArtists(deps),
+    removeArtist: (id) => removeArtist(deps, id),
     addArtist: () => addArtist(deps),
     editArtistId: (oldId) => editArtistId(deps, oldId),
     editSavePath: (artistId) => editSavePath(deps, artistId),

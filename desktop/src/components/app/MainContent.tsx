@@ -42,6 +42,7 @@ export function MainContent({
           addArtist={artistActions.addArtist}
           editArtistId={artistActions.editArtistId}
           editSavePath={artistActions.editSavePath}
+          removeArtist={artistActions.removeArtist}
           openArtist={artistActions.openArtist}
           openPath={s.revealFile}
         />

@@ -1408,6 +1408,30 @@ body.col-resizing .colHandle::after {
   background: var(--surface-muted);
 }
 
+.contextMenu .menuChevron {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  color: var(--muted);
+}
+
+.contextMenu .submenuGroup {
+  display: flex;
+  flex-direction: column;
+  margin: 2px 0 2px 11px;
+  padding-left: 6px;
+  border-left: 2px solid var(--line);
+}
+
+.contextMenu button.menuDanger {
+  color: var(--danger);
+}
+
+.contextMenu button.menuDanger:hover {
+  background: var(--danger);
+  color: #fff;
+}
+
 .logPanel {
   display: block;
   overflow: auto;
