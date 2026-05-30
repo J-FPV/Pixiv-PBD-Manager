@@ -73,6 +73,8 @@ Typical flow:
 3. When the New column shows counts, click Download updated.
 4. If artists are selected, only those artists are downloaded. If none are selected, all artists with updates are downloaded.
 
+The "Download concurrency" setting (1–5, default 1) downloads several artworks at once; higher is faster but more likely to trigger Pixiv rate-limiting, so 1–2 is recommended. The task window shows a separate progress bar for each concurrent download.
+
 If you prefer PBD naming rules, filters, or extension behavior, use Open selected and let PBD handle the browser pages.
 
 ## Similar Images

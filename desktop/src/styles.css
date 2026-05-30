@@ -395,7 +395,7 @@ footer {
   position: absolute;
   right: 0;
   bottom: calc(100% + 8px);
-  width: min(680px, 78vw);
+  width: min(780px, 86vw);
   max-height: 50vh;
   overflow-y: auto;
   display: flex;
@@ -426,6 +426,11 @@ footer {
   padding: 4px 2px;
   color: var(--muted);
   font-size: 13px;
+}
+
+/* Slimmer bar/meter columns in the task panel so the filename label has room. */
+.taskPanel .progressLine {
+  grid-template-columns: minmax(0, 1fr) 150px 130px;
 }
 
 .footerProgress {

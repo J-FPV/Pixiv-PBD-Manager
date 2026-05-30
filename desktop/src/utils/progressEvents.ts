@@ -221,7 +221,7 @@ function describeDownload(language: Language, event: ProgressEvent): PipelineDes
           files: {
             ...(current?.files ?? {}),
             [numberValue(p.slot)]: {
-              label: `${t(language, "currentFile")}: ${String(p.filename ?? p.work_id ?? "")}`,
+              label: String(p.filename ?? p.work_id ?? ""),
               current: numberValue(p.downloaded_bytes),
               total: numberValue(p.total_bytes),
               indeterminate: numberValue(p.total_bytes) === 0 && event.key !== PROGRESS_DOWNLOAD_FILE_DONE,

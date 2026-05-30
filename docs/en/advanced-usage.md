@@ -79,6 +79,14 @@ If an artist has no save path, the CLI can use `--output-root` as a fallback. In
 
 The direct downloader does not use PBD naming rules or filters. Public artworks usually download directly; login-only, age-restricted, or hidden artworks may require a Pixiv cookie.
 
+## Parallel Download
+
+The "Download concurrency" setting controls how many artworks download at once (1–5, default 1). Update downloads run through a thread pool:
+
+- Higher values are faster but open more concurrent requests to Pixiv, which **makes rate-limiting or CAPTCHAs more likely** — 1–2 is recommended.
+- Besides the Total bar, the bottom-right task window shows one progress bar per concurrent slot, each tracking the image currently downloading on that slot (filename + bytes / speed).
+- The maximum is 5, clamped on both the client and the server.
+
 ## R-18 / R-18G Subfolder
 
 Settings can route restricted artworks into `[R-18&R-18G]` inside the artist folder.
