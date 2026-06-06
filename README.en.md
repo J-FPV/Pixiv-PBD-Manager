@@ -26,6 +26,7 @@ The installer includes the Python backend and dependencies. You do not need to i
 - Downloads newly detected artworks directly, or opens Pixiv pages for Powerful Pixiv Downloader.
 - Helps resolve old folders that contain artist names but no artist IDs.
 - Skips folders you add to the exclude list.
+- Marks favorite artists and organizes them with tags, including drag-to-assign and tag filtering.
 - Finds similar images across different file names, formats, and resolutions.
 - Supports thumbnail previews and difference-image comparison.
 - Supports Chinese / English UI switching.
@@ -76,6 +77,18 @@ Typical flow:
 The "Download concurrency" setting (1–5, default 1) downloads several artworks at once; higher is faster but more likely to trigger Pixiv rate-limiting, so 1–2 is recommended. The task window shows a separate progress bar for each concurrent download.
 
 If you prefer PBD naming rules, filters, or extension behavior, use Open selected and let PBD handle the browser pages.
+
+## Favorites And Tags
+
+The Artists page supports favorites and tags to help organize large libraries.
+
+- **Favorites**: click the star at the left of an artist row to toggle it (or use the right-click menu). The toolbar star button shows favorites only, and the star column is sortable.
+- **Tag bar**: a collapsible bar sits between the toolbar and the list. Click `+` to create a tag; each tag is auto-colored from its name.
+- **Tagging**: select one or more artists in the list, then drag them onto a tag to assign it in bulk. You can also type tags (comma-separated) in the Edit dialog.
+- **Filtering**: click tags to filter; multiple tags can be active at once (shows artists carrying any selected tag).
+- **Managing tags**: right-click a tag to rename or delete it; deleting removes the tag from every artist.
+
+Favorites and tags are stored in `artists.json` and never touch your local image files.
 
 ## Similar Images
 
