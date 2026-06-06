@@ -25,6 +25,7 @@ export function MainContent({
         <ArtistsView
           language={s.language}
           artists={s.artists}
+          artistTags={s.artistTags}
           selected={s.selected}
           filter={s.filter}
           busy={s.libraryBusy}
@@ -34,13 +35,21 @@ export function MainContent({
           clearAll={() => s.setSelected(new Set())}
           scan={artistActions.scan}
           checkUpdates={artistActions.checkUpdates}
+          checkArtistUpdates={artistActions.checkArtistUpdates}
           refreshArtistNames={artistActions.refreshArtistNames}
           downloadUpdated={artistActions.downloadUpdated}
+          downloadArtistUpdated={artistActions.downloadArtistUpdated}
           openSelected={artistActions.openSelected}
           copyUrls={artistActions.copyUrls}
+          copyArtistUrl={artistActions.copyArtistUrl}
           removeSelectedArtists={artistActions.removeSelectedArtists}
           addArtist={artistActions.addArtist}
           editArtist={artistActions.editArtist}
+          setFavorite={artistActions.setFavorite}
+          addTag={artistActions.addTag}
+          assignTag={artistActions.assignTag}
+          renameTag={artistActions.renameTag}
+          deleteTag={artistActions.deleteTag}
           removeArtist={artistActions.removeArtist}
           openArtist={artistActions.openArtist}
           openPath={s.revealFile}

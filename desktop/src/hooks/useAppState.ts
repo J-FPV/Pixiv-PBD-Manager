@@ -34,6 +34,7 @@ export function useAppState() {
   const [cookieConsent, setCookieConsent] = useState(false);
   const [pixivCookie, setPixivCookie] = useState("");
   const [artists, setArtists] = useState<Artist[]>([]);
+  const [artistTags, setArtistTags] = useState<string[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [filter, setFilter] = useState(INITIAL_UI_STATE.filter || "");
   const [logs, setLogs] = useState<LogEntry[]>([]);
@@ -130,7 +131,7 @@ export function useAppState() {
     appendLog, showToast, handleEvent, handleEventRef, appendLogRef, revealFile,
     activeTab, setActiveTab, settings, setSettings, setLanguageState,
     cookieConsent, setCookieConsent, pixivCookie, setPixivCookie,
-    artists, setArtists, selected, setSelected, filter, setFilter, logs,
+    artists, setArtists, artistTags, setArtistTags, selected, setSelected, filter, setFilter, logs,
     similarResult, setSimilarResult, expandedGroups, setExpandedGroups,
     projectRootValue, setProjectRootState, pythonCommandValue, setPythonCommandState,
     similarRoots, setSimilarRoots, similarExcludes, setSimilarExcludes,

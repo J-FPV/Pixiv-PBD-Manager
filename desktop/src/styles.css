@@ -170,6 +170,12 @@ footer {
   gap: 10px;
 }
 
+/* The artists view inserts a tag bar as a third row between the toolbar and the
+   table; give it its own auto row so the table keeps the flexible 1fr space. */
+.artistsPanel {
+  grid-template-rows: auto auto 1fr;
+}
+
 .toolbar {
   display: flex;
   gap: 8px;
@@ -395,13 +401,13 @@ footer {
   position: absolute;
   right: 0;
   bottom: calc(100% + 8px);
-  width: min(780px, 86vw);
+  width: min(700px, calc(100vw - 24px));
   max-height: 50vh;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  padding: 12px 14px;
+  gap: 10px;
+  padding: 12px;
   border: 1px solid var(--line);
   border-radius: 10px;
   background: var(--surface);
@@ -412,14 +418,19 @@ footer {
 .taskPanelRow {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 12px;
 }
 
 .taskPanelControls {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 7px;
   flex-shrink: 0;
+}
+
+.taskPanelControls .button {
+  min-height: 32px;
+  padding: 0 10px;
 }
 
 .taskPanelEmpty {
@@ -430,7 +441,7 @@ footer {
 
 /* Slimmer bar/meter columns in the task panel so the filename label has room. */
 .taskPanel .progressLine {
-  grid-template-columns: minmax(0, 1fr) 150px 130px;
+  grid-template-columns: minmax(0, 1fr) 140px 112px;
 }
 
 .footerProgress {
@@ -678,6 +689,154 @@ body.col-resizing .colHandle::after {
 
 .checkbox {
   color: var(--accent-strong);
+}
+
+/* Favorite star column — a quiet outline star that fills gold when active. */
+.favoriteCell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.starButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.starButton:hover {
+  color: #f5b301;
+}
+
+.starButton.active {
+  color: #f5b301;
+}
+
+.headerButton.starHeader {
+  justify-content: center;
+  color: var(--muted);
+}
+
+/* Favorites-only toggle in the toolbar lights up gold when engaged. */
+.button.favToggle.active {
+  color: #f5b301;
+  border-color: #f5b301;
+}
+
+/* ── Tag bar: a Pixiv-style chip strip between the toolbar and the table.
+   Collapsible; chips filter (multi-select) and accept dropped artists. ── */
+.tagBar {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 4px 4px;
+}
+
+.tagBarToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  align-self: flex-start;
+  padding: 2px 4px;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.tagBarToggle:hover {
+  color: inherit;
+}
+
+.tagBarCount {
+  min-width: 18px;
+  padding: 0 6px;
+  border-radius: 9px;
+  background: var(--line);
+  color: var(--muted);
+  font-size: 11px;
+  text-align: center;
+}
+
+.tagBarActiveDot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.tagBarChips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.tagChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 12px;
+  border: 2px solid transparent;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  opacity: 0.85;
+  transition: opacity 0.12s ease, transform 0.06s ease;
+}
+
+.tagChip:hover {
+  opacity: 1;
+}
+
+.tagChip.active {
+  opacity: 1;
+  border-color: var(--text);
+  box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px rgba(15, 159, 110, 0.5);
+}
+
+.tagChip.dragOver {
+  transform: scale(1.06);
+  box-shadow: 0 0 0 3px var(--accent);
+}
+
+.tagChipCount {
+  padding: 0 7px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.22);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.tagChipAdd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: 1px dashed var(--line);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.tagChipAdd:hover {
+  color: inherit;
+  border-color: var(--accent);
+}
+
+.tagBarEmpty {
+  color: var(--muted);
+  font-size: 13px;
 }
 
 .numeric {

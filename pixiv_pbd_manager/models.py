@@ -50,6 +50,8 @@ class ArtistRecord:
     work_ids: list[str] = field(default_factory=list)
     new_work_ids: list[str] = field(default_factory=list)
     notes: str = ""
+    favorite: bool = False
+    tags: list[str] = field(default_factory=list)
 
     @classmethod
     def from_json(cls, raw: dict[str, Any]) -> "ArtistRecord":
@@ -69,6 +71,8 @@ class ArtistRecord:
             work_ids=sorted({str(item) for item in raw.get("work_ids") or []}),
             new_work_ids=sorted({str(item) for item in raw.get("new_work_ids") or []}),
             notes=_safe_text(raw.get("notes")),
+            favorite=bool(raw.get("favorite", False)),
+            tags=_safe_text_list(raw.get("tags")),
         )
 
     def to_json(self) -> dict[str, Any]:
@@ -85,6 +89,8 @@ class ArtistRecord:
             "work_ids": sorted(set(self.work_ids), key=lambda value: (len(value), value)),
             "new_work_ids": sorted(set(self.new_work_ids), key=lambda value: (len(value), value)),
             "notes": self.notes,
+            "favorite": self.favorite,
+            "tags": sorted(set(self.tags)),
         }
 
     @property

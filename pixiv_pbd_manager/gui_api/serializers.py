@@ -27,6 +27,8 @@ def artist_to_json(artist: ArtistRecord) -> JsonDict:
         "last_checked": artist.last_checked,
         "last_opened": artist.last_opened or "",
         "notes": artist.notes,
+        "favorite": artist.favorite,
+        "tags": sorted(set(artist.tags)),
     }
 
 

@@ -3,14 +3,43 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from collections.abc import Iterable
+
 from .models import ArtistRecord
 from .paths import DEFAULT_DB, write_json_atomic  # re-exported for callers that import them from here
+
+
+def _dedupe(names: Iterable[str]) -> list[str]:
+    """Drop duplicates while keeping first-seen order."""
+    ordered: list[str] = []
+    for name in names:
+        if name not in ordered:
+            ordered.append(name)
+    return ordered
+
+
+def _merge_tag_order(defined: object, records: Iterable[ArtistRecord]) -> list[str]:
+    """Ordered, de-duplicated tag list: stored definitions first (creation order),
+    then any tag found on an artist but not yet defined. Self-heals databases
+    written before tags were tracked, and tolerates a missing/garbage ``tags``
+    key in older files."""
+    ordered: list[str] = []
+    seen: set[str] = set()
+    for name in defined if isinstance(defined, list) else []:
+        text = str(name).strip()
+        if text and text not in seen:
+            ordered.append(text)
+            seen.add(text)
+    extra = {tag for record in records for tag in record.tags if tag not in seen}
+    ordered.extend(sorted(extra))
+    return ordered
 
 
 class ArtistDatabase:
     def __init__(self, path: Path):
         self.path = path
         self.artists: dict[str, ArtistRecord] = {}
+        self.defined_tags: list[str] = []
 
     @classmethod
     def load(cls, path: Path | str | None = None) -> "ArtistDatabase":
@@ -39,11 +68,13 @@ class ArtistDatabase:
         for artist_id, artist in (raw.get("artists") or {}).items():
             record = ArtistRecord.from_json({**artist, "id": str(artist.get("id") or artist_id)})
             db.artists[record.id] = record
+        db.defined_tags = _merge_tag_order(raw.get("tags"), db.artists.values())
         return db
 
     def save(self) -> None:
         payload = {
             "version": 1,
+            "tags": list(self.defined_tags),
             "artists": {
                 artist_id: self.artists[artist_id].to_json()
                 for artist_id in sorted(self.artists, key=lambda value: (len(value), value))
@@ -136,3 +167,86 @@ class ArtistDatabase:
         if source not in record.sources:
             record.sources.append(source)
         return True
+
+    def set_artist_favorite(self, artist_id: str, favorite: bool) -> bool:
+        artist_id = str(artist_id).strip()
+        if artist_id not in self.artists:
+            raise KeyError(f"Unknown artist id: {artist_id}")
+        record = self.artists[artist_id]
+        favorite = bool(favorite)
+        if record.favorite == favorite:
+            return False
+        record.favorite = favorite
+        return True
+
+    def set_artist_tags(self, artist_id: str, tags: list[str]) -> bool:
+        artist_id = str(artist_id).strip()
+        if artist_id not in self.artists:
+            raise KeyError(f"Unknown artist id: {artist_id}")
+        record = self.artists[artist_id]
+        cleaned = sorted({str(tag).strip() for tag in tags or [] if str(tag).strip()})
+        tags_changed = sorted(set(record.tags)) != cleaned
+        if tags_changed:
+            record.tags = cleaned
+        defs_changed = self._ensure_tags(cleaned)
+        return tags_changed or defs_changed
+
+    def _ensure_tags(self, names: Iterable[str]) -> bool:
+        """Register tag names in the ordered definition list; return True if any
+        were newly added."""
+        changed = False
+        for name in names:
+            text = str(name).strip()
+            if text and text not in self.defined_tags:
+                self.defined_tags.append(text)
+                changed = True
+        return changed
+
+    def add_tag(self, name: str) -> bool:
+        name = str(name).strip()
+        if not name:
+            raise ValueError("Tag name is empty")
+        return self._ensure_tags([name])
+
+    def assign_tag(self, artist_ids: list[str], name: str) -> int:
+        """Add ``name`` to each given artist; return how many gained it."""
+        name = str(name).strip()
+        if not name:
+            raise ValueError("Tag name is empty")
+        self._ensure_tags([name])
+        assigned = 0
+        for artist_id in artist_ids:
+            record = self.artists.get(str(artist_id).strip())
+            if record and name not in record.tags:
+                record.tags = sorted({*record.tags, name})
+                assigned += 1
+        return assigned
+
+    def rename_tag(self, old: str, new: str) -> bool:
+        old = str(old).strip()
+        new = str(new).strip()
+        if not new:
+            raise ValueError("Tag name is empty")
+        if old == new:
+            return False
+        changed = self._ensure_tags([new])
+        if old in self.defined_tags:
+            self.defined_tags = _dedupe([new if tag == old else tag for tag in self.defined_tags])
+            changed = True
+        for record in self.artists.values():
+            if old in record.tags:
+                record.tags = sorted({new if tag == old else tag for tag in record.tags})
+                changed = True
+        return changed
+
+    def delete_tag(self, name: str) -> bool:
+        name = str(name).strip()
+        changed = False
+        if name in self.defined_tags:
+            self.defined_tags = [tag for tag in self.defined_tags if tag != name]
+            changed = True
+        for record in self.artists.values():
+            if name in record.tags:
+                record.tags = [tag for tag in record.tags if tag != name]
+                changed = True
+        return changed

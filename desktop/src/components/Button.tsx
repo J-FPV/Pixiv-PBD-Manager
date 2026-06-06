@@ -8,7 +8,8 @@ export function Button({
   variant = "default",
   title,
   ariaLabel,
-  iconOnly = false
+  iconOnly = false,
+  className
 }: {
   children: ReactNode;
   icon?: ReactNode;
@@ -18,10 +19,11 @@ export function Button({
   title?: string;
   ariaLabel?: string;
   iconOnly?: boolean;
+  className?: string;
 }) {
   return (
     <button
-      className={`button ${variant}${iconOnly ? " iconOnly" : ""}`}
+      className={`button ${variant}${iconOnly ? " iconOnly" : ""}${className ? ` ${className}` : ""}`}
       disabled={disabled}
       onClick={onClick}
       title={title}

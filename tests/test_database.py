@@ -141,6 +141,98 @@ class DatabaseTests(unittest.TestCase):
             self.assertTrue(changed)
             self.assertEqual(db.artists["111"].save_paths, [str(second.resolve())])
 
+    def test_set_artist_favorite_toggles_and_reports_change(self):
+        with TemporaryDirectory() as tmp:
+            db = ArtistDatabase.load(Path(tmp) / "artists.json")
+            db.upsert("111", name="Artist")
+
+            self.assertTrue(db.set_artist_favorite("111", True))
+            self.assertTrue(db.artists["111"].favorite)
+            # Setting the same value again is a no-op.
+            self.assertFalse(db.set_artist_favorite("111", True))
+            self.assertTrue(db.set_artist_favorite("111", False))
+            self.assertFalse(db.artists["111"].favorite)
+
+        with self.assertRaises(KeyError):
+            ArtistDatabase(Path(tmp) / "missing.json").set_artist_favorite("999", True)
+
+    def test_set_artist_tags_cleans_dedupes_and_sorts(self):
+        with TemporaryDirectory() as tmp:
+            db = ArtistDatabase.load(Path(tmp) / "artists.json")
+            db.upsert("111", name="Artist")
+
+            changed = db.set_artist_tags("111", ["  人物 ", "风景", "人物", "  "])
+
+            self.assertTrue(changed)
+            self.assertEqual(db.artists["111"].tags, ["人物", "风景"])
+            # Re-applying the same set (different order/whitespace) is a no-op.
+            self.assertFalse(db.set_artist_tags("111", ["风景", "人物"]))
+
+    def test_favorite_and_tags_round_trip_through_disk(self):
+        with TemporaryDirectory() as tmp:
+            path = Path(tmp) / "artists.json"
+            db = ArtistDatabase.load(path)
+            db.upsert("111", name="Artist")
+            db.set_artist_favorite("111", True)
+            db.set_artist_tags("111", ["风景"])
+            db.save()
+
+            reloaded = ArtistDatabase.load(path)
+            self.assertTrue(reloaded.artists["111"].favorite)
+            self.assertEqual(reloaded.artists["111"].tags, ["风景"])
+
+    def test_tag_definitions_round_trip_and_self_heal(self):
+        with TemporaryDirectory() as tmp:
+            path = Path(tmp) / "artists.json"
+            db = ArtistDatabase.load(path)
+            db.upsert("111", name="Artist")
+            db.add_tag("人物")
+            db.set_artist_tags("111", ["风景"])  # a tag introduced via an artist
+            db.save()
+
+            reloaded = ArtistDatabase.load(path)
+            # Defined-first order, plus any artist-only tag merged in.
+            self.assertEqual(reloaded.defined_tags, ["人物", "风景"])
+
+    def test_assign_tag_adds_to_each_artist_and_defines_it(self):
+        with TemporaryDirectory() as tmp:
+            db = ArtistDatabase.load(Path(tmp) / "artists.json")
+            db.upsert("111", name="A")
+            db.upsert("222", name="B")
+            db.artists["222"].tags = ["风景"]
+
+            assigned = db.assign_tag(["111", "222", "999"], "风景")
+
+            self.assertEqual(assigned, 1)  # 222 already had it; 999 does not exist
+            self.assertEqual(db.artists["111"].tags, ["风景"])
+            self.assertIn("风景", db.defined_tags)
+
+    def test_rename_tag_updates_artists_and_dedupes(self):
+        with TemporaryDirectory() as tmp:
+            db = ArtistDatabase.load(Path(tmp) / "artists.json")
+            db.upsert("111", name="A")
+            db.artists["111"].tags = ["旧", "人物"]
+            db.add_tag("旧")
+
+            changed = db.rename_tag("旧", "人物")
+
+            self.assertTrue(changed)
+            self.assertEqual(db.artists["111"].tags, ["人物"])
+            self.assertEqual(db.defined_tags, ["人物"])
+
+    def test_delete_tag_removes_everywhere(self):
+        with TemporaryDirectory() as tmp:
+            db = ArtistDatabase.load(Path(tmp) / "artists.json")
+            db.upsert("111", name="A")
+            db.artists["111"].tags = ["风景", "人物"]
+            db.add_tag("风景")
+
+            changed = db.delete_tag("风景")
+
+            self.assertTrue(changed)
+            self.assertEqual(db.artists["111"].tags, ["人物"])
+            self.assertNotIn("风景", db.defined_tags)
+
     def test_remove_many_deletes_existing_artists(self):
         with TemporaryDirectory() as tmp:
             db = ArtistDatabase.load(Path(tmp) / "artists.json")

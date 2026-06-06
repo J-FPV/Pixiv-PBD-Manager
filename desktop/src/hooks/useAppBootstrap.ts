@@ -15,6 +15,7 @@ export function useAppBootstrap(
   const {
     handleEvent,
     setArtists,
+    setArtistTags,
     setProjectRootState,
     appendLog,
     setStatus,
@@ -30,6 +31,7 @@ export function useAppBootstrap(
         const mergedSettings = applySettingsPayload(payload);
         const artistPayload = await runGuiApi<ArtistsPayload>("artists.list", {}, handleEvent);
         setArtists(artistPayload.artists);
+        setArtistTags(artistPayload.tags ?? []);
         if (artistPayload.project_root) {
           setProjectRootState(artistPayload.project_root);
           setProjectRoot(artistPayload.project_root);

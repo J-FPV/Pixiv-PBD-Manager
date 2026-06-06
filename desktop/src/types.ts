@@ -145,12 +145,22 @@ export interface Artist {
   last_checked: string | null;
   last_opened: string;
   notes: string;
+  favorite: boolean;
+  tags: string[];
 }
 
 export interface ArtistsPayload {
   artists: Artist[];
+  tags?: string[];
   db_path: string;
   project_root?: string;
+}
+
+// Commands that mutate tags (assign/rename/delete) return the refreshed artist
+// list plus the global ordered tag-definition list.
+export interface TagMutationPayload {
+  artists: Artist[];
+  tags: string[];
 }
 
 export interface ArtistNameRefreshResult {

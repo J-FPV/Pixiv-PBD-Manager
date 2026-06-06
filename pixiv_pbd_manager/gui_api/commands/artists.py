@@ -37,11 +37,20 @@ def _resolve_artist_name_if_missing(artist_id: str, name: str | None, settings: 
     return profile.name if profile.name and profile.name != artist_id else None
 
 
+def _artists_and_tags(db: ArtistDatabase) -> JsonDict:
+    """Shared payload for commands that touch tags: the full artist list plus the
+    ordered tag-definition list, so the frontend can refresh both at once."""
+    return {
+        "artists": [artist_to_json(artist) for artist in db.get_many()],
+        "tags": list(db.defined_tags),
+    }
+
+
 def list_artists(payload: JsonDict, _emit_event: Emitter) -> JsonDict:
     settings = load_settings_for_payload(payload)
     db = ArtistDatabase.load(db_path(payload, settings))
     return {
-        "artists": [artist_to_json(artist) for artist in db.get_many()],
+        **_artists_and_tags(db),
         "db_path": str(db.path),
         "project_root": str(base_dir(payload)),
     }
@@ -208,3 +217,61 @@ def set_save_path(payload: JsonDict, _emit_event: Emitter) -> JsonDict:
     changed = db.set_artist_save_path(artist_id, save_path)
     db.save()
     return {"artist_id": artist_id, "changed": changed, "save_path": save_path}
+
+
+def set_favorite(payload: JsonDict, _emit_event: Emitter) -> JsonDict:
+    settings = load_settings_for_payload(payload)
+    artist_id = str(payload.get("artist_id") or "").strip()
+    favorite = bool(payload.get("favorite"))
+    db = ArtistDatabase.load(db_path(payload, settings))
+    changed = db.set_artist_favorite(artist_id, favorite)
+    if changed:
+        db.save()
+    return {"artist_id": artist_id, "changed": changed, "favorite": favorite}
+
+
+def set_tags(payload: JsonDict, _emit_event: Emitter) -> JsonDict:
+    settings = load_settings_for_payload(payload)
+    artist_id = str(payload.get("artist_id") or "").strip()
+    tags = [str(item) for item in payload.get("tags") or []]
+    db = ArtistDatabase.load(db_path(payload, settings))
+    changed = db.set_artist_tags(artist_id, tags)
+    if changed:
+        db.save()
+    return {"artist_id": artist_id, "changed": changed, "tags": sorted(set(db.artists[artist_id].tags))}
+
+
+def add_tag(payload: JsonDict, _emit_event: Emitter) -> JsonDict:
+    settings = load_settings_for_payload(payload)
+    db = ArtistDatabase.load(db_path(payload, settings))
+    changed = db.add_tag(str(payload.get("name") or ""))
+    if changed:
+        db.save()
+    return {"changed": changed, "tags": list(db.defined_tags)}
+
+
+def assign_tag(payload: JsonDict, _emit_event: Emitter) -> JsonDict:
+    settings = load_settings_for_payload(payload)
+    artist_ids = [str(item).strip() for item in payload.get("artist_ids") or [] if str(item).strip()]
+    db = ArtistDatabase.load(db_path(payload, settings))
+    assigned = db.assign_tag(artist_ids, str(payload.get("name") or ""))
+    db.save()
+    return {"assigned": assigned, **_artists_and_tags(db)}
+
+
+def rename_tag(payload: JsonDict, _emit_event: Emitter) -> JsonDict:
+    settings = load_settings_for_payload(payload)
+    db = ArtistDatabase.load(db_path(payload, settings))
+    changed = db.rename_tag(str(payload.get("old") or ""), str(payload.get("new") or ""))
+    if changed:
+        db.save()
+    return {"changed": changed, **_artists_and_tags(db)}
+
+
+def delete_tag(payload: JsonDict, _emit_event: Emitter) -> JsonDict:
+    settings = load_settings_for_payload(payload)
+    db = ArtistDatabase.load(db_path(payload, settings))
+    changed = db.delete_tag(str(payload.get("name") or ""))
+    if changed:
+        db.save()
+    return {"changed": changed, **_artists_and_tags(db)}

@@ -174,6 +174,72 @@ class GuiApiTests(unittest.TestCase):
         self.assertEqual(events[-1]["payload"]["save_path"], str(save_path))
         self.assertEqual(db.artists["123456"].save_paths, [str(save_path.resolve())])
 
+    def test_artists_set_favorite_persists_and_serializes(self):
+        with TemporaryDirectory() as tmp:
+            root = _isolate(tmp)
+            old_cwd = Path.cwd()
+            try:
+                os.chdir(root)
+                invoke("artists.add", {"artist_id": "123456", "name": "Artist"})
+                exit_code, events = invoke("artists.set_favorite", {"artist_id": "123456", "favorite": True})
+                _, list_events = invoke("artists.list", {})
+                db = ArtistDatabase.load(root / ".pixiv-pbd-manager" / "artists.json")
+            finally:
+                os.chdir(old_cwd)
+
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(events[-1]["type"], "result")
+        self.assertTrue(events[-1]["payload"]["favorite"])
+        self.assertTrue(db.artists["123456"].favorite)
+        self.assertTrue(list_events[-1]["payload"]["artists"][0]["favorite"])
+
+    def test_artists_set_tags_persists_and_serializes(self):
+        with TemporaryDirectory() as tmp:
+            root = _isolate(tmp)
+            old_cwd = Path.cwd()
+            try:
+                os.chdir(root)
+                invoke("artists.add", {"artist_id": "123456", "name": "Artist"})
+                exit_code, events = invoke(
+                    "artists.set_tags", {"artist_id": "123456", "tags": ["风景", " 人物 ", "风景"]}
+                )
+                _, list_events = invoke("artists.list", {})
+                db = ArtistDatabase.load(root / ".pixiv-pbd-manager" / "artists.json")
+            finally:
+                os.chdir(old_cwd)
+
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(events[-1]["payload"]["tags"], ["人物", "风景"])
+        self.assertEqual(db.artists["123456"].tags, ["人物", "风景"])
+        self.assertEqual(list_events[-1]["payload"]["artists"][0]["tags"], ["人物", "风景"])
+
+    def test_tag_lifecycle_via_ipc(self):
+        with TemporaryDirectory() as tmp:
+            root = _isolate(tmp)
+            old_cwd = Path.cwd()
+            try:
+                os.chdir(root)
+                invoke("artists.add", {"artist_id": "123456", "name": "Artist"})
+                invoke("artists.add", {"artist_id": "654321", "name": "Other"})
+                invoke("artists.add_tag", {"name": "风景"})
+                _, assign_events = invoke(
+                    "artists.assign_tag", {"artist_ids": ["123456", "654321"], "name": "风景"}
+                )
+                invoke("artists.rename_tag", {"old": "风景", "new": "人物"})
+                _, list_events = invoke("artists.list", {})
+                _, delete_events = invoke("artists.delete_tag", {"name": "人物"})
+                db = ArtistDatabase.load(root / ".pixiv-pbd-manager" / "artists.json")
+            finally:
+                os.chdir(old_cwd)
+
+        self.assertEqual(assign_events[-1]["payload"]["assigned"], 2)
+        # list reflects the rename across the global tag list and the artists.
+        self.assertEqual(list_events[-1]["payload"]["tags"], ["人物"])
+        self.assertTrue(all("人物" in a["tags"] for a in list_events[-1]["payload"]["artists"]))
+        # delete clears it everywhere.
+        self.assertEqual(delete_events[-1]["payload"]["tags"], [])
+        self.assertEqual(db.artists["123456"].tags, [])
+
     def test_artists_add_fetches_name_when_empty(self):
         with TemporaryDirectory() as tmp:
             root = _isolate(tmp)

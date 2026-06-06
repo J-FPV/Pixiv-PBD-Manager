@@ -1,8 +1,8 @@
 import { useEffect, useRef } from "react";
-import type { CSSProperties, MouseEvent as ReactMouseEvent } from "react";
+import type { DragEvent as ReactDragEvent, MouseEvent as ReactMouseEvent } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { CheckSquare, Square } from "lucide-react";
-import { ARTISTS_COL_WIDTHS_KEY } from "../constants";
+import { CheckSquare, Square, Star } from "lucide-react";
+import { ARTIST_DND_MIME, ARTISTS_COL_WIDTHS_KEY } from "../constants";
 import { useColumnWidths } from "../hooks/useColumnWidths";
 import type { ColumnDef } from "../hooks/useColumnWidths";
 import { useNow } from "../hooks/useNow";
@@ -12,10 +12,11 @@ import type { Artist, Language } from "../types";
 import { formatRelativeTime } from "../utils/format";
 import { ColumnResizeHandle } from "./ColumnResizeHandle";
 
-type ArtistColumn = "checkbox" | "id" | "name" | "works" | "newWorks" | "savePaths" | "lastSeen";
+type ArtistColumn = "checkbox" | "favorite" | "id" | "name" | "works" | "newWorks" | "savePaths" | "lastSeen";
 
 const ARTIST_COLUMNS: ColumnDef<ArtistColumn>[] = [
   { key: "checkbox", width: 30, resizable: false },
+  { key: "favorite", width: 38, resizable: false },
   { key: "id", width: 110 },
   { key: "name", width: 160 },
   { key: "works", width: 64 },
@@ -23,6 +24,84 @@ const ARTIST_COLUMNS: ColumnDef<ArtistColumn>[] = [
   { key: "savePaths", flex: true },
   { key: "lastSeen", width: 170 }
 ];
+
+// Sortable star header for the favorite column.
+function FavoriteHeader({
+  language,
+  sortKey,
+  sortDirection,
+  changeSort
+}: {
+  language: Language;
+  sortKey: ArtistSortKey;
+  sortDirection: SortDirection;
+  changeSort: (key: ArtistSortKey) => void;
+}) {
+  return (
+    <span className="headerCell">
+      <button
+        className="headerButton centerNumericHeader starHeader"
+        title={t(language, "favorite")}
+        onClick={() => changeSort("favorite")}
+      >
+        <Star size={15} />
+        <span className={`sortArrow ${sortKey === "favorite" ? "active" : ""}`}>
+          {sortKey === "favorite" ? (sortDirection === "asc" ? "▲" : "▼") : ""}
+        </span>
+      </button>
+    </span>
+  );
+}
+
+// Drag the whole current selection if the grabbed row is part of it, else just
+// that row. The payload is the artist-id list a tag chip reads on drop.
+function startArtistDrag(event: ReactDragEvent, artistId: string, selected: Set<string>): void {
+  const ids = selected.has(artistId) ? Array.from(selected) : [artistId];
+  event.dataTransfer.setData(ARTIST_DND_MIME, JSON.stringify(ids));
+  event.dataTransfer.effectAllowed = "copy";
+}
+
+// Per-row star toggle; stops propagation so it never toggles row selection.
+function FavoriteCell({
+  artist,
+  language,
+  setFavorite
+}: {
+  artist: Artist;
+  language: Language;
+  setFavorite: (id: string, favorite: boolean) => void;
+}) {
+  return (
+    <span className="favoriteCell">
+      <button
+        type="button"
+        className={`starButton ${artist.favorite ? "active" : ""}`}
+        title={t(language, artist.favorite ? "unfavorite" : "favorite")}
+        onClick={(event) => {
+          event.stopPropagation();
+          setFavorite(artist.id, !artist.favorite);
+        }}
+      >
+        <Star size={16} fill={artist.favorite ? "currentColor" : "none"} />
+      </button>
+    </span>
+  );
+}
+
+type ArtistsTableProps = {
+  language: Language;
+  visibleArtists: Artist[];
+  selected: Set<string>;
+  filter: string;
+  sortKey: ArtistSortKey;
+  sortDirection: SortDirection;
+  changeSort: (key: ArtistSortKey) => void;
+  toggleArtist: (id: string) => void;
+  openArtist: (id: string) => void;
+  openPath: (path: string) => void;
+  openMenu: (event: ReactMouseEvent, artistId: string) => void;
+  setFavorite: (id: string, favorite: boolean) => void;
+};
 
 export function ArtistsTable({
   language,
@@ -35,26 +114,14 @@ export function ArtistsTable({
   toggleArtist,
   openArtist,
   openPath,
-  openMenu
-}: {
-  language: Language;
-  visibleArtists: Artist[];
-  selected: Set<string>;
-  filter: string;
-  sortKey: ArtistSortKey;
-  sortDirection: SortDirection;
-  changeSort: (key: ArtistSortKey) => void;
-  toggleArtist: (id: string) => void;
-  openArtist: (id: string) => void;
-  openPath: (path: string) => void;
-  openMenu: (event: ReactMouseEvent, artistId: string) => void;
-}) {
+  openMenu,
+  setFavorite
+}: ArtistsTableProps) {
   const parentRef = useRef<HTMLDivElement>(null);
   const { gridTemplate, leftHandle, rightHandle, overlay } = useColumnWidths<ArtistColumn>(
     ARTISTS_COL_WIDTHS_KEY,
     ARTIST_COLUMNS
   );
-  const tableStyle: CSSProperties = { ["--cols" as string]: gridTemplate };
   const virtualizer = useVirtualizer({
     count: visibleArtists.length,
     getScrollElement: () => parentRef.current,
@@ -91,15 +158,16 @@ export function ArtistsTable({
   );
 
   return (
-    <div className="table artistsTable" style={tableStyle}>
+    <div className="table artistsTable" style={{ ["--cols" as string]: gridTemplate }}>
       <div className="tableHeader">
         <span />
+        <FavoriteHeader language={language} sortKey={sortKey} sortDirection={sortDirection} changeSort={changeSort} />
         {sortHeader("id", "id", t(language, "artistId"))}
         {sortHeader("name", "name", t(language, "artistName"))}
         {sortHeader("works", "works", t(language, "works"), "center")}
         {sortHeader("new_works", "newWorks", t(language, "newWorks"), "center")}
         {plainHeader("savePaths", t(language, "savePaths"))}
-        {sortHeader("lastSeen", "lastSeen", t(language, "lastSeen"))}
+        {sortHeader("lastSeen", "lastSeen", t(language, "lastSeen"), "center")}
       </div>
       <div className="virtualList" ref={parentRef}>
         <div style={{ height: virtualizer.getTotalSize(), position: "relative" }}>
@@ -111,11 +179,14 @@ export function ArtistsTable({
                 className={`tableRow artistRow ${checked ? "checked" : ""}`}
                 key={artist.id}
                 style={{ transform: `translateY(${row.start}px)` }}
+                draggable
+                onDragStart={(event) => startArtistDrag(event, artist.id, selected)}
                 onClick={() => toggleArtist(artist.id)}
                 onDoubleClick={() => openArtist(artist.id)}
                 onContextMenu={(event) => openMenu(event, artist.id)}
               >
                 <span className="checkbox">{checked ? <CheckSquare size={17} /> : <Square size={17} />}</span>
+                <FavoriteCell artist={artist} language={language} setFavorite={setFavorite} />
                 <span>{artist.id}</span>
                 <span>{artist.name}</span>
                 <span className="centerNumeric">{artist.works}</span>
@@ -133,7 +204,9 @@ export function ArtistsTable({
                   {artist.save_paths.join("; ")}
                 </span>
                 {/* The "lastSeen" column id is historical; it now shows the last update-check time. */}
-                <span title={artist.last_checked ?? ""}>{formatRelativeTime(language, artist.last_checked, now)}</span>
+                <span className="centerNumeric" title={artist.last_checked ?? ""}>
+                  {formatRelativeTime(language, artist.last_checked, now)}
+                </span>
               </button>
             );
           })}

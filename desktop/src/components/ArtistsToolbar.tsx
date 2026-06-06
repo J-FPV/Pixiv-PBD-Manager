@@ -1,4 +1,4 @@
-import { CheckSquare, Download, Play, Plus, RefreshCw, Search, Square, Trash2, XCircle } from "lucide-react";
+import { CheckSquare, Download, Play, Plus, RefreshCw, Search, Square, Star, Trash2, XCircle } from "lucide-react";
 import { t } from "../i18n";
 import type { Artist, Language } from "../types";
 import { Button } from "./Button";
@@ -8,6 +8,8 @@ export function ArtistsToolbar({
   language,
   filter,
   setFilter,
+  favoriteOnly,
+  setFavoriteOnly,
   busy,
   selected,
   visibleArtists,
@@ -25,6 +27,8 @@ export function ArtistsToolbar({
   language: Language;
   filter: string;
   setFilter: (value: string) => void;
+  favoriteOnly: boolean;
+  setFavoriteOnly: (value: boolean) => void;
   busy: boolean;
   selected: Set<string>;
   visibleArtists: Artist[];
@@ -55,6 +59,15 @@ export function ArtistsToolbar({
           </button>
         ) : null}
       </div>
+      <Button
+        icon={<Star size={16} />}
+        className={favoriteOnly ? "favToggle active" : "favToggle"}
+        onClick={() => setFavoriteOnly(!favoriteOnly)}
+        title={t(language, "favoritesOnly")}
+        iconOnly
+      >
+        {t(language, "favoritesOnly")}
+      </Button>
       <Button
         icon={allVisibleSelected ? <Square size={16} /> : <CheckSquare size={16} />}
         disabled={!hasVisibleArtists}

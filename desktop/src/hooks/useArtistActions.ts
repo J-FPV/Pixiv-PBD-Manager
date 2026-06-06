@@ -1,6 +1,8 @@
 import type { Dispatch, SetStateAction } from "react";
 import { runGuiApi, setProjectRoot } from "../api";
 import { t } from "../i18n";
+import { parseTags, setFavorite } from "./artistFavoriteActions";
+import { addTag, assignTag, deleteTag, renameTag } from "./artistTagActions";
 import type {
   ApiEvent,
   AppSettings,
@@ -32,6 +34,7 @@ export interface ArtistActionsDeps {
   cookieConsent: boolean;
   pendingExcludeFolders: Set<string>;
   setArtists: Dispatch<SetStateAction<Artist[]>>;
+  setArtistTags: Dispatch<SetStateAction<string[]>>;
   setSelected: Dispatch<SetStateAction<Set<string>>>;
   setSettings: Dispatch<SetStateAction<AppSettings>>;
   setUnmatchedFolders: Dispatch<SetStateAction<UnmatchedFolder[]>>;
@@ -53,22 +56,31 @@ export interface ArtistActions {
   excludeFolder: (path: string) => Promise<void>;
   assignUnmatchedFolder: (path: string) => void;
   checkUpdates: () => void;
+  checkArtistUpdates: (id: string) => void;
   refreshArtistNames: () => void;
   downloadUpdated: () => void;
+  downloadArtistUpdated: (id: string) => void;
   openSelected: () => Promise<void>;
   copyUrls: () => Promise<void>;
+  copyArtistUrl: (id: string) => Promise<void>;
   removeSelectedArtists: () => void;
   removeArtist: (id: string) => void;
   addArtist: () => void;
   editArtist: (id: string) => void;
+  setFavorite: (id: string, favorite: boolean) => void;
+  addTag: () => void;
+  assignTag: (artistIds: string[], name: string) => void;
+  renameTag: (name: string) => void;
+  deleteTag: (name: string) => void;
   openArtist: (id: string) => Promise<void>;
   toggleArtist: (id: string) => void;
 }
 
 async function loadArtists(deps: ArtistActionsDeps): Promise<void> {
-  const { handleEvent, setArtists, setProjectRootState } = deps;
+  const { handleEvent, setArtists, setArtistTags, setProjectRootState } = deps;
   const payload = await runGuiApi<ArtistsPayload>("artists.list", {}, handleEvent);
   setArtists(payload.artists);
+  setArtistTags(payload.tags ?? []);
   if (payload.project_root) {
     setProjectRootState(payload.project_root);
     setProjectRoot(payload.project_root);
@@ -215,13 +227,12 @@ function assignUnmatchedFolder(deps: ArtistActionsDeps, path: string): void {
   });
 }
 
-function checkUpdates(deps: ArtistActionsDeps): void {
-  const { language: languageValue, settings, selected, handleEvent, appendLog, runTask } = deps;
-  const selectedIds = Array.from(selected);
+function checkUpdatesForIds(deps: ArtistActionsDeps, artistIds: string[]): void {
+  const { language: languageValue, settings, handleEvent, appendLog, runTask } = deps;
   void runTask("library", t(languageValue, "checkUpdates"), async (signal, registerControls) => {
     const result = await runGuiApi<UpdateResult>(
       "updates.check",
-      { ...settings, artist_ids: selectedIds },
+      { ...settings, artist_ids: artistIds },
       handleEvent,
       { signal, onStart: registerControls }
     );
@@ -231,6 +242,17 @@ function checkUpdates(deps: ArtistActionsDeps): void {
     }
     await loadArtists(deps);
   });
+}
+
+function checkUpdates(deps: ArtistActionsDeps): void {
+  checkUpdatesForIds(deps, Array.from(deps.selected));
+}
+
+function checkArtistUpdates(deps: ArtistActionsDeps, artistId: string): void {
+  if (!artistId) {
+    return;
+  }
+  checkUpdatesForIds(deps, [artistId]);
 }
 
 function refreshArtistNames(deps: ArtistActionsDeps): void {
@@ -259,13 +281,12 @@ function refreshArtistNames(deps: ArtistActionsDeps): void {
   });
 }
 
-function downloadUpdated(deps: ArtistActionsDeps): void {
-  const { language: languageValue, settings, selected, handleEvent, appendLog, runTask } = deps;
-  const selectedIds = Array.from(selected);
+function downloadUpdatedForIds(deps: ArtistActionsDeps, artistIds: string[]): void {
+  const { language: languageValue, settings, handleEvent, appendLog, runTask } = deps;
   void runTask("library", t(languageValue, "downloadUpdated"), async (signal, registerControls) => {
     const result = await runGuiApi<DownloadResult>(
       "updates.download",
-      { ...settings, artist_ids: selectedIds },
+      { ...settings, artist_ids: artistIds },
       handleEvent,
       { signal, onStart: registerControls }
     );
@@ -275,6 +296,17 @@ function downloadUpdated(deps: ArtistActionsDeps): void {
     }
     await loadArtists(deps);
   });
+}
+
+function downloadUpdated(deps: ArtistActionsDeps): void {
+  downloadUpdatedForIds(deps, Array.from(deps.selected));
+}
+
+function downloadArtistUpdated(deps: ArtistActionsDeps, artistId: string): void {
+  if (!artistId) {
+    return;
+  }
+  downloadUpdatedForIds(deps, [artistId]);
 }
 
 async function openSelected(deps: ArtistActionsDeps): Promise<void> {
@@ -297,8 +329,13 @@ async function openSelected(deps: ArtistActionsDeps): Promise<void> {
 }
 
 async function copyUrls(deps: ArtistActionsDeps): Promise<void> {
-  const { language: languageValue, artists, selected, appendLog, showToast } = deps;
+  const { artists, selected } = deps;
   const chosen = selected.size ? artists.filter((artist) => selected.has(artist.id)) : artists;
+  await copyArtistUrls(deps, chosen);
+}
+
+async function copyArtistUrls(deps: ArtistActionsDeps, chosen: Artist[]): Promise<void> {
+  const { language: languageValue, appendLog, showToast } = deps;
   const text = chosen.map((artist) => artist.pixiv_url).join("\n");
   if (!text) {
     return;
@@ -311,6 +348,16 @@ async function copyUrls(deps: ArtistActionsDeps): Promise<void> {
   } catch (error) {
     appendLog("error", error instanceof Error ? error.message : String(error));
   }
+}
+
+async function copyArtistUrl(deps: ArtistActionsDeps, artistId: string): Promise<void> {
+  const { artists, appendLog } = deps;
+  const artist = artists.find((item) => item.id === artistId);
+  if (!artist) {
+    appendLog("warn", t(deps.language, "noSelection"));
+    return;
+  }
+  await copyArtistUrls(deps, [artist]);
 }
 
 // Shared confirm+remove for both the multi-select toolbar action and the
@@ -395,20 +442,23 @@ function editArtist(deps: ArtistActionsDeps, artistId: string): void {
     return;
   }
   const originalPath = artist.save_paths[0] || "";
-  // One window for both fields: the ID is a plain input; the save path is
-  // typeable and gets a Browse button (PromptModal renders it for any field
-  // carrying ``browse``). On submit we rename and/or reset the save path,
-  // applying each only when it actually changed.
+  const originalTags = [...artist.tags].sort();
+  // One window for the editable fields: the ID is a plain input; the save path
+  // is typeable and gets a Browse button (PromptModal renders it for any field
+  // carrying ``browse``); tags are a comma-separated free-text list. On submit
+  // we rename / reset the save path / set tags, applying each only when changed.
   setPrompt({
     title: t(languageValue, "edit"),
     fields: [
       { key: "artist_id", label: t(languageValue, "artistId"), value: artist.id },
-      { key: "save_path", label: t(languageValue, "savePath"), value: originalPath, browse: "folder" }
+      { key: "save_path", label: t(languageValue, "savePath"), value: originalPath, browse: "folder" },
+      { key: "tags", label: t(languageValue, "tagsLabel"), value: artist.tags.join(", ") }
     ],
     onSubmit: (values) =>
       void runTask("library", t(languageValue, "edit"), async (signal) => {
         const newId = values.artist_id.trim();
         const newPath = values.save_path.trim();
+        const newTags = parseTags(values.tags);
         let currentId = artist.id;
         if (newId && newId !== artist.id) {
           const result = await runGuiApi<{ new_id: string; name: string }>(
@@ -428,6 +478,15 @@ function editArtist(deps: ArtistActionsDeps, artistId: string): void {
             { signal }
           );
           appendLog("info", `Save path set for ${currentId}: ${newPath}`);
+        }
+        if (newTags.join(" ") !== originalTags.join(" ")) {
+          await runGuiApi(
+            "artists.set_tags",
+            { artist_id: currentId, tags: newTags, database: settings.database },
+            handleEvent,
+            { signal }
+          );
+          appendLog("info", `Tags set for ${currentId}: ${newTags.join(", ")}`);
         }
         setSelected(new Set([currentId]));
         await loadArtists(deps);
@@ -465,14 +524,22 @@ export function useArtistActions(deps: ArtistActionsDeps): ArtistActions {
     excludeFolder: (path) => excludeFolder(deps, path),
     assignUnmatchedFolder: (path) => assignUnmatchedFolder(deps, path),
     checkUpdates: () => checkUpdates(deps),
+    checkArtistUpdates: (id) => checkArtistUpdates(deps, id),
     refreshArtistNames: () => refreshArtistNames(deps),
     downloadUpdated: () => downloadUpdated(deps),
+    downloadArtistUpdated: (id) => downloadArtistUpdated(deps, id),
     openSelected: () => openSelected(deps),
     copyUrls: () => copyUrls(deps),
+    copyArtistUrl: (id) => copyArtistUrl(deps, id),
     removeSelectedArtists: () => removeSelectedArtists(deps),
     removeArtist: (id) => removeArtist(deps, id),
     addArtist: () => addArtist(deps),
     editArtist: (id) => editArtist(deps, id),
+    setFavorite: (id, favorite) => setFavorite(deps, id, favorite),
+    addTag: () => addTag(deps),
+    assignTag: (artistIds, name) => assignTag(deps, artistIds, name),
+    renameTag: (name) => renameTag(deps, name),
+    deleteTag: (name) => deleteTag(deps, name),
     openArtist: (id) => openArtist(deps, id),
     toggleArtist: (id) => toggleArtist(deps, id)
   };
