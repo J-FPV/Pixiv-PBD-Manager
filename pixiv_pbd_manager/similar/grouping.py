@@ -11,6 +11,7 @@ dhash_max). Pairs must satisfy *both* thresholds to enter that bucket.
 
 from __future__ import annotations
 
+import hashlib
 import re
 from collections import defaultdict
 from dataclasses import dataclass, field
@@ -42,6 +43,48 @@ class SimilarGroup:
     entries: list[ImageFingerprint] = field(default_factory=list)
     best_phash_distance: int = 0
     best_dhash_distance: int = 0
+
+
+def group_signature(entries: list[ImageFingerprint]) -> str:
+    """Return a path-independent signature that changes with group content."""
+    tokens = sorted(
+        f"{entry.sha256}:{entry.size_bytes}:{entry.width}x{entry.height}"
+        for entry in entries
+    )
+    return hashlib.sha256("\n".join(tokens).encode("ascii")).hexdigest()
+
+
+def cleanup_recommendation(group: SimilarGroup) -> tuple[str | None, list[str], int]:
+    """Return the preferred keep path, suggested removals, and reclaim bytes."""
+    if len(group.entries) < 2 or group.kind == "possible":
+        return None, [], 0
+
+    if group.kind == "likely":
+        ratios = [
+            entry.width / entry.height
+            for entry in group.entries
+            if entry.width > 0 and entry.height > 0
+        ]
+        if len(ratios) != len(group.entries):
+            return None, [], 0
+        smallest = min(ratios)
+        largest = max(ratios)
+        if smallest <= 0 or (largest - smallest) / smallest > 0.02:
+            return None, [], 0
+
+    ranked = sorted(
+        group.entries,
+        key=lambda entry: (
+            -(entry.width * entry.height),
+            -entry.size_bytes,
+            -entry.mtime_ns,
+            entry.path.casefold(),
+        ),
+    )
+    keep_path = ranked[0].path
+    remove_paths = [entry.path for entry in ranked[1:]]
+    reclaim_bytes = sum(entry.size_bytes for entry in ranked[1:])
+    return keep_path, remove_paths, reclaim_bytes
 
 
 def popcount(value: int) -> int:

@@ -41,6 +41,7 @@ class TaskControl:
     def __init__(self) -> None:
         self._resume = threading.Event()
         self._resume.set()
+        self._cancelled = threading.Event()
 
     def pause(self) -> None:
         self._resume.clear()
@@ -50,6 +51,17 @@ class TaskControl:
 
     def wait_if_paused(self) -> None:
         self._resume.wait()
+
+    def cancel(self) -> None:
+        self._cancelled.set()
+        self._resume.set()
+
+    def is_cancelled(self) -> bool:
+        return self._cancelled.is_set()
+
+    def reset(self) -> None:
+        self._cancelled.clear()
+        self._resume.set()
 
 
 CONTROL = TaskControl()
@@ -93,6 +105,9 @@ def _handle_control_line(raw: bytes, emit: Emitter) -> None:
     elif action == "resume":
         CONTROL.resume()
         emit({"type": "control", "state": "running"})
+    elif action == "cancel":
+        CONTROL.cancel()
+        emit({"type": "control", "state": "cancelling"})
 
 
 def start_control_reader(emit: Emitter) -> None:

@@ -49,3 +49,8 @@ PROGRESS_SIMILAR_INDEX_SAVED = "progress_similar_index_saved"
 PROGRESS_SIMILAR_MATCH_START = "progress_similar_match_start"
 PROGRESS_SIMILAR_MATCH = "progress_similar_match"
 PROGRESS_SIMILAR_DONE = "progress_similar_done"
+
+# Similar-image cleanup / quarantine operations
+PROGRESS_CLEANUP_START = "progress_cleanup_start"
+PROGRESS_CLEANUP_ITEM = "progress_cleanup_item"
+PROGRESS_CLEANUP_DONE = "progress_cleanup_done"

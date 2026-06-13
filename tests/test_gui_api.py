@@ -699,6 +699,138 @@ class GuiApiTests(unittest.TestCase):
         self.assertEqual(events[-1]["type"], "result")
         self.assertEqual(download.call_args.kwargs["download_concurrency"], 4)
 
+    def test_cleanup_commands_quarantine_restore_and_ignore(self):
+        with TemporaryDirectory() as tmp:
+            root = _isolate(tmp)
+            library = root / "library"
+            quarantine = root / "quarantine"
+            library.mkdir()
+            source = library / "image.jpg"
+            source.write_bytes(b"duplicate")
+            stat = source.stat()
+            entry = {
+                "path": str(source),
+                "size_bytes": stat.st_size,
+                "mtime_ns": stat.st_mtime_ns,
+                "width": 10,
+                "height": 10,
+                "sha256": "a" * 64,
+                "phash": "0" * 16,
+                "dhash": "0" * 16,
+            }
+            old_cwd = Path.cwd()
+            try:
+                os.chdir(root)
+                ignore_code, ignore_events = invoke(
+                    "cleanup.ignore",
+                    {"signature": "signature", "kind": "exact", "entry_count": 2},
+                )
+                quarantine_code, quarantine_events = invoke(
+                    "cleanup.quarantine",
+                    {
+                        "quarantine_dir": str(quarantine),
+                        "scan_roots": [str(library)],
+                        "download_roots": [str(library)],
+                        "items": [entry],
+                    },
+                )
+                missing_after_quarantine = not source.exists()
+                operation_id = quarantine_events[-1]["payload"]["operation_id"]
+                restore_code, restore_events = invoke(
+                    "cleanup.restore",
+                    {"operation_id": operation_id},
+                )
+                exists_after_restore = source.exists()
+                restored_path = str(source.resolve())
+                unignore_code, unignore_events = invoke(
+                    "cleanup.unignore",
+                    {"signature": "signature"},
+                )
+            finally:
+                os.chdir(old_cwd)
+
+        self.assertEqual(ignore_code, 0)
+        self.assertEqual(ignore_events[-1]["payload"]["ignored_groups"][0]["signature"], "signature")
+        self.assertEqual(quarantine_code, 0)
+        self.assertTrue(missing_after_quarantine)
+        self.assertEqual(restore_code, 0)
+        self.assertTrue(exists_after_restore)
+        self.assertEqual(restore_events[-1]["payload"]["restored_paths"], [restored_path])
+        self.assertEqual(unignore_code, 0)
+        self.assertEqual(unignore_events[-1]["payload"]["ignored_groups"], [])
+
+    def test_cleanup_rejects_quarantine_inside_scan_root(self):
+        with TemporaryDirectory() as tmp:
+            root = _isolate(tmp)
+            library = root / "library"
+            library.mkdir()
+            old_cwd = Path.cwd()
+            try:
+                os.chdir(root)
+                exit_code, events = invoke(
+                    "cleanup.quarantine",
+                    {
+                        "quarantine_dir": str(library / "quarantine"),
+                        "scan_roots": [str(library)],
+                        "items": [{"path": str(library / "missing.jpg")}],
+                    },
+                )
+            finally:
+                os.chdir(old_cwd)
+
+        self.assertEqual(exit_code, 1)
+        self.assertEqual(events[-1]["type"], "error")
+        self.assertIn("cannot be inside", events[-1]["message"])
+
+    def test_cleanup_list_and_delete_commands(self):
+        with TemporaryDirectory() as tmp:
+            root = _isolate(tmp)
+            library = root / "library"
+            quarantine = root / "quarantine"
+            library.mkdir()
+            source = library / "image.jpg"
+            source.write_bytes(b"duplicate")
+            stat = source.stat()
+            entry = {
+                "path": str(source),
+                "size_bytes": stat.st_size,
+                "mtime_ns": stat.st_mtime_ns,
+                "width": 10,
+                "height": 10,
+                "sha256": "a" * 64,
+                "phash": "0" * 16,
+                "dhash": "0" * 16,
+            }
+            old_cwd = Path.cwd()
+            try:
+                os.chdir(root)
+                quarantine_code, quarantine_events = invoke(
+                    "cleanup.quarantine",
+                    {
+                        "quarantine_dir": str(quarantine),
+                        "scan_roots": [str(library)],
+                        "items": [entry],
+                    },
+                )
+                operation_id = quarantine_events[-1]["payload"]["operation_id"]
+                list_code, list_events = invoke("cleanup.list", {})
+                delete_code, delete_events = invoke(
+                    "cleanup.delete",
+                    {"operation_id": operation_id},
+                )
+            finally:
+                os.chdir(old_cwd)
+
+        self.assertEqual(quarantine_code, 0)
+        self.assertEqual(list_code, 0)
+        self.assertEqual(list_events[-1]["payload"]["operations"][0]["id"], operation_id)
+        self.assertEqual(delete_code, 0)
+        self.assertEqual(delete_events[-1]["payload"]["deleted"], 1)
+        self.assertEqual(
+            delete_events[-1]["payload"]["operations"][0]["items"][0]["status"],
+            "deleted",
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

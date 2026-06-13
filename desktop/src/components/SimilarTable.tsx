@@ -10,7 +10,7 @@ import { ColumnResizeHandle } from "./ColumnResizeHandle";
 import { ImagePreviewModal } from "./ImagePreviewModal";
 import { SimilarTableRow, type SimilarRowItem } from "./SimilarTableRow";
 
-type SimilarColumn = "group" | "kind" | "preview" | "path" | "resolution" | "size";
+type SimilarColumn = "group" | "kind" | "preview" | "path" | "resolution" | "size" | "actions";
 
 const SIMILAR_COLUMNS: ColumnDef<SimilarColumn>[] = [
   { key: "group", width: 120 },
@@ -18,7 +18,8 @@ const SIMILAR_COLUMNS: ColumnDef<SimilarColumn>[] = [
   { key: "preview", width: 76 },
   { key: "path", flex: true },
   { key: "resolution", width: 110 },
-  { key: "size", width: 90 }
+  { key: "size", width: 90 },
+  { key: "actions", width: 120 }
 ];
 
 const HEADER_COLUMNS: { key: SimilarColumn; labelKey: Parameters<typeof t>[1]; numeric?: boolean }[] = [
@@ -27,7 +28,8 @@ const HEADER_COLUMNS: { key: SimilarColumn; labelKey: Parameters<typeof t>[1]; n
   { key: "preview", labelKey: "preview" },
   { key: "path", labelKey: "path" },
   { key: "resolution", labelKey: "resolution", numeric: true },
-  { key: "size", labelKey: "size", numeric: true }
+  { key: "size", labelKey: "size", numeric: true },
+  { key: "actions", labelKey: "actions" }
 ];
 
 export function SimilarTable({
@@ -35,13 +37,23 @@ export function SimilarTable({
   result,
   expanded,
   toggleGroup,
-  revealFile
+  revealFile,
+  selectedForCleanup,
+  toggleCleanupEntry,
+  ignoredSignatures,
+  ignoreGroup,
+  unignoreGroup
 }: {
   language: Language;
   result: SimilarResult | null;
   expanded: Set<number>;
   toggleGroup: (id: number) => void;
   revealFile: (path: string) => void;
+  selectedForCleanup: Set<string>;
+  toggleCleanupEntry: (group: SimilarGroup, path: string) => void;
+  ignoredSignatures: Set<string>;
+  ignoreGroup: (group: SimilarGroup) => void;
+  unignoreGroup: (signature: string) => void;
 }) {
   const parentRef = useRef<HTMLDivElement>(null);
   const [preview, setPreview] = useState<{ group: SimilarGroup; path: string } | null>(null);
@@ -96,6 +108,11 @@ export function SimilarTable({
                     offset={row.start}
                     toggleGroup={toggleGroup}
                     revealFile={revealFile}
+                    selectedForCleanup={selectedForCleanup}
+                    toggleCleanupEntry={toggleCleanupEntry}
+                    ignored={ignoredSignatures.has(item.group.signature)}
+                    ignoreGroup={ignoreGroup}
+                    unignoreGroup={unignoreGroup}
                     onPreview={(group, path) => setPreview({ group, path })}
                   />
                 );

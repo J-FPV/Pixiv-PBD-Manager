@@ -86,6 +86,12 @@ export function MainContent({
           findSimilar={similarActions.findSimilar}
           toggleGroup={similarActions.toggleGroup}
           revealFile={s.revealFile}
+          cleanupSummary={s.cleanupSummary}
+          quarantineEntries={similarActions.quarantineEntries}
+          restoreCleanupItems={similarActions.restoreCleanupItems}
+          deleteCleanupItems={similarActions.deleteCleanupItems}
+          ignoreGroup={similarActions.ignoreGroup}
+          unignoreGroup={similarActions.unignoreGroup}
         />
       ) : null}
       {s.activeTab === "settings" ? (

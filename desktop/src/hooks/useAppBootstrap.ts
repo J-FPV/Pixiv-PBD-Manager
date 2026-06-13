@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { runGuiApi, setProjectRoot } from "../api";
 import { t } from "../i18n";
-import type { AppSettings, ArtistsPayload, SettingsPayload } from "../types";
+import type { AppSettings, ArtistsPayload, CleanupSummary, SettingsPayload } from "../types";
 import type { AppState } from "./useAppState";
 import { settingsAutosaveSignature } from "./useSettingsAutosave";
 
@@ -16,6 +16,7 @@ export function useAppBootstrap(
     handleEvent,
     setArtists,
     setArtistTags,
+    setCleanupSummary,
     setProjectRootState,
     appendLog,
     setStatus,
@@ -32,6 +33,12 @@ export function useAppBootstrap(
         const artistPayload = await runGuiApi<ArtistsPayload>("artists.list", {}, handleEvent);
         setArtists(artistPayload.artists);
         setArtistTags(artistPayload.tags ?? []);
+        try {
+          const cleanupPayload = await runGuiApi<CleanupSummary>("cleanup.list", {}, handleEvent);
+          setCleanupSummary(cleanupPayload);
+        } catch (error) {
+          appendLog("error", error instanceof Error ? error.message : String(error));
+        }
         if (artistPayload.project_root) {
           setProjectRootState(artistPayload.project_root);
           setProjectRoot(artistPayload.project_root);

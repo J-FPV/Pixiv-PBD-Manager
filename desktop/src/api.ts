@@ -58,7 +58,7 @@ export async function runGuiApi<T>(
   commandName: string,
   payload: object = {},
   onEvent?: (event: ApiEvent<T>) => void,
-  options: { signal?: AbortSignal; onStart?: (controls: TaskControls) => void } = {}
+  options: { signal?: AbortSignal; onStart?: (controls: TaskControls) => void; gracefulCancel?: boolean } = {}
 ): Promise<T> {
   if (options.signal?.aborted) {
     throw new GuiApiCancelledError(commandName);
@@ -98,10 +98,15 @@ export async function runGuiApi<T>(
   let apiError: string | undefined;
   let child: Child | null = null;
   let cancelled = false;
+  let payloadReady = payloadArg !== "-";
   const abortHandler = () => {
     cancelled = true;
     if (child) {
-      void child.kill();
+      if (options.gracefulCancel && payloadReady) {
+        void child.write('{"control":"cancel"}\n');
+      } else if (!options.gracefulCancel) {
+        void child.kill();
+      }
     }
   };
   options.signal?.addEventListener("abort", abortHandler);
@@ -138,7 +143,7 @@ export async function runGuiApi<T>(
       command.on("error", reject);
     });
     child = await command.spawn();
-    if (cancelled) {
+    if (cancelled && !options.gracefulCancel) {
       await child.kill();
     }
     const activeChild = child;
@@ -155,6 +160,10 @@ export async function runGuiApi<T>(
           `Failed to send payload via stdin: ${writeError instanceof Error ? writeError.message : String(writeError)}`
         );
       }
+      payloadReady = true;
+    }
+    if (cancelled && options.gracefulCancel) {
+      await activeChild.write('{"control":"cancel"}\n');
     }
     options.onStart?.({
       pause: () => {
@@ -166,7 +175,7 @@ export async function runGuiApi<T>(
     });
     const closeData = await closePromise;
 
-    if (cancelled) {
+    if (cancelled && !options.gracefulCancel) {
       throw new GuiApiCancelledError(commandName);
     }
 

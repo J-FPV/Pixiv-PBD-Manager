@@ -100,7 +100,7 @@ export function SettingsView({
             />
           ) : null}
           {section === "folders" ? (
-            <FoldersSection language={language} settings={settings} update={update} />
+            <FoldersSection language={language} settings={settings} update={update} openPath={openPath} />
           ) : null}
           {section === "scan" ? <ScanSection language={language} settings={settings} update={update} /> : null}
           {section === "browser" ? (

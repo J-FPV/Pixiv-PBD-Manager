@@ -10,7 +10,7 @@ from ..runtime import Emitter, JsonDict
 
 
 PATH_LIST_KEYS = {"download_roots", "exclude_roots"}
-PATH_TEXT_KEYS = {"database", "browser", "user_data_dir"}
+PATH_TEXT_KEYS = {"database", "browser", "user_data_dir", "quarantine_dir"}
 
 
 def repair_settings_paths(settings: JsonDict) -> JsonDict:

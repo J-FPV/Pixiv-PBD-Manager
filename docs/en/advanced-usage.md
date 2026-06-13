@@ -106,9 +106,7 @@ The update page limit controls how many newest profile pages are checked. `0` me
 
 ## Similar Image Rules
 
-Open Similar Images in the GUI and optionally enter dedicated scan and exclude folders. Empty scan folders fall back to the current download folders; Similar Images exclude folders are saved independently and do not automatically reuse the normal scan exclude folders.
-
-The app only reports results; it does not delete or move files.
+Open Similar Images in the GUI and optionally enter dedicated scan and exclude folders. Empty scan folders fall back to the current download folders; Similar Images exclude folders are saved independently and do not automatically reuse the normal scan exclude folders. Damaged or unreadable images are counted as errors and summarized in the log.
 
 Supported formats:
 
@@ -140,6 +138,18 @@ Matching rules:
 - `pHash <= 10` and `dHash <= 14`: possibly similar.
 
 You can skip comparisons between split pages of the same Pixiv work, such as `{pid}_p0`, `{pid}_p1`, and `{pid}_p2`.
+
+### Safe Cleanup And Quarantine
+
+The scan result recommends a stable copy to keep using pixel area, file size, modified time, and path:
+
+- Exact duplicates receive an automatic cleanup suggestion.
+- Highly similar groups receive a suggestion only when their aspect ratios are close.
+- Possibly similar groups are never preselected.
+
+The app never moves or deletes images automatically. After you click Clean selected and confirm, selected files move to a user-chosen quarantine folder outside the library, and every group keeps at least one image. The Quarantine view supports restore and manual permanent deletion. Restore skips an existing destination and never overwrites it.
+
+Ignored groups and cleanup history are stored in `.pixiv-pbd-manager/cleanup_state.json`, separate from `artists.json`, and Reset all settings does not remove them. Every quarantine operation also creates its own task folder with a UTF-8 `manifest.json`. Quarantined files never expire automatically; permanent deletion is only available manually in Quarantine and requires a second confirmation.
 
 ## Pixiv Cookie And Privacy Risks
 

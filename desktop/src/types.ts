@@ -95,6 +95,7 @@ export interface AppSettings {
   download_roots_textarea_height?: number;
   exclude_roots?: string[];
   exclude_roots_textarea_height?: number;
+  quarantine_dir?: string;
   browser?: string;
   user_data_dir?: string;
   delay?: number;
@@ -243,8 +244,12 @@ export interface SimilarEntry {
 export interface SimilarGroup {
   id: number;
   kind: "exact" | "likely" | "possible";
+  signature: string;
   best_phash_distance: number;
   best_dhash_distance: number;
+  recommended_keep_path: string | null;
+  recommended_remove_paths: string[];
+  estimated_reclaim_bytes: number;
   entries: SimilarEntry[];
 }
 
@@ -258,6 +263,66 @@ export interface SimilarResult {
   error_count: number;
   errors: string[];
   groups: SimilarGroup[];
+}
+
+export type CleanupItemStatus =
+  | "pending"
+  | "moving"
+  | "quarantined"
+  | "restoring"
+  | "restored"
+  | "deleting"
+  | "deleted"
+  | "cancelled"
+  | "error";
+
+export interface CleanupItem {
+  id: string;
+  original_path: string;
+  quarantine_path: string;
+  sha256: string;
+  size_bytes: number;
+  mtime_ns: number;
+  width: number;
+  height: number;
+  phash: string;
+  dhash: string;
+  status: CleanupItemStatus;
+  error: string;
+  moved_at: string | null;
+  restored_at: string | null;
+  deleted_at: string | null;
+}
+
+export interface CleanupOperation {
+  id: string;
+  created_at: string;
+  updated_at: string;
+  quarantine_root: string;
+  manifest_path: string;
+  status: "complete" | "partial" | "failed";
+  items: CleanupItem[];
+}
+
+export interface IgnoredGroup {
+  signature: string;
+  kind: string;
+  entry_count: number;
+  ignored_at: string;
+}
+
+export interface CleanupSummary {
+  state_path: string;
+  operations: CleanupOperation[];
+  ignored_groups: IgnoredGroup[];
+}
+
+export interface CleanupMutationResult extends CleanupSummary {
+  operation_id?: string;
+  moved_paths?: string[];
+  restored_paths?: string[];
+  deleted?: number;
+  cancelled?: boolean;
 }
 
 export interface LogEntry {

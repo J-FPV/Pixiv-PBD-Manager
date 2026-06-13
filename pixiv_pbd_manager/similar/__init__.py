@@ -25,6 +25,8 @@ from .grouping import (
     SimilarPair,
     UnionFind,
     build_similar_groups,
+    cleanup_recommendation,
+    group_signature,
     hamming_hex,
     pair_kind,
     pixiv_page_key,
@@ -58,6 +60,8 @@ __all__ = [
     "ensure_image_dependencies",
     # grouping primitives (used by tests)
     "build_similar_groups",
+    "cleanup_recommendation",
+    "group_signature",
     "hamming_hex",
     "popcount",
     "pair_kind",

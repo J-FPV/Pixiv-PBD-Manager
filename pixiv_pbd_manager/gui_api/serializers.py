@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from ..models import ArtistRecord
 from ..operations import DownloadUpdatesResult, ScanResult, UpdateCheckResult
-from ..similar import SimilarGroup, SimilarImageResult
+from ..similar import SimilarGroup, SimilarImageResult, cleanup_recommendation, group_signature
 from .runtime import JsonDict
 
 
@@ -73,11 +73,16 @@ def download_result_to_json(result: DownloadUpdatesResult) -> JsonDict:
 
 
 def similar_group_to_json(group: SimilarGroup) -> JsonDict:
+    recommended_keep_path, recommended_remove_paths, reclaim_bytes = cleanup_recommendation(group)
     return {
         "id": group.id,
         "kind": group.kind,
+        "signature": group_signature(group.entries),
         "best_phash_distance": group.best_phash_distance,
         "best_dhash_distance": group.best_dhash_distance,
+        "recommended_keep_path": recommended_keep_path,
+        "recommended_remove_paths": recommended_remove_paths,
+        "estimated_reclaim_bytes": reclaim_bytes,
         "entries": [
             {
                 "path": entry.path,

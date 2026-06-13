@@ -29,6 +29,7 @@ The installer includes the Python backend and dependencies. You do not need to i
 - Marks favorite artists and organizes them with tags, including drag-to-assign and tag filtering.
 - Finds similar images across different file names, formats, and resolutions.
 - Supports thumbnail previews and difference-image comparison.
+- Recommends the best copy to keep and moves other selected files to a recoverable quarantine.
 - Supports Chinese / English UI switching.
 
 ## Recommended Workflow
@@ -48,6 +49,7 @@ Open Settings and check these fields first:
 - **Download folders**: your Pixiv image library folders.
 - **Exclude folders**: folders that should not be scanned.
 - **Similar image folders and excludes**: Similar Images has its own scan folders and exclude folders, saved separately.
+- **Quarantine folder**: duplicate cleanup moves files to this folder outside the library instead of permanently deleting them.
 - **Database path**: the installed app defaults to `%APPDATA%\PixivPbdManager\.pixiv-pbd-manager\artists.json`; most users can leave it unchanged.
 - **Browser path**: set this if your default browser is not the one with Powerful Pixiv Downloader installed.
 - **Browser user data directory**: do not set this to your image library. Chrome / Edge will create folders such as `Default`, `ShaderCache`, `Safe Browsing`, and `Webstore Downloads`.
@@ -92,11 +94,14 @@ Favorites and tags are stored in `artists.json` and never touch your local image
 
 ## Similar Images
 
-Open Similar Images, choose scan folders, and click Find similar images. Results are grouped as possible duplicates and include thumbnails for comparison.
+Open Similar Images, choose scan folders, and click Find similar images. Results include thumbnails and a recommended copy based on resolution, file size, modified time, and path.
 
 Notes:
 
-- The app only reports results; it does not delete or move files.
+- Cleanup never runs automatically. Confirmed files are moved to your chosen quarantine folder.
+- Possibly similar groups are not preselected, and every group must keep at least one image.
+- The Quarantine view can restore files or permanently delete them. Permanent deletion requires another confirmation and never happens automatically.
+- You can ignore groups that are not duplicates. They reappear if a file in the group changes.
 - Different resolutions, light compression, and different image formats can still match.
 - You can skip comparisons between Pixiv split pages such as `{pid}_p0` and `{pid}_p1`.
 - The preview window lets you switch between images in the group and view a generated difference image.

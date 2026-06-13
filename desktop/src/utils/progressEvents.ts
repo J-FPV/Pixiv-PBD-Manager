@@ -1,5 +1,8 @@
 import type { Dispatch, SetStateAction } from "react";
 import {
+  PROGRESS_CLEANUP_DONE,
+  PROGRESS_CLEANUP_ITEM,
+  PROGRESS_CLEANUP_START,
   PROGRESS_CHECK_ARTIST,
   PROGRESS_CHECK_FOUND,
   PROGRESS_CHECK_START,
@@ -305,6 +308,45 @@ function describeSimilar(language: Language, event: ProgressEvent): PipelineDesc
   }
 }
 
+function describeCleanup(language: Language, event: ProgressEvent): PipelineDescriptor | null {
+  const p = event.payload;
+  const actionLabel =
+    p.action === "restore"
+      ? t(language, "restore")
+      : p.action === "delete"
+        ? t(language, "deletePermanently")
+        : t(language, "moveToQuarantine");
+  switch (event.key) {
+    case PROGRESS_CLEANUP_START:
+      return {
+        logText: `${actionLabel}: ${p.total} file(s)`,
+        progressUpdate: () => ({
+          main: { label: actionLabel, current: 0, total: numberValue(p.total) }
+        })
+      };
+    case PROGRESS_CLEANUP_ITEM:
+      return {
+        logText: `${actionLabel}: ${p.current}/${p.total} ${p.path}`,
+        progressUpdate: () => ({
+          main: {
+            label: `${actionLabel}: ${String(p.path ?? "")}`,
+            current: numberValue(p.current),
+            total: numberValue(p.total)
+          }
+        })
+      };
+    case PROGRESS_CLEANUP_DONE:
+      return {
+        logText: `${actionLabel}: ${p.succeeded}/${p.total}`,
+        progressUpdate: () => ({
+          main: { label: actionLabel, current: numberValue(p.total), total: numberValue(p.total) }
+        })
+      };
+    default:
+      return null;
+  }
+}
+
 // Maps each pipeline to its task lane. Order matters only for matching; the
 // describers return null for keys they don't own, so the first non-null wins.
 const PIPELINES: { lane: TaskLane; describe: (language: Language, event: ProgressEvent) => PipelineDescriptor | null }[] = [
@@ -312,7 +354,8 @@ const PIPELINES: { lane: TaskLane; describe: (language: Language, event: Progres
   { lane: "library", describe: describeUpdateCheck },
   { lane: "library", describe: describeRefreshNames },
   { lane: "library", describe: describeDownload },
-  { lane: "similar", describe: describeSimilar }
+  { lane: "similar", describe: describeSimilar },
+  { lane: "similar", describe: describeCleanup }
 ];
 
 // Dispatcher: error/non-progress events resolve here, everything else is routed

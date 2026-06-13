@@ -19,9 +19,9 @@ import traceback
 from pathlib import Path
 from typing import Callable
 
-from .commands import artists, files, scan, settings, similar, updates
+from .commands import artists, cleanup, files, scan, settings, similar, updates
 from .payload import resolve_base_dir
-from .runtime import Emitter, JsonDict, emit_event, start_control_reader
+from .runtime import CONTROL, Emitter, JsonDict, emit_event, start_control_reader
 
 
 COMMANDS: dict[str, Callable[[JsonDict, Emitter], JsonDict]] = {
@@ -47,6 +47,12 @@ COMMANDS: dict[str, Callable[[JsonDict, Emitter], JsonDict]] = {
     "updates.check": updates.check,
     "updates.download": updates.download,
     "similar.run": similar.run,
+    "cleanup.list": cleanup.list_cleanup,
+    "cleanup.quarantine": cleanup.quarantine,
+    "cleanup.restore": cleanup.restore,
+    "cleanup.delete": cleanup.delete,
+    "cleanup.ignore": cleanup.ignore,
+    "cleanup.unignore": cleanup.unignore,
     "browser.open": files.open_browser,
     "file.reveal": files.reveal_file,
     "image.thumbnail": files.image_thumbnail,
@@ -134,6 +140,7 @@ def main(argv: list[str] | None = None) -> int:
     if not isinstance(payload, dict):
         emit_event({"type": "error", "command": command, "message": "Payload must be a JSON object"})
         return 2
+    CONTROL.reset()
     start_control_reader(emit_event)
     return run_command(command, payload)
 

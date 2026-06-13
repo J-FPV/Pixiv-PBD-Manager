@@ -11,6 +11,7 @@
   --accent-strong: #067a53;
   --danger: #c43838;
   --danger-strong: #9f2d2d;
+  --danger-soft: #fff0f0;
   --warn: #95680b;
   --input-bg: #ffffff;
   --button-active: #e7ecf1;
@@ -48,6 +49,7 @@
   --accent-strong: #68d8a8;
   --danger: #d05252;
   --danger-strong: #a83a3a;
+  --danger-soft: #3a2023;
   --warn: #f1b85b;
   --input-bg: #12171d;
   --button-active: #27313c;
@@ -919,6 +921,43 @@ body.col-resizing .colHandle::after {
   cursor: default;
 }
 
+.similarEntryRow.cleanupSelectedRow {
+  background: var(--danger-soft);
+}
+
+.cleanupEntrySelect {
+  display: grid;
+  place-items: center;
+}
+
+.cleanupKeepLabel {
+  color: var(--accent-strong);
+  font-weight: 600;
+}
+
+.cleanupRemoveLabel {
+  color: var(--danger);
+  font-weight: 600;
+}
+
+.iconTableAction {
+  display: inline-grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  justify-self: start;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--muted);
+}
+
+.iconTableAction:hover {
+  border-color: var(--line);
+  background: var(--button-active);
+  color: var(--text);
+}
+
 .thumbnailButton {
   display: inline-grid;
   place-items: center;
@@ -1097,6 +1136,53 @@ body.col-resizing .colHandle::after {
   gap: 10px;
 }
 
+.similarViewTabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--line);
+}
+
+.similarViewTabs button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 36px;
+  padding: 0 12px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--muted);
+}
+
+.similarViewTabs button.active {
+  border-bottom-color: var(--accent);
+  color: var(--accent-strong);
+  font-weight: 600;
+}
+
+.similarViewBody,
+.similarResultsView {
+  min-height: 0;
+}
+
+.similarResultsView {
+  display: grid;
+  grid-template-rows: auto auto 1fr;
+  gap: 10px;
+  height: 100%;
+}
+
+.cleanupActionBar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-height: 38px;
+}
+
+.cleanupActionBar .summary {
+  margin-left: auto;
+}
+
 .similarPaths {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
@@ -1119,6 +1205,99 @@ body.col-resizing .colHandle::after {
   padding: 7px 9px;
   color: var(--text);
   background: var(--input-bg);
+}
+
+.cleanupHistory {
+  min-height: 0;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.cleanupOperation + .cleanupOperation {
+  border-top: 1px solid var(--line);
+}
+
+.cleanupOperationHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 14px;
+  background: var(--surface-muted);
+}
+
+.cleanupOperationHeader > div:first-child {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.cleanupOperationHeader span {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cleanupOperationActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
+.cleanupItemHeader,
+.cleanupItemRow {
+  display: grid;
+  grid-template-columns: 36px minmax(260px, 1fr) 100px 110px;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 0 14px;
+  border-top: 1px solid var(--row-border);
+}
+
+.cleanupItemHeader {
+  color: var(--muted);
+  background: var(--subtle-row);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.cleanupItemRow {
+  position: relative;
+}
+
+.cleanupItemRow:hover {
+  background: var(--row-hover);
+}
+
+.cleanupItemRow > small {
+  grid-column: 2 / -1;
+  padding-bottom: 8px;
+  color: var(--danger);
+}
+
+.cleanupStatus {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.cleanupStatus.quarantined {
+  color: var(--warn);
+}
+
+.cleanupStatus.restored {
+  color: var(--accent-strong);
+}
+
+.cleanupStatus.deleted,
+.cleanupStatus.cancelled,
+.cleanupStatus.error {
+  color: var(--danger);
 }
 
 .emptyState {

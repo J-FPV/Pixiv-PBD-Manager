@@ -3,6 +3,7 @@ import { t } from "../../i18n";
 import type { AppSettings, Language } from "../../types";
 import { joinLines, splitLines } from "../../utils/paths";
 import { clampTextareaHeight } from "../../utils/textarea";
+import { BrowseButton, LocationButton } from "./controls";
 import type { SettingsUpdate } from "./types";
 
 type DirectoryBoxHeightKey = "download_roots_textarea_height" | "exclude_roots_textarea_height";
@@ -10,11 +11,13 @@ type DirectoryBoxHeightKey = "download_roots_textarea_height" | "exclude_roots_t
 export function FoldersSection({
   language,
   settings,
-  update
+  update,
+  openPath
 }: {
   language: Language;
   settings: AppSettings;
   update: SettingsUpdate;
+  openPath: (path: string) => void;
 }) {
   const appendFolder = async (key: "download_roots" | "exclude_roots") => {
     const picked = await browsePath("folder");
@@ -79,6 +82,22 @@ export function FoldersSection({
           <button type="button" className="button browseButton" onClick={() => void appendFolder("exclude_roots")}>
             {t(language, "addFolder")}
           </button>
+        </label>
+        <label className="full">
+          <span>{t(language, "quarantineFolder")}</span>
+          <div className="pathRow">
+            <input
+              value={settings.quarantine_dir || ""}
+              onChange={(event) => update("quarantine_dir", event.target.value)}
+            />
+            <BrowseButton language={language} kind="folder" apply={(value) => update("quarantine_dir", value)} />
+            <LocationButton
+              language={language}
+              path={settings.quarantine_dir || ""}
+              openPath={openPath}
+            />
+          </div>
+          <small className="fieldHelp">{t(language, "quarantineFolderHint")}</small>
         </label>
       </div>
       <div className="checkColumn">

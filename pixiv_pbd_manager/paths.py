@@ -99,6 +99,7 @@ DATA_DIR = Path(LEGACY_DATA_DIR_NAME)
 
 DEFAULT_DB = DATA_DIR / "artists.json"
 DEFAULT_IMAGE_INDEX = DATA_DIR / "image_index.json"
+DEFAULT_CLEANUP_STATE = DATA_DIR / "cleanup_state.json"
 DEFAULT_GUI_SETTINGS = DATA_DIR / "gui_settings.json"
 DEFAULT_CONSENT = DATA_DIR / "consent.json"
 DEFAULT_COOKIE_BIN = DATA_DIR / "cookie.bin"

@@ -1,8 +1,19 @@
 import type { Dispatch, SetStateAction } from "react";
 import { runGuiApi } from "../api";
 import { t } from "../i18n";
-import type { ApiEvent, AppSettings, Language, LogEntry, SimilarResult, TabKey } from "../types";
+import type {
+  ApiEvent,
+  AppSettings,
+  CleanupSummary,
+  ConfirmState,
+  Language,
+  LogEntry,
+  SimilarResult,
+  TabKey
+} from "../types";
 import { splitLines } from "../utils/paths";
+import { createSimilarCleanupActions } from "./similarCleanupActions";
+import type { SimilarCleanupActions } from "./similarCleanupActions";
 import type { TaskRunner } from "./useTaskRunner";
 
 // State for the similar-image scan lives in App; this hook only carries the
@@ -10,17 +21,21 @@ import type { TaskRunner } from "./useTaskRunner";
 export interface SimilarActionsDeps {
   language: Language;
   settings: AppSettings;
+  setSettings: Dispatch<SetStateAction<AppSettings>>;
   similarRoots: string;
   similarExcludes: string;
   setActiveTab: Dispatch<SetStateAction<TabKey>>;
   setSimilarResult: Dispatch<SetStateAction<SimilarResult | null>>;
+  setCleanupSummary: Dispatch<SetStateAction<CleanupSummary>>;
   setExpandedGroups: Dispatch<SetStateAction<Set<number>>>;
+  setConfirm: Dispatch<SetStateAction<ConfirmState | null>>;
   appendLog: (level: LogEntry["level"], message: string) => void;
+  showToast: (message: string) => void;
   handleEvent: (event: ApiEvent) => void;
   runTask: TaskRunner["runTask"];
 }
 
-export interface SimilarActions {
+export interface SimilarActions extends SimilarCleanupActions {
   findSimilar: () => void;
   toggleGroup: (id: number) => void;
 }
@@ -75,5 +90,11 @@ export function useSimilarActions(deps: SimilarActionsDeps): SimilarActions {
     });
   };
 
-  return { findSimilar, toggleGroup };
+  const cleanupActions = createSimilarCleanupActions(deps);
+
+  return {
+    findSimilar,
+    toggleGroup,
+    ...cleanupActions
+  };
 }

@@ -7,6 +7,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   database: ".pixiv-pbd-manager/artists.json",
   download_roots: [],
   exclude_roots: [],
+  quarantine_dir: "",
   delay: 1,
   limit: 10,
   download_concurrency: 1,

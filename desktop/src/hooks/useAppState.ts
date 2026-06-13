@@ -4,6 +4,7 @@ import type {
   ApiEvent,
   AppSettings,
   Artist,
+  CleanupSummary,
   ConfirmState,
   Language,
   LogEntry,
@@ -15,6 +16,7 @@ import type {
 } from "../types";
 import { DEFAULT_SETTINGS, SIMILAR_RESULT_CACHE_KEY, UNMATCHED_CACHE_KEY } from "../constants";
 import { loadJson } from "../utils/storage";
+import { similarResultNeedsUpgrade, upgradeSimilarResult } from "../utils/similarCleanup";
 import { normalizedUiState } from "../utils/uiState";
 import { describeProgressEvent } from "../utils/progressEvents";
 import { useTaskRunner } from "./useTaskRunner";
@@ -41,6 +43,11 @@ export function useAppState() {
   const [similarResult, setSimilarResult] = useState<SimilarResult | null>(() =>
     loadJson<SimilarResult | null>(SIMILAR_RESULT_CACHE_KEY, null)
   );
+  const [cleanupSummary, setCleanupSummary] = useState<CleanupSummary>({
+    state_path: "",
+    operations: [],
+    ignored_groups: []
+  });
   const [expandedGroups, setExpandedGroups] = useState<Set<number>>(
     () => new Set(INITIAL_UI_STATE.expandedGroups || [])
   );
@@ -66,6 +73,19 @@ export function useAppState() {
   const [scanPreview, setScanPreview] = useState<ScanPreviewPayload | null>(null);
   const [toastMessage, setToastMessage] = useState("");
   const toastTimerRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (!similarResultNeedsUpgrade(similarResult) || !similarResult) return;
+    let active = true;
+    void upgradeSimilarResult(similarResult)
+      .then((upgraded) => {
+        if (active) setSimilarResult(upgraded);
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, [similarResult]);
 
   const languageValue = settings.language || language;
   useTheme(settings.theme || "system");
@@ -132,7 +152,7 @@ export function useAppState() {
     activeTab, setActiveTab, settings, setSettings, setLanguageState,
     cookieConsent, setCookieConsent, pixivCookie, setPixivCookie,
     artists, setArtists, artistTags, setArtistTags, selected, setSelected, filter, setFilter, logs,
-    similarResult, setSimilarResult, expandedGroups, setExpandedGroups,
+    similarResult, setSimilarResult, cleanupSummary, setCleanupSummary, expandedGroups, setExpandedGroups,
     projectRootValue, setProjectRootState, pythonCommandValue, setPythonCommandState,
     similarRoots, setSimilarRoots, similarExcludes, setSimilarExcludes,
     similarRootBoxHeight, setSimilarRootBoxHeight, similarExcludeBoxHeight, setSimilarExcludeBoxHeight,
