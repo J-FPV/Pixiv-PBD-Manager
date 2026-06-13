@@ -104,7 +104,7 @@ Notes:
 - You can ignore groups that are not duplicates. They reappear if a file in the group changes.
 - Different resolutions, light compression, and different image formats can still match.
 - You can skip comparisons between Pixiv split pages such as `{pid}_p0` and `{pid}_p1`.
-- The preview window lets you switch between images in the group and view a generated difference image.
+- The preview window lets you switch between images in the group and offers four comparison modes: single, side-by-side, before/after slider, and difference. Side-by-side shows each image's resolution, size, and modified date and flags the recommended keeper; scroll to zoom and drag to pan (the two panes stay in sync); the slider wipes between the two like a before/after view; and the difference image first scales both images to a common size before diffing. Arrow keys switch images, Esc closes, and number keys 1-4 switch modes.
 
 ## Common Questions
 

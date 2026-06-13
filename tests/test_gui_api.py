@@ -518,6 +518,30 @@ class GuiApiTests(unittest.TestCase):
         self.assertGreater(payload["height"], 0)
         self.assertTrue(payload["data_url"].startswith("data:image/"))
 
+    def test_image_difference_aligns_different_sizes_to_base(self):
+        with TemporaryDirectory() as tmp:
+            root = _isolate(tmp)
+            base = root / "base.png"
+            compare = root / "compare.png"
+            Image.new("RGB", (128, 64), "red").save(base)
+            Image.new("RGB", (80, 80), "red").save(compare)
+            old_cwd = Path.cwd()
+            try:
+                os.chdir(root)
+                exit_code, events = invoke(
+                    "image.difference",
+                    {"base_path": str(base), "compare_path": str(compare), "max_size": 64},
+                )
+            finally:
+                os.chdir(old_cwd)
+
+        self.assertEqual(exit_code, 0)
+        payload = events[-1]["payload"]
+        # The diff canvas matches the base image's (thumbnailed) dimensions,
+        # not a union of both sizes, because compare is resized onto base.
+        self.assertEqual((payload["width"], payload["height"]), (64, 32))
+        self.assertTrue(payload["data_url"].startswith("data:image/"))
+
     @unittest.skipUnless(os.name == "nt", "Windows explorer argument regression")
     def test_file_reveal_uses_shell_execute_explorer_select_argument(self):
         with TemporaryDirectory() as tmp:

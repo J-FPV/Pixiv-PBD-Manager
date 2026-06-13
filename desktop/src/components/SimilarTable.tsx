@@ -127,7 +127,8 @@ export function SimilarTable({
         <ImagePreviewModal
           language={language}
           path={preview.path}
-          paths={preview.group.entries.map((entry) => entry.path)}
+          entries={preview.group.entries}
+          recommendedKeepPath={preview.group.recommended_keep_path}
           onPathChange={(path) => setPreview({ ...preview, path })}
           onClose={() => setPreview(null)}
           revealFile={revealFile}

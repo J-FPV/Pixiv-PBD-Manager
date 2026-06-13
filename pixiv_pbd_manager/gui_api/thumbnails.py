@@ -56,16 +56,15 @@ def image_difference(base_path: Path, compare_path: Path, max_size: int) -> tupl
     base, _base_width, _base_height = _open_preview_image(base_path, max_size)
     compare, _compare_width, _compare_height = _open_preview_image(compare_path, max_size)
 
-    width = max(base.width, compare.width)
-    height = max(base.height, compare.height)
+    # Align the comparison image to the base dimensions so the per-pixel diff
+    # reflects content differences (compression, edits) rather than a size or
+    # letterbox mismatch. The base image defines the diff canvas.
+    base_rgb = base.convert("RGB")
+    compare_rgb = compare.convert("RGB")
+    if compare_rgb.size != base_rgb.size:
+        compare_rgb = compare_rgb.resize(base_rgb.size, Image.Resampling.LANCZOS)
 
-    def centered_canvas(image):
-        canvas = Image.new("RGB", (width, height), "black")
-        rgb = image.convert("RGB")
-        canvas.paste(rgb, ((width - rgb.width) // 2, (height - rgb.height) // 2))
-        return canvas
-
-    diff = ImageChops.difference(centered_canvas(base), centered_canvas(compare))
+    diff = ImageChops.difference(base_rgb, compare_rgb)
     diff = ImageOps.autocontrast(diff)
     data_url, _mime = _encode_image(diff, prefer_jpeg=False)
-    return data_url, width, height
+    return data_url, base_rgb.width, base_rgb.height

@@ -1,38 +1,55 @@
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { t } from "../i18n";
-import type { Language } from "../types";
+import type { Language, SimilarEntry } from "../types";
 import { useImagePreview, type PreviewMode } from "../hooks/useImagePreview";
+import { useZoomPan } from "../hooks/useZoomPan";
 import { Button } from "./Button";
 import { ModalOverlay } from "./ModalOverlay";
+import { PreviewControls } from "./preview/PreviewControls";
+import { PreviewStage } from "./preview/PreviewStage";
+
+const MODE_KEYS: Record<string, PreviewMode> = { "1": "single", "2": "side", "3": "slider", "4": "difference" };
+
+export interface ImagePreviewModalProps {
+  language: Language;
+  path: string;
+  entries: SimilarEntry[];
+  recommendedKeepPath?: string | null;
+  onPathChange?: (path: string) => void;
+  onClose: () => void;
+  revealFile: (path: string) => void;
+}
+
+function isEditableTarget(target: EventTarget | null): boolean {
+  const tag = (target as HTMLElement | null)?.tagName;
+  return tag === "SELECT" || tag === "INPUT" || tag === "TEXTAREA";
+}
 
 export function ImagePreviewModal({
   language,
   path,
-  paths = [path],
+  entries,
+  recommendedKeepPath = null,
   onPathChange,
   onClose,
   revealFile
-}: {
-  language: Language;
-  path: string;
-  paths?: string[];
-  onPathChange?: (path: string) => void;
-  onClose: () => void;
-  revealFile: (path: string) => void;
-}) {
-  const [mode, setMode] = useState<PreviewMode>("image");
+}: ImagePreviewModalProps) {
+  const [mode, setMode] = useState<PreviewMode>("single");
   const [comparePath, setComparePath] = useState("");
-  const uniquePaths = useMemo(() => Array.from(new Set(paths)), [paths]);
+  const uniquePaths = useMemo(() => Array.from(new Set(entries.map((entry) => entry.path))), [entries]);
+  const entryByPath = useMemo(() => new Map(entries.map((entry) => [entry.path, entry])), [entries]);
   const currentIndex = Math.max(0, uniquePaths.indexOf(path));
   const compareChoices = useMemo(() => uniquePaths.filter((item) => item !== path), [path, uniquePaths]);
   const canSwitch = uniquePaths.length > 1;
-  const { image, difference, error } = useImagePreview(path, comparePath, mode);
+
+  const preview = useImagePreview(path, comparePath, mode);
+  const { transform, containerRef, reset, isZoomed, panHandlers } = useZoomPan(`${mode}|${path}|${comparePath}`);
 
   useEffect(() => {
     if (!compareChoices.length) {
       setComparePath("");
-      setMode("image");
+      setMode("single");
       return;
     }
     if (!comparePath || comparePath === path || !compareChoices.includes(comparePath)) {
@@ -44,12 +61,31 @@ export function ImagePreviewModal({
     if (!canSwitch || !onPathChange) {
       return;
     }
-    const next = (currentIndex + offset + uniquePaths.length) % uniquePaths.length;
-    onPathChange(uniquePaths[next]);
+    onPathChange(uniquePaths[(currentIndex + offset + uniquePaths.length) % uniquePaths.length]);
   };
 
-  const shownDataUrl = mode === "difference" ? difference?.data_url : image?.data_url;
-  const loadingText = mode === "difference" ? t(language, "loadingDifference") : t(language, "loadingPreview");
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        onClose();
+        return;
+      }
+      if (isEditableTarget(event.target)) {
+        return;
+      }
+      if (event.key === "ArrowLeft") {
+        switchBy(-1);
+      } else if (event.key === "ArrowRight") {
+        switchBy(1);
+      } else if (event.key === "0" || event.key.toLowerCase() === "r") {
+        reset();
+      } else if (MODE_KEYS[event.key] && (event.key === "1" || canSwitch)) {
+        setMode(MODE_KEYS[event.key]);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  });
 
   return (
     <ModalOverlay onClose={onClose}>
@@ -65,35 +101,33 @@ export function ImagePreviewModal({
           ) : null}
         </div>
         {canSwitch ? (
-          <div className="previewControls">
-            <div className="segmented">
-              <button className={mode === "image" ? "active" : ""} onClick={() => setMode("image")}>
-                {t(language, "normalPreview")}
-              </button>
-              <button className={mode === "difference" ? "active" : ""} onClick={() => setMode("difference")}>
-                {t(language, "differencePreview")}
-              </button>
-            </div>
-            <label className="previewCompare">
-              <span>{t(language, "compareWith")}</span>
-              <select value={comparePath} onChange={(event) => setComparePath(event.target.value)}>
-                {compareChoices.map((item, index) => (
-                  <option key={item} value={item}>
-                    {index + 1}. {item}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
+          <PreviewControls
+            language={language}
+            mode={mode}
+            setMode={setMode}
+            comparePath={comparePath}
+            setComparePath={setComparePath}
+            compareChoices={compareChoices}
+            onReset={reset}
+            isZoomed={isZoomed}
+          />
         ) : null}
-        <div className="imagePreviewBody">
-          {shownDataUrl ? <img src={shownDataUrl} alt={path} /> : <span>{loadingText}</span>}
-          {error ? <span className="previewError">{error}</span> : null}
-        </div>
+        <PreviewStage
+          language={language}
+          mode={mode}
+          transform={transform}
+          containerRef={containerRef}
+          panHandlers={panHandlers}
+          preview={preview}
+          path={path}
+          baseEntry={entryByPath.get(path)}
+          compareEntry={entryByPath.get(comparePath)}
+          recommendedKeepPath={recommendedKeepPath}
+        />
         <div className="previewFooter">
           <div className="previewPathList">
             <div className="imagePreviewPath" title={path}>{path}</div>
-            {mode === "difference" && comparePath ? (
+            {mode !== "single" && comparePath ? (
               <div className="imagePreviewPath" title={comparePath}>
                 {t(language, "differenceHint")}: {comparePath}
               </div>
