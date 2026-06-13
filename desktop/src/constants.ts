@@ -1,4 +1,19 @@
-import type { AppSettings } from "./types";
+import type { AppSettings, LibraryFilters } from "./types";
+
+// Empty library filter state; every dimension starts unselected.
+export const EMPTY_LIBRARY_FILTERS: LibraryFilters = {
+  keyword: "",
+  artists: [],
+  folders: [],
+  tags: [],
+  formats: [],
+  orientations: [],
+  resolutions: [],
+  dates: []
+};
+
+// Minimum thumbnail tile width (px) used to compute the library grid column count.
+export const LIBRARY_TILE_WIDTH = 168;
 
 // Default settings used when the backend has not yet returned a settings.get payload.
 export const DEFAULT_SETTINGS: AppSettings = {

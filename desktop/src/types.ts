@@ -10,7 +10,7 @@ export type ThemeMode = "system" | "light" | "dark";
 export type TaskLane = "library" | "similar";
 export const TASK_LANES: TaskLane[] = ["library", "similar"];
 
-export const TAB_KEYS = ["artists", "unmatched", "similar", "settings", "logs"] as const;
+export const TAB_KEYS = ["artists", "unmatched", "similar", "library", "settings", "logs"] as const;
 export type TabKey = typeof TAB_KEYS[number];
 
 export interface UnmatchedFolder {
@@ -381,4 +381,77 @@ export interface ImageDifferencePayload {
   data_url: string;
   width: number;
   height: number;
+}
+
+export type ImageOrientation = "portrait" | "landscape" | "square" | "unknown";
+
+// One row of the image library catalog (joined with live artist data).
+export interface LibraryImage {
+  path: string;
+  filename: string;
+  folder: string;
+  size_bytes: number;
+  mtime_ns: number;
+  width: number;
+  height: number;
+  resolution: string;
+  orientation: ImageOrientation;
+  format: string;
+  pid: string;
+  page: number | null;
+  artist_id: string;
+  artist_name: string;
+  artist_tags: string[];
+  tags: string[];
+  artwork_url: string;
+  artist_url: string;
+}
+
+// Every filter dimension is a multi-select set (OR within a dimension, AND
+// across dimensions); `keyword` is a free-text path/name search.
+export interface LibraryFilters {
+  keyword: string;
+  artists: string[];
+  folders: string[];
+  tags: string[];
+  formats: string[];
+  orientations: string[];
+  resolutions: string[];
+  dates: string[];
+}
+
+export interface LibraryFacet {
+  value: string;
+  label: string;
+  count: number;
+}
+
+export interface LibraryFacets {
+  artists: LibraryFacet[];
+  folders: LibraryFacet[];
+  tags: LibraryFacet[];
+  formats: LibraryFacet[];
+  orientations: LibraryFacet[];
+  resolutions: LibraryFacet[];
+  dates: LibraryFacet[];
+}
+
+export interface LibraryListPayload {
+  images: LibraryImage[];
+  needs_scan: boolean;
+  db_path: string;
+}
+
+export interface LibraryScanSummary {
+  files_seen: number;
+  indexed: number;
+  reused: number;
+  changed: number;
+  errors: number;
+  error_examples: string[];
+  needs_scan: boolean;
+}
+
+export interface LibrarySetTagsPayload {
+  image: LibraryImage;
 }

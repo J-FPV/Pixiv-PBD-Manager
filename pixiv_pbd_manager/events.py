@@ -50,6 +50,11 @@ PROGRESS_SIMILAR_MATCH_START = "progress_similar_match_start"
 PROGRESS_SIMILAR_MATCH = "progress_similar_match"
 PROGRESS_SIMILAR_DONE = "progress_similar_done"
 
+# Image-library catalog scan
+PROGRESS_LIBRARY_START = "progress_library_start"
+PROGRESS_LIBRARY_FILES = "progress_library_files"
+PROGRESS_LIBRARY_DONE = "progress_library_done"
+
 # Similar-image cleanup / quarantine operations
 PROGRESS_CLEANUP_START = "progress_cleanup_start"
 PROGRESS_CLEANUP_ITEM = "progress_cleanup_item"

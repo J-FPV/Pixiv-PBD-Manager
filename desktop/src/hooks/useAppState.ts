@@ -19,6 +19,7 @@ import { loadJson } from "../utils/storage";
 import { similarResultNeedsUpgrade, upgradeSimilarResult } from "../utils/similarCleanup";
 import { normalizedUiState } from "../utils/uiState";
 import { describeProgressEvent } from "../utils/progressEvents";
+import { useLibraryState } from "./useLibraryState";
 import { useTaskRunner } from "./useTaskRunner";
 import { useTheme } from "./useTheme";
 
@@ -37,6 +38,7 @@ export function useAppState() {
   const [pixivCookie, setPixivCookie] = useState("");
   const [artists, setArtists] = useState<Artist[]>([]);
   const [artistTags, setArtistTags] = useState<string[]>([]);
+  const library = useLibraryState();
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [filter, setFilter] = useState(INITIAL_UI_STATE.filter || "");
   const [logs, setLogs] = useState<LogEntry[]>([]);
@@ -152,6 +154,7 @@ export function useAppState() {
     activeTab, setActiveTab, settings, setSettings, setLanguageState,
     cookieConsent, setCookieConsent, pixivCookie, setPixivCookie,
     artists, setArtists, artistTags, setArtistTags, selected, setSelected, filter, setFilter, logs,
+    ...library,
     similarResult, setSimilarResult, cleanupSummary, setCleanupSummary, expandedGroups, setExpandedGroups,
     projectRootValue, setProjectRootState, pythonCommandValue, setPythonCommandState,
     similarRoots, setSimilarRoots, similarExcludes, setSimilarExcludes,

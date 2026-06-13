@@ -1,4 +1,4 @@
-import { FolderSearch, Image as ImageIcon, List, Settings as SettingsIcon, Terminal } from "lucide-react";
+import { FolderSearch, Image as ImageIcon, LayoutGrid, List, Settings as SettingsIcon, Terminal } from "lucide-react";
 import type { Dispatch, ReactNode, SetStateAction } from "react";
 import { t } from "../../i18n";
 import type { Language, TabKey } from "../../types";
@@ -16,6 +16,7 @@ export function TopBar({
     { key: "artists", label: t(language, "artists"), icon: <List size={18} /> },
     { key: "unmatched", label: t(language, "unmatched"), icon: <FolderSearch size={18} /> },
     { key: "similar", label: t(language, "similar"), icon: <ImageIcon size={18} /> },
+    { key: "library", label: t(language, "library"), icon: <LayoutGrid size={18} /> },
     { key: "settings", label: t(language, "settings"), icon: <SettingsIcon size={18} /> },
     { key: "logs", label: t(language, "logs"), icon: <Terminal size={18} /> }
   ];

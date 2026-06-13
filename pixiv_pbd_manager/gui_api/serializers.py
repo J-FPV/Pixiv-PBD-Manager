@@ -6,6 +6,9 @@ audit in one place.
 
 from __future__ import annotations
 
+from pathlib import Path
+
+from ..library import LibraryImage
 from ..models import ArtistRecord
 from ..operations import DownloadUpdatesResult, ScanResult, UpdateCheckResult
 from ..similar import SimilarGroup, SimilarImageResult, cleanup_recommendation, group_signature
@@ -29,6 +32,32 @@ def artist_to_json(artist: ArtistRecord) -> JsonDict:
         "notes": artist.notes,
         "favorite": artist.favorite,
         "tags": sorted(set(artist.tags)),
+    }
+
+
+def library_image_to_json(image: LibraryImage, artist: ArtistRecord | None = None) -> JsonDict:
+    """Per-image row for the library browser. The immutable facts come from the
+    catalog; artist name/tags/urls are joined live from the DB so they reflect
+    edits made since the last library scan."""
+    return {
+        "path": image.path,
+        "filename": Path(image.path).name,
+        "folder": image.folder,
+        "size_bytes": image.size_bytes,
+        "mtime_ns": image.mtime_ns,
+        "width": image.width,
+        "height": image.height,
+        "resolution": image.resolution,
+        "orientation": image.orientation,
+        "format": image.format,
+        "pid": image.pid,
+        "page": image.page,
+        "artist_id": image.artist_id,
+        "artist_name": (artist.name or "") if artist else "",
+        "artist_tags": sorted(set(artist.tags)) if artist else [],
+        "tags": sorted(set(image.tags)),
+        "artwork_url": f"https://www.pixiv.net/artworks/{image.pid}" if image.pid else "",
+        "artist_url": artist.pixiv_url if artist else "",
     }
 
 

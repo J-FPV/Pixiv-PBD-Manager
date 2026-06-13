@@ -15,6 +15,9 @@ import {
   PROGRESS_DOWNLOAD_WORK,
   PROGRESS_DOWNLOAD_WORK_DONE,
   PROGRESS_FUZZY_ARTIST,
+  PROGRESS_LIBRARY_DONE,
+  PROGRESS_LIBRARY_FILES,
+  PROGRESS_LIBRARY_START,
   PROGRESS_REFRESH_NAMES_ARTIST,
   PROGRESS_REFRESH_NAMES_DONE,
   PROGRESS_REFRESH_NAMES_START,
@@ -308,6 +311,40 @@ function describeSimilar(language: Language, event: ProgressEvent): PipelineDesc
   }
 }
 
+function describeLibrary(language: Language, event: ProgressEvent): PipelineDescriptor | null {
+  const p = event.payload;
+  switch (event.key) {
+    case PROGRESS_LIBRARY_START:
+      return {
+        logText: `Library scan started: ${p.total_files ?? "?"} file(s)`,
+        progressUpdate: () => ({
+          main: { label: t(language, "scanLibrary"), current: 0, total: numberValue(p.total_files), indeterminate: true }
+        })
+      };
+    case PROGRESS_LIBRARY_FILES: {
+      const total = numberValue(p.total_files);
+      return {
+        logText: `Library: ${p.files}/${p.total_files ?? "?"} files, ${p.indexed} indexed, ${p.reused} reused`,
+        progressUpdate: () => ({
+          main: {
+            label: `${t(language, "scanLibrary")}: ${numberValue(p.files)}/${total} `,
+            current: numberValue(p.files),
+            total,
+            indeterminate: total === 0
+          }
+        })
+      };
+    }
+    case PROGRESS_LIBRARY_DONE:
+      return {
+        logText: `Library scan done: ${p.indexed} image(s)`,
+        progressUpdate: () => ({ main: { label: t(language, "scanLibrary"), current: 1, total: 1 } })
+      };
+    default:
+      return null;
+  }
+}
+
 function describeCleanup(language: Language, event: ProgressEvent): PipelineDescriptor | null {
   const p = event.payload;
   const actionLabel =
@@ -354,6 +391,7 @@ const PIPELINES: { lane: TaskLane; describe: (language: Language, event: Progres
   { lane: "library", describe: describeUpdateCheck },
   { lane: "library", describe: describeRefreshNames },
   { lane: "library", describe: describeDownload },
+  { lane: "library", describe: describeLibrary },
   { lane: "similar", describe: describeSimilar },
   { lane: "similar", describe: describeCleanup }
 ];

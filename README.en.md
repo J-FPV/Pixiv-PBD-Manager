@@ -27,6 +27,7 @@ The installer includes the Python backend and dependencies. You do not need to i
 - Helps resolve old folders that contain artist names but no artist IDs.
 - Skips folders you add to the exclude list.
 - Marks favorite artists and organizes them with tags, including drag-to-assign and tag filtering.
+- Image Library view: browse every image in a thumbnail grid, filter by artist, folder, tag, format, orientation, resolution, and year, and open any image to see its PID, source, dimensions, and path.
 - Finds similar images across different file names, formats, and resolutions.
 - Supports thumbnail previews and difference-image comparison.
 - Recommends the best copy to keep and moves other selected files to a recoverable quarantine.
@@ -91,6 +92,17 @@ The Artists page supports favorites and tags to help organize large libraries.
 - **Managing tags**: right-click a tag to rename or delete it; deleting removes the tag from every artist.
 
 Favorites and tags are stored in `artists.json` and never touch your local image files.
+
+## Image Library
+
+The Image Library page browses every image in your download folders as a thumbnail grid, turning the app from a download manager into an asset manager.
+
+- **Build the catalog**: on first open, click "Scan library". The app walks your download folders, reads each image's dimensions, and parses the Pixiv PID/artist into a local catalog (`library_index.json`). Later opens are instant; rescans only re-read files whose size or modified time changed.
+- **Filter**: a left collapsible sidebar filters by artist, folder, tag, format, orientation (portrait/landscape/square), resolution, and year, with a count on each option and multi-select. The top search box filters by filename/path/PID/artist.
+- **Tags**: tags come from both the artist's tags (inherited automatically) and per-image tags you add in the detail view.
+- **Detail**: click any thumbnail for the full image plus metadata (PID, source link, artist, dimensions, format, size, modified time, path); edit that image's tags, open its folder, or open the Pixiv source page.
+
+The catalog lives in `library_index.json` and never touches your local image files.
 
 ## Similar Images
 

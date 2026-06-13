@@ -1972,3 +1972,283 @@ body.col-resizing .colHandle::after {
 .logLine.error {
   color: var(--log-error);
 }
+
+/* Image Library */
+.libraryCount {
+  color: var(--muted);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.libraryBody {
+  display: flex;
+  min-height: 0;
+  gap: 10px;
+  overflow: hidden;
+}
+
+.libraryEmpty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  height: 100%;
+  text-align: center;
+}
+
+.libraryFilterSidebar {
+  flex: 0 0 240px;
+  width: 240px;
+  overflow-y: auto;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.filterSidebarHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 2px 4px 8px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.filterClearButton {
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.filterSection {
+  margin-bottom: 6px;
+}
+
+.filterSectionTitle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 4px;
+  border: 0;
+  background: none;
+  color: var(--text);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.filterSectionActive {
+  margin-left: auto;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #ffffff;
+  font-size: 11px;
+}
+
+.filterChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 2px 4px 6px;
+}
+
+.filterChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  padding: 3px 8px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.filterChip.active {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #ffffff;
+}
+
+.filterChipName {
+  overflow: hidden;
+  max-width: 150px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.filterChipCount {
+  font-size: 11px;
+  opacity: 0.75;
+}
+
+.libraryGridScroll {
+  flex: 1 1 0;
+  min-width: 0;
+  overflow-y: auto;
+}
+
+.libraryGridRow {
+  display: grid;
+  gap: 10px;
+  padding: 0 2px 10px;
+}
+
+.libraryTile {
+  display: flex;
+  flex-direction: column;
+  height: 188px;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  text-align: left;
+  cursor: pointer;
+}
+
+.libraryTile.selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+.libraryTileImage {
+  display: grid;
+  flex: 1 1 0;
+  place-items: center;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--preview-bg);
+}
+
+.libraryTileImage img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.libraryTileLabel {
+  padding: 5px 7px;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.modal.libraryDetailModal {
+  width: min(1180px, 96vw);
+  height: min(880px, 94vh);
+  padding: 20px 24px;
+  overflow: hidden;
+}
+
+.libraryDetailBody {
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  flex: 1 1 0;
+  gap: 16px;
+  min-height: 0;
+}
+
+.libraryDetailStage {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-height: 0;
+  overflow: hidden;
+  border-radius: 8px;
+  background: var(--preview-bg);
+}
+
+.libraryDetailStage img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+.libraryDetailMeta {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.libraryMetaRow {
+  display: flex;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.libraryMetaKey {
+  flex: 0 0 84px;
+  color: var(--muted);
+}
+
+.libraryMetaValue {
+  flex: 1 1 0;
+  min-width: 0;
+  color: var(--text);
+  word-break: break-all;
+}
+
+.libraryTagEditor {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.libraryTagChips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.libraryTagChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-size: 12px;
+}
+
+.libraryTagChip button {
+  display: inline-flex;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.libraryTagChips input {
+  flex: 1 1 60px;
+  min-width: 60px;
+  padding: 2px 6px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--input-bg);
+  color: var(--text);
+}
+
+.libraryDetailActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: auto;
+  padding-top: 10px;
+}

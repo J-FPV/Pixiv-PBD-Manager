@@ -1,6 +1,7 @@
 import { useAppState } from "./hooks/useAppState";
 import { useAppBootstrap } from "./hooks/useAppBootstrap";
 import { useArtistActions } from "./hooks/useArtistActions";
+import { useLibraryActions } from "./hooks/useLibraryActions";
 import { useSettingsActions } from "./hooks/useSettingsActions";
 import { useSettingsAutosave } from "./hooks/useSettingsAutosave";
 import { useSimilarActions } from "./hooks/useSimilarActions";
@@ -16,6 +17,7 @@ export default function App() {
   const settingsActions = useSettingsActions(s);
   const artistActions = useArtistActions(s);
   const similarActions = useSimilarActions(s);
+  const libraryActions = useLibraryActions(s);
   const { markAutosaveReady } = useSettingsAutosave(s);
 
   useAppBootstrap(s, settingsActions.applySettingsPayload, markAutosaveReady);
@@ -30,6 +32,7 @@ export default function App() {
         settingsActions={settingsActions}
         artistActions={artistActions}
         similarActions={similarActions}
+        libraryActions={libraryActions}
       />
       <AppFooter
         language={s.language}

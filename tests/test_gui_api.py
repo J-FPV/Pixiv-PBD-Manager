@@ -542,6 +542,72 @@ class GuiApiTests(unittest.TestCase):
         self.assertEqual((payload["width"], payload["height"]), (64, 32))
         self.assertTrue(payload["data_url"].startswith("data:image/"))
 
+    def _setup_library(self, root: Path) -> Path:
+        """Write settings + an artist DB and lay down two images. Returns the
+        download-roots folder. Caller must already be chdir'd into ``root``."""
+        images_dir = root / "images"
+        images_dir.mkdir()
+        Image.new("RGB", (40, 20), "red").save(images_dir / "12345678_p0.jpg")
+        Image.new("RGB", (20, 40), "blue").save(images_dir / "99000099_p0.png")
+        db_file = root / ".pixiv-pbd-manager" / "artists.json"
+        invoke("settings.save", {"settings": {
+            "database": str(db_file),
+            "download_roots": [str(images_dir)],
+            "exclude_roots": [],
+        }})
+        db = ArtistDatabase.load(db_file)
+        db.upsert("555", name="Tester", source="manual")
+        db.artists["555"].work_ids = ["12345678"]
+        db.save()
+        return images_dir
+
+    def test_library_scan_then_list_joins_artist(self):
+        with TemporaryDirectory() as tmp:
+            root = _isolate(tmp)
+            old_cwd = Path.cwd()
+            try:
+                os.chdir(root)
+                self._setup_library(root)
+                scan_code, scan_events = invoke("library.scan")
+                list_code, list_events = invoke("library.list")
+            finally:
+                os.chdir(old_cwd)
+
+        self.assertEqual(scan_code, 0)
+        self.assertEqual(list_code, 0)
+        scan_payload = scan_events[-1]["payload"]
+        self.assertEqual(scan_payload["indexed"], 2)
+        self.assertFalse(scan_payload["needs_scan"])
+        rows = list_events[-1]["payload"]["images"]
+        self.assertFalse(list_events[-1]["payload"]["needs_scan"])
+        by_pid = {row["pid"]: row for row in rows}
+        joined = by_pid["12345678"]
+        self.assertEqual(joined["artist_id"], "555")
+        self.assertEqual(joined["artist_name"], "Tester")
+        self.assertEqual(joined["orientation"], "landscape")
+        self.assertEqual(joined["resolution"], "40x20")
+        self.assertEqual(joined["artwork_url"], "https://www.pixiv.net/artworks/12345678")
+        self.assertEqual(by_pid["99000099"]["artist_id"], "")
+
+    def test_library_set_tags_persists_and_reserializes(self):
+        with TemporaryDirectory() as tmp:
+            root = _isolate(tmp)
+            old_cwd = Path.cwd()
+            try:
+                os.chdir(root)
+                images_dir = self._setup_library(root)
+                invoke("library.scan")
+                target = str((images_dir / "12345678_p0.jpg").resolve())
+                set_code, set_events = invoke("library.set_tags", {"path": target, "tags": ["b", "a", "a"]})
+                _, list_events = invoke("library.list")
+            finally:
+                os.chdir(old_cwd)
+
+        self.assertEqual(set_code, 0)
+        self.assertEqual(set_events[-1]["payload"]["image"]["tags"], ["a", "b"])
+        persisted = next(row for row in list_events[-1]["payload"]["images"] if row["path"] == target)
+        self.assertEqual(persisted["tags"], ["a", "b"])
+
     @unittest.skipUnless(os.name == "nt", "Windows explorer argument regression")
     def test_file_reveal_uses_shell_execute_explorer_select_argument(self):
         with TemporaryDirectory() as tmp:

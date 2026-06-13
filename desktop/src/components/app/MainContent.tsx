@@ -1,8 +1,10 @@
 import type { AppState } from "../../hooks/useAppState";
 import type { ArtistActions } from "../../hooks/useArtistActions";
+import type { LibraryActions } from "../../hooks/useLibraryActions";
 import type { SettingsActions } from "../../hooks/useSettingsActions";
 import type { SimilarActions } from "../../hooks/useSimilarActions";
 import { ArtistsView } from "../ArtistsView";
+import { LibraryTab } from "../library/LibraryTab";
 import { LogsView } from "../LogsView";
 import { SettingsView } from "../SettingsView";
 import { SimilarView } from "../SimilarView";
@@ -12,12 +14,14 @@ export function MainContent({
   state: s,
   settingsActions,
   artistActions,
-  similarActions
+  similarActions,
+  libraryActions
 }: {
   state: AppState;
   settingsActions: SettingsActions;
   artistActions: ArtistActions;
   similarActions: SimilarActions;
+  libraryActions: LibraryActions;
 }) {
   return (
     <main>
@@ -94,6 +98,7 @@ export function MainContent({
           unignoreGroup={similarActions.unignoreGroup}
         />
       ) : null}
+      {s.activeTab === "library" ? <LibraryTab state={s} actions={libraryActions} /> : null}
       {s.activeTab === "settings" ? (
         <SettingsView
           language={s.language}
