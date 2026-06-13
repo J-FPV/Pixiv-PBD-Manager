@@ -89,9 +89,13 @@ class CleanupFileTests(unittest.TestCase):
             second.write_bytes(b"second")
             first_stat = first.stat()
             second_stat = second.stat()
+            # The real scanner keys the index by the resolved path (see
+            # fingerprint_image), and quarantine matches against resolved paths.
+            # Build the index the same way so the round trip works on runners
+            # whose temp dir is an 8.3 short path (e.g. C:\Users\RUNNER~1\...).
             entries = [
                 fingerprint(
-                    first,
+                    first.resolve(),
                     sha256="a" * 64,
                     width=10,
                     height=10,
@@ -99,7 +103,7 @@ class CleanupFileTests(unittest.TestCase):
                     mtime=first_stat.st_mtime_ns,
                 ),
                 fingerprint(
-                    second,
+                    second.resolve(),
                     sha256="b" * 64,
                     width=20,
                     height=20,
