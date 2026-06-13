@@ -44,6 +44,23 @@ export function useCleanupSelection(result: SimilarResult | null, ignored: Set<s
   );
   const selectedBytes = selectedEntries.reduce((total, entry) => total + entry.size_bytes, 0);
 
+  // Every backend-recommended-for-removal path across the currently visible
+  // (non-ignored) groups — the target of the "select recommended" action.
+  const recommendedPaths = useMemo(() => {
+    const paths = new Set<string>();
+    for (const group of result?.groups || []) {
+      if (!ignored.has(group.signature)) {
+        for (const path of group.recommended_remove_paths || []) {
+          paths.add(path);
+        }
+      }
+    }
+    return paths;
+  }, [ignored, result]);
+
+  const selectAllRecommended = () => setSelectedForCleanup(new Set(recommendedPaths));
+  const clearSelection = () => setSelectedForCleanup(new Set());
+
   const toggleCleanupEntry = (group: SimilarGroup, path: string) => {
     setSelectedForCleanup((current) => {
       const next = new Set(current);
@@ -67,6 +84,9 @@ export function useCleanupSelection(result: SimilarResult | null, ignored: Set<s
     visibleResult,
     selectedEntries,
     selectedBytes,
+    recommendedCount: recommendedPaths.size,
+    selectAllRecommended,
+    clearSelection,
     toggleCleanupEntry
   };
 }

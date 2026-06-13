@@ -97,6 +97,8 @@ export const en: Dictionary = {
   zoomHint: "Scroll to zoom · drag to pan",
   resetView: "Reset view",
   modified: "Modified",
+  selectRecommended: "Select recommended",
+  clearSelection: "Clear selection",
   library: "Library",
   scanLibrary: "Scan library",
   rescanLibrary: "Rescan",

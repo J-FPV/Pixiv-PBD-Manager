@@ -98,6 +98,8 @@ const zh = {
   zoomHint: "滚轮缩放 · 拖动平移",
   resetView: "重置视图",
   modified: "修改",
+  selectRecommended: "全选建议清理",
+  clearSelection: "取消全选",
   library: "图库",
   scanLibrary: "扫描图库",
   rescanLibrary: "重新扫描",

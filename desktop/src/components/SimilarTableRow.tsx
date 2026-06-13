@@ -1,4 +1,4 @@
-import { ChevronRight, Eye, EyeOff } from "lucide-react";
+import { Archive, ChevronRight, Eye, EyeOff } from "lucide-react";
 import { t } from "../i18n";
 import type { Language, SimilarEntry, SimilarGroup } from "../types";
 import { formatBytes } from "../utils/format";
@@ -7,6 +7,76 @@ import { SimilarThumbnail } from "./SimilarThumbnail";
 export type SimilarRowItem =
   | { type: "group"; group: SimilarGroup }
   | { type: "entry"; group: SimilarGroup; entry: SimilarEntry };
+
+interface SimilarEntryRowProps {
+  group: SimilarGroup;
+  entry: SimilarEntry;
+  language: Language;
+  offset: number;
+  selected: boolean;
+  revealFile: (path: string) => void;
+  toggleCleanupEntry: (group: SimilarGroup, path: string) => void;
+  quarantineEntry: (entry: SimilarEntry) => void;
+  onPreview: (group: SimilarGroup, path: string) => void;
+}
+
+// An image entry row: keep/remove label + thumbnail + path/resolution/size and
+// a per-image "move to quarantine" action.
+function SimilarEntryRow({
+  group,
+  entry,
+  language,
+  offset,
+  selected,
+  revealFile,
+  toggleCleanupEntry,
+  quarantineEntry,
+  onPreview
+}: SimilarEntryRowProps) {
+  const recommendedKeep = group.recommended_keep_path === entry.path;
+  return (
+    <div
+      className={`tableRow similarEntryRow${selected ? " cleanupSelectedRow" : ""}`}
+      style={{ transform: `translateY(${offset}px)` }}
+      onDoubleClick={() => revealFile(entry.path)}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(event) => {
+        if (event.key === "Enter") {
+          revealFile(entry.path);
+        }
+      }}
+    >
+      <span className="cleanupEntrySelect">
+        <input
+          type="checkbox"
+          checked={selected}
+          onClick={(event) => event.stopPropagation()}
+          onChange={() => toggleCleanupEntry(group, entry.path)}
+          title={t(language, selected ? "markedForCleanup" : "keep")}
+        />
+      </span>
+      <span className={selected ? "cleanupRemoveLabel" : recommendedKeep ? "cleanupKeepLabel" : ""}>
+        {selected ? t(language, "markedForCleanup") : recommendedKeep ? t(language, "recommendedKeep") : t(language, "keep")}
+      </span>
+      <SimilarThumbnail language={language} path={entry.path} onPreview={() => onPreview(group, entry.path)} />
+      <span className="pathText clickablePath" title={entry.path}>{entry.path}</span>
+      <span className="centerNumeric">{entry.resolution}</span>
+      <span className="centerNumeric">{formatBytes(entry.size_bytes)}</span>
+      <button
+        type="button"
+        className="iconTableAction"
+        title={t(language, "moveToQuarantine")}
+        onClick={(event) => {
+          event.stopPropagation();
+          quarantineEntry(entry);
+        }}
+      >
+        <Archive size={16} />
+      </button>
+    </div>
+  );
+}
 
 // A single virtualized row: either a collapsible group header or an image
 // entry. `offset` is the virtualizer's translateY for absolute positioning.
@@ -19,6 +89,7 @@ export function SimilarTableRow({
   revealFile,
   selectedForCleanup,
   toggleCleanupEntry,
+  quarantineEntry,
   ignored,
   ignoreGroup,
   unignoreGroup,
@@ -32,6 +103,7 @@ export function SimilarTableRow({
   revealFile: (path: string) => void;
   selectedForCleanup: Set<string>;
   toggleCleanupEntry: (group: SimilarGroup, path: string) => void;
+  quarantineEntry: (entry: SimilarEntry) => void;
   ignored: boolean;
   ignoreGroup: (group: SimilarGroup) => void;
   unignoreGroup: (signature: string) => void;
@@ -63,7 +135,7 @@ export function SimilarTableRow({
           {item.group.entries.length} files, pHash {item.group.best_phash_distance}, dHash {item.group.best_dhash_distance}
         </span>
         <span />
-        <span>{formatBytes(item.group.estimated_reclaim_bytes || 0)}</span>
+        <span className="centerNumeric">{formatBytes(item.group.estimated_reclaim_bytes || 0)}</span>
         <button
           type="button"
           className="iconTableAction"
@@ -83,46 +155,17 @@ export function SimilarTableRow({
       </div>
     );
   }
-  const selected = selectedForCleanup.has(item.entry.path);
-  const recommendedKeep = item.group.recommended_keep_path === item.entry.path;
   return (
-    <div
-      className={`tableRow similarEntryRow${selected ? " cleanupSelectedRow" : ""}`}
-      style={{ transform: `translateY(${offset}px)` }}
-      onDoubleClick={() => revealFile(item.entry.path)}
-      role="button"
-      tabIndex={0}
-      onKeyDown={(event) => {
-        if (event.key === "Enter") {
-          revealFile(item.entry.path);
-        }
-      }}
-    >
-      <span className="cleanupEntrySelect">
-        <input
-          type="checkbox"
-          checked={selected}
-          onClick={(event) => event.stopPropagation()}
-          onChange={() => toggleCleanupEntry(item.group, item.entry.path)}
-          title={t(language, selected ? "markedForCleanup" : "keep")}
-        />
-      </span>
-      <span className={selected ? "cleanupRemoveLabel" : recommendedKeep ? "cleanupKeepLabel" : ""}>
-        {selected
-          ? t(language, "markedForCleanup")
-          : recommendedKeep
-            ? t(language, "recommendedKeep")
-            : t(language, "keep")}
-      </span>
-      <SimilarThumbnail
-        language={language}
-        path={item.entry.path}
-        onPreview={() => onPreview(item.group, item.entry.path)}
-      />
-      <span className="pathText clickablePath" title={item.entry.path}>{item.entry.path}</span>
-      <span className="centerNumeric">{item.entry.resolution}</span>
-      <span className="centerNumeric">{formatBytes(item.entry.size_bytes)}</span>
-      <span />
-    </div>
+    <SimilarEntryRow
+      group={item.group}
+      entry={item.entry}
+      language={language}
+      offset={offset}
+      selected={selectedForCleanup.has(item.entry.path)}
+      revealFile={revealFile}
+      toggleCleanupEntry={toggleCleanupEntry}
+      quarantineEntry={quarantineEntry}
+      onPreview={onPreview}
+    />
   );
 }

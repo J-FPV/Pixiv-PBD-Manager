@@ -93,6 +93,18 @@ export function SimilarResultsPanel({
           />
           <span>{t(language, "showIgnored")} ({ignored.size})</span>
         </label>
+        <Button
+          onClick={selection.selectAllRecommended}
+          disabled={busy || !selection.recommendedCount}
+        >
+          {t(language, "selectRecommended")}
+        </Button>
+        <Button
+          onClick={selection.clearSelection}
+          disabled={busy || !selection.selectedEntries.length}
+        >
+          {t(language, "clearSelection")}
+        </Button>
         <span className="summary">
           {t(language, "selectedFiles")}: {selection.selectedEntries.length} / {t(language, "estimatedSpace")}:{" "}
           {formatBytes(selection.selectedBytes)}
@@ -114,6 +126,7 @@ export function SimilarResultsPanel({
         revealFile={revealFile}
         selectedForCleanup={selection.selectedForCleanup}
         toggleCleanupEntry={selection.toggleCleanupEntry}
+        quarantineEntry={(entry) => quarantineEntries([entry])}
         ignoredSignatures={ignored}
         ignoreGroup={ignoreGroup}
         unignoreGroup={unignoreGroup}

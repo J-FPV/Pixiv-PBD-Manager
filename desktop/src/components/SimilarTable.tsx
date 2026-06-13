@@ -5,7 +5,7 @@ import { SIMILAR_COL_WIDTHS_KEY } from "../constants";
 import { useColumnWidths } from "../hooks/useColumnWidths";
 import type { ColumnDef } from "../hooks/useColumnWidths";
 import { t } from "../i18n";
-import type { Language, SimilarGroup, SimilarResult } from "../types";
+import type { Language, SimilarEntry, SimilarGroup, SimilarResult } from "../types";
 import { ColumnResizeHandle } from "./ColumnResizeHandle";
 import { ImagePreviewModal } from "./ImagePreviewModal";
 import { SimilarTableRow, type SimilarRowItem } from "./SimilarTableRow";
@@ -40,6 +40,7 @@ export function SimilarTable({
   revealFile,
   selectedForCleanup,
   toggleCleanupEntry,
+  quarantineEntry,
   ignoredSignatures,
   ignoreGroup,
   unignoreGroup
@@ -51,6 +52,7 @@ export function SimilarTable({
   revealFile: (path: string) => void;
   selectedForCleanup: Set<string>;
   toggleCleanupEntry: (group: SimilarGroup, path: string) => void;
+  quarantineEntry: (entry: SimilarEntry) => void;
   ignoredSignatures: Set<string>;
   ignoreGroup: (group: SimilarGroup) => void;
   unignoreGroup: (signature: string) => void;
@@ -110,6 +112,7 @@ export function SimilarTable({
                     revealFile={revealFile}
                     selectedForCleanup={selectedForCleanup}
                     toggleCleanupEntry={toggleCleanupEntry}
+                    quarantineEntry={quarantineEntry}
                     ignored={ignoredSignatures.has(item.group.signature)}
                     ignoreGroup={ignoreGroup}
                     unignoreGroup={unignoreGroup}

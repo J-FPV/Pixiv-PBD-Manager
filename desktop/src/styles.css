@@ -618,6 +618,9 @@ body.col-resizing .colHandle::after {
   color: var(--muted);
   font-size: 13px;
   font-weight: 600;
+  /* Match the body's reserved scrollbar gutter (10px) so header columns line
+     up with the rows below. */
+  padding-right: 22px;
 }
 
 .headerButton {
@@ -667,6 +670,24 @@ body.col-resizing .colHandle::after {
   min-height: 0;
   overflow: auto;
   position: relative;
+  /* Reserve the vertical scrollbar gutter at all times so the body content
+     width never changes when a scrollbar appears, keeping rows aligned with
+     the (non-scrolling) header. The header adds a matching right padding. */
+  scrollbar-gutter: stable;
+}
+
+.virtualList::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+.virtualList::-webkit-scrollbar-thumb {
+  border-radius: 5px;
+  background: var(--line);
+}
+
+.virtualList::-webkit-scrollbar-track {
+  background: transparent;
 }
 
 .tableRow {
