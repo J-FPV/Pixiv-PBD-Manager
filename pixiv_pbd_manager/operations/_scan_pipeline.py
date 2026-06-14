@@ -37,7 +37,13 @@ from ..events import (
     PROGRESS_SCAN_START,
 )
 from ..scanner import NameOnlyArtistHit, ScanSummary, scan_roots
-from ._shared import ProgressCallback, emit, filter_assigned_unmatched_folders
+from ._shared import (
+    ProgressCallback,
+    emit,
+    filter_assigned_unmatched_folders,
+    is_under_known_save_root,
+    known_save_roots,
+)
 
 # Resolvers are looked up via the ``resolver`` module at call time (rather than
 # imported as bare names) so tests can patch ``pixiv_pbd_manager.resolver.*``
@@ -120,11 +126,12 @@ def collect_resolved_hits(
             )
         )
 
-    if not resolve_online:
-        return result
-
     resolved_hit_keys: set[str] = set()
     name_only_hits = list(summary.name_only_artists.values())
+
+    if not resolve_online:
+        _surface_unresolved_name_only(summary, name_only_hits, resolved_hit_keys, existing_db)
+        return result
 
     for index, hit in enumerate(name_only_hits, 1):
         if not hit.work_ids:
@@ -219,6 +226,7 @@ def collect_resolved_hits(
         summary.unmatched_folder_roots.pop(folder_text, None)
 
     if not fuzzy_search_names:
+        _surface_unresolved_name_only(summary, name_only_hits, resolved_hit_keys, existing_db)
         return result
 
     for index, hit in enumerate(name_only_hits, 1):
@@ -257,5 +265,34 @@ def collect_resolved_hits(
             )
         )
         result.fuzzy_resolved_name_only += 1
+        resolved_hit_keys.add(hit.artist_key)
 
+    _surface_unresolved_name_only(summary, name_only_hits, resolved_hit_keys, existing_db)
     return result
+
+
+def _surface_unresolved_name_only(
+    summary: ScanSummary,
+    name_only_hits: list[NameOnlyArtistHit],
+    resolved_hit_keys: set[str],
+    existing_db: ArtistDatabase,
+) -> None:
+    """Push name-only Pixiv folders we could not attribute to an artist id into
+    ``unmatched_folders`` so they surface in the GUI.
+
+    Without this, a folder like ``ArtistName - pixiv`` whose sample work ids
+    didn't resolve online (resolution off, a transient error, or R-18 works with
+    no cookie) is neither in ``summary.artists`` nor counted as unmatched — it
+    silently vanishes. Folders already living under a known save_path are skipped
+    so the user isn't re-asked to attribute them.
+    """
+    save_roots = known_save_roots(existing_db)
+    for hit in name_only_hits:
+        if hit.artist_key in resolved_hit_keys:
+            continue
+        folder_text = str(Path(hit.folder).resolve())
+        if folder_text in summary.unmatched_folders:
+            continue
+        if save_roots and is_under_known_save_root(Path(folder_text), save_roots):
+            continue
+        summary.unmatched_folders[folder_text] = max(1, hit.file_count)

@@ -90,6 +90,7 @@ class NameOnlyArtistHit:
     folder: Path
     path: Path
     work_ids: set[str] = field(default_factory=set)
+    file_count: int = 0
 
 
 @dataclass(frozen=True)
@@ -143,6 +144,7 @@ class ScanSummary:
             self.name_only_artists[hit.artist_key] = hit
             return
         existing.work_ids.update(hit.work_ids)
+        existing.file_count += hit.file_count
 
 
 def normalize_exclude_roots(exclude_roots: list[Path] | None = None) -> list[Path]:
@@ -443,6 +445,7 @@ def scan_roots(
                     folder=name_folder_identity.folder,
                     path=path,
                     work_ids=extract_work_ids(path),
+                    file_count=1,
                 )
                 if name_folder_identity
                 else None

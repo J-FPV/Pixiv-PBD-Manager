@@ -91,6 +91,40 @@ class GuiBackendTests(unittest.TestCase):
             self.assertEqual(result.resolved_by_pid, 0)
             self.assertIn(str(image.parent.resolve()), result.summary.unmatched_folders)
 
+    def test_unresolved_name_only_folder_surfaces_as_unmatched(self):
+        # A ``... - pixiv`` folder whose sample work ids don't resolve (offline,
+        # or R-18 with no cookie) must not silently vanish: it has no artist id
+        # so it can't be recognized, so it should appear in unmatched_folders for
+        # the user to handle manually.
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp) / "downloads"
+            image = root / "96YOTTEA's illustrations／manga - pixiv" / "100187254_p0.jpg"
+            image.parent.mkdir(parents=True)
+            image.write_bytes(b"")
+            db_path = Path(tmp) / "artists.json"
+
+            result = scan_into_database([root], db_path, resolve_online=False)
+
+            self.assertEqual(result.resolved_name_only, 0)
+            self.assertIn(str(image.parent.resolve()), result.summary.unmatched_folders)
+
+    def test_resolved_name_only_folder_not_listed_as_unmatched(self):
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp) / "downloads"
+            image = root / "96YOTTEA's illustrations／manga - pixiv" / "100187254_p0.jpg"
+            image.parent.mkdir(parents=True)
+            image.write_bytes(b"")
+            db_path = Path(tmp) / "artists.json"
+
+            with patch(
+                "pixiv_pbd_manager.resolver.resolve_name_only_artist",
+                return_value=ResolvedArtist(id="126324", name="96YOTTEA", work_id="100187254"),
+            ):
+                result = scan_into_database([root], db_path, resolve_online=True)
+
+            self.assertEqual(result.resolved_name_only, 1)
+            self.assertNotIn(str(image.parent.resolve()), result.summary.unmatched_folders)
+
     def test_scan_into_database_fuzzy_resolves_manual_illus_folder(self):
         with TemporaryDirectory() as tmp:
             root = Path(tmp) / "downloads"

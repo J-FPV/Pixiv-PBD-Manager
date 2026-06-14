@@ -19,9 +19,17 @@ export function LibraryTile({
   onOpen: (path: string) => void;
 }) {
   const [stage, setStage] = useState<LoadStage>("native");
+  const [retry, setRetry] = useState(0);
   const [fallbackUrl, setFallbackUrl] = useState<string | null>(null);
 
   const onNativeError = () => {
+    // The native handler drops the oldest pending request when the decode
+    // backlog is full (fast scroll), so a miss is often transient. Retry the
+    // native scheme once before paying for the per-image PIL/IPC fallback.
+    if (retry === 0) {
+      setRetry(1);
+      return;
+    }
     void runGuiApi<ImageThumbnailPayload>("image.thumbnail", { path: image.path, max_size: 256 })
       .then((payload) => {
         setFallbackUrl(payload.data_url);
@@ -30,7 +38,10 @@ export function LibraryTile({
       .catch(() => setStage("failed"));
   };
 
-  const src = stage === "fallback" && fallbackUrl ? fallbackUrl : thumbUrl(image.path, image.mtime_ns, 256);
+  const src =
+    stage === "fallback" && fallbackUrl
+      ? fallbackUrl
+      : `${thumbUrl(image.path, image.mtime_ns, 256)}&r=${retry}`;
 
   return (
     <button

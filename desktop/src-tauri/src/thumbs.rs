@@ -18,40 +18,67 @@ use tauri::{Manager, Runtime, UriSchemeContext, UriSchemeResponder};
 const DEFAULT_SIZE: u32 = 256;
 const MAX_SIZE: u32 = 1024;
 const JPEG_QUALITY: u8 = 80;
-// Cap concurrent decodes regardless of how many requests the WebView fires.
-const MAX_CONCURRENT_DECODES: usize = 4;
+// Cap how many requests can wait. When the grid is scrolled fast the WebView
+// fires far more than we can decode; we keep the newest and drop the oldest
+// (most likely scrolled off-screen) so the visible tiles aren't starved.
+const MAX_PENDING: usize = 256;
 
-/// A tiny counting semaphore (std has none) bounding simultaneous decodes.
-struct Semaphore {
-    permits: Mutex<usize>,
-    available: Condvar,
+/// One queued thumbnail request: the parsed URI, where to cache, and the channel
+/// back to the WebView.
+struct Job {
+    uri: String,
+    cache_dir: PathBuf,
+    responder: UriSchemeResponder,
 }
 
-impl Semaphore {
-    fn acquire(&self) {
-        let mut permits = self.permits.lock().unwrap();
-        while *permits == 0 {
-            permits = self.available.wait(permits).unwrap();
+/// A LIFO work queue drained by a fixed pool of worker threads. LIFO (newest
+/// first) is the key: while scrolling, the tiles currently on screen are the
+/// most recent requests, so they render before the backlog of tiles the user
+/// already scrolled past.
+struct Scheduler {
+    queue: Mutex<Vec<Job>>,
+    ready: Condvar,
+}
+
+fn worker_count() -> usize {
+    std::thread::available_parallelism()
+        .map(|n| n.get())
+        .unwrap_or(4)
+        .clamp(2, 8)
+}
+
+fn scheduler() -> &'static Scheduler {
+    static SCHED: OnceLock<Scheduler> = OnceLock::new();
+    let sched = SCHED.get_or_init(|| Scheduler {
+        queue: Mutex::new(Vec::new()),
+        ready: Condvar::new(),
+    });
+    // Spawn the worker pool exactly once, on first use.
+    static WORKERS: OnceLock<()> = OnceLock::new();
+    WORKERS.get_or_init(|| {
+        for _ in 0..worker_count() {
+            std::thread::spawn(move || worker_loop(sched));
         }
-        *permits -= 1;
-    }
+    });
+    sched
+}
 
-    fn release(&self) {
-        *self.permits.lock().unwrap() += 1;
-        self.available.notify_one();
+fn worker_loop(sched: &'static Scheduler) {
+    loop {
+        let job = {
+            let mut queue = sched.queue.lock().unwrap();
+            while queue.is_empty() {
+                queue = sched.ready.wait(queue).unwrap();
+            }
+            queue.pop().unwrap() // newest request first
+        };
+        let response = build_response(&job.uri, &job.cache_dir).unwrap_or_else(not_found);
+        job.responder.respond(response);
     }
 }
 
-fn decode_gate() -> &'static Semaphore {
-    static GATE: OnceLock<Semaphore> = OnceLock::new();
-    GATE.get_or_init(|| Semaphore {
-        permits: Mutex::new(MAX_CONCURRENT_DECODES),
-        available: Condvar::new(),
-    })
-}
-
-/// Entry point wired into the Tauri builder. Offloads the (blocking) work to a
-/// thread and responds asynchronously so the UI thread is never blocked.
+/// Entry point wired into the Tauri builder. Enqueues the (blocking) work for the
+/// worker pool and returns immediately so the UI thread is never blocked.
 pub fn handle<R: Runtime>(
     ctx: UriSchemeContext<'_, R>,
     request: Request<Vec<u8>>,
@@ -63,14 +90,27 @@ pub fn handle<R: Runtime>(
         .app_cache_dir()
         .ok()
         .map(|dir| dir.join("thumbs"));
-    let uri = request.uri().to_string();
-    std::thread::spawn(move || {
-        let response = match cache_dir {
-            Some(dir) => build_response(&uri, &dir).unwrap_or_else(not_found),
-            None => not_found(),
-        };
-        responder.respond(response);
-    });
+    let cache_dir = match cache_dir {
+        Some(dir) => dir,
+        None => return responder.respond(not_found()),
+    };
+    let job = Job {
+        uri: request.uri().to_string(),
+        cache_dir,
+        responder,
+    };
+    let sched = scheduler();
+    let mut queue = sched.queue.lock().unwrap();
+    // Drop the oldest pending request if the backlog is full. Its <img> has very
+    // likely scrolled off-screen; if not, the WebView re-requests when the tile
+    // settles. not_found() lets the frontend retry rather than hang blank.
+    if queue.len() >= MAX_PENDING {
+        let stale = queue.remove(0);
+        stale.responder.respond(not_found());
+    }
+    queue.push(job);
+    drop(queue);
+    sched.ready.notify_one();
 }
 
 fn build_response(uri: &str, cache_dir: &Path) -> Option<Response<Vec<u8>>> {
@@ -91,10 +131,7 @@ fn build_response(uri: &str, cache_dir: &Path) -> Option<Response<Vec<u8>>> {
         return Some(ok_jpeg(bytes));
     }
 
-    decode_gate().acquire();
-    let rendered = render_thumbnail(&path, size);
-    decode_gate().release();
-    let bytes = rendered?;
+    let bytes = render_thumbnail(&path, size)?;
 
     let _ = std::fs::create_dir_all(cache_dir);
     let _ = std::fs::write(&cache_file, &bytes);
