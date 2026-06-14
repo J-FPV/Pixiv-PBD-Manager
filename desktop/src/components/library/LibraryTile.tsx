@@ -1,10 +1,14 @@
 import { useState } from "react";
-import type { LibraryImage } from "../../types";
+import { runGuiApi } from "../../api";
+import type { ImageThumbnailPayload, LibraryImage } from "../../types";
 import { thumbUrl } from "../../utils/thumbUrl";
 
-// One grid cell. The thumbnail is loaded by the WebView itself via the native
-// `thumb://` scheme (decoded + disk-cached in Rust), so scrolling never spawns a
-// per-image backend process and no base64 is held in JS.
+type LoadStage = "native" | "fallback" | "failed";
+
+// One grid cell. The thumbnail is loaded by the WebView via the native `thumb://`
+// scheme (decoded + disk-cached in Rust). A handful of files the Rust decoder
+// can't read (e.g. CMYK JPEGs) fall back to the PIL-based IPC thumbnail, which
+// handles more formats; only those few pay the per-image process cost.
 export function LibraryTile({
   image,
   selected,
@@ -14,7 +18,19 @@ export function LibraryTile({
   selected: boolean;
   onOpen: (path: string) => void;
 }) {
-  const [failed, setFailed] = useState(false);
+  const [stage, setStage] = useState<LoadStage>("native");
+  const [fallbackUrl, setFallbackUrl] = useState<string | null>(null);
+
+  const onNativeError = () => {
+    void runGuiApi<ImageThumbnailPayload>("image.thumbnail", { path: image.path, max_size: 256 })
+      .then((payload) => {
+        setFallbackUrl(payload.data_url);
+        setStage("fallback");
+      })
+      .catch(() => setStage("failed"));
+  };
+
+  const src = stage === "fallback" && fallbackUrl ? fallbackUrl : thumbUrl(image.path, image.mtime_ns, 256);
 
   return (
     <button
@@ -24,15 +40,15 @@ export function LibraryTile({
       onClick={() => onOpen(image.path)}
     >
       <span className="libraryTileImage">
-        {failed ? (
+        {stage === "failed" ? (
           <span className="thumbnailPlaceholder">!</span>
         ) : (
           <img
-            src={thumbUrl(image.path, image.mtime_ns, 256)}
+            src={src}
             alt={image.filename}
             loading="lazy"
             decoding="async"
-            onError={() => setFailed(true)}
+            onError={stage === "native" ? onNativeError : () => setStage("failed")}
           />
         )}
       </span>

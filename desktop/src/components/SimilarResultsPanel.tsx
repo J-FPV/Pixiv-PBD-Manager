@@ -94,16 +94,13 @@ export function SimilarResultsPanel({
           <span>{t(language, "showIgnored")} ({ignored.size})</span>
         </label>
         <Button
-          onClick={selection.selectAllRecommended}
-          disabled={busy || !selection.recommendedCount}
+          className={selection.selectedEntries.length ? "favToggle active" : "favToggle"}
+          disabled={busy || (!selection.selectedEntries.length && !selection.recommendedCount)}
+          onClick={() =>
+            selection.selectedEntries.length ? selection.clearSelection() : selection.selectAllRecommended()
+          }
         >
-          {t(language, "selectRecommended")}
-        </Button>
-        <Button
-          onClick={selection.clearSelection}
-          disabled={busy || !selection.selectedEntries.length}
-        >
-          {t(language, "clearSelection")}
+          {t(language, selection.selectedEntries.length ? "clearSelection" : "selectRecommended")}
         </Button>
         <span className="summary">
           {t(language, "selectedFiles")}: {selection.selectedEntries.length} / {t(language, "estimatedSpace")}:{" "}

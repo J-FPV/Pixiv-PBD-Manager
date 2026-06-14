@@ -2176,7 +2176,10 @@ body.col-resizing .colHandle::after {
 
 .libraryDetailBody {
   display: grid;
-  grid-template-columns: 1fr 320px;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  /* Bound the single row to the body height so the image stage can't grow to
+     its natural size and overflow (clipped = "image not fully shown"). */
+  grid-template-rows: minmax(0, 1fr);
   flex: 1 1 0;
   gap: 16px;
   min-height: 0;
@@ -2186,6 +2189,7 @@ body.col-resizing .colHandle::after {
   position: relative;
   display: grid;
   place-items: center;
+  min-width: 0;
   min-height: 0;
   overflow: hidden;
   border-radius: 8px;
