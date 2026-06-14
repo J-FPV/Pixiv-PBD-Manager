@@ -1,10 +1,10 @@
-import { useEffect, useState } from "react";
-import { runGuiApi } from "../../api";
-import type { ImageThumbnailPayload, LibraryImage } from "../../types";
-import { thumbnailCache } from "../thumbnailCache";
+import { useState } from "react";
+import type { LibraryImage } from "../../types";
+import { thumbUrl } from "../../utils/thumbUrl";
 
-// One grid cell: a lazily-loaded thumbnail (cached across the session) plus the
-// filename. Mirrors SimilarThumbnail's load/cancel pattern.
+// One grid cell. The thumbnail is loaded by the WebView itself via the native
+// `thumb://` scheme (decoded + disk-cached in Rust), so scrolling never spawns a
+// per-image backend process and no base64 is held in JS.
 export function LibraryTile({
   image,
   selected,
@@ -14,38 +14,7 @@ export function LibraryTile({
   selected: boolean;
   onOpen: (path: string) => void;
 }) {
-  const [thumbnail, setThumbnail] = useState<ImageThumbnailPayload | null>(() => thumbnailCache.get(image.path) || null);
   const [failed, setFailed] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-    const cached = thumbnailCache.get(image.path);
-    if (cached) {
-      setThumbnail(cached);
-      setFailed(false);
-      return () => {
-        cancelled = true;
-      };
-    }
-    setThumbnail(null);
-    setFailed(false);
-    void runGuiApi<ImageThumbnailPayload>("image.thumbnail", { path: image.path, max_size: 220 })
-      .then((payload) => {
-        if (cancelled) {
-          return;
-        }
-        thumbnailCache.set(image.path, payload);
-        setThumbnail(payload);
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setFailed(true);
-        }
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [image.path]);
 
   return (
     <button
@@ -55,10 +24,16 @@ export function LibraryTile({
       onClick={() => onOpen(image.path)}
     >
       <span className="libraryTileImage">
-        {thumbnail ? (
-          <img src={thumbnail.data_url} alt={image.filename} loading="lazy" />
+        {failed ? (
+          <span className="thumbnailPlaceholder">!</span>
         ) : (
-          <span className="thumbnailPlaceholder">{failed ? "!" : "..."}</span>
+          <img
+            src={thumbUrl(image.path, image.mtime_ns, 256)}
+            alt={image.filename}
+            loading="lazy"
+            decoding="async"
+            onError={() => setFailed(true)}
+          />
         )}
       </span>
       <span className="libraryTileLabel">{image.filename}</span>

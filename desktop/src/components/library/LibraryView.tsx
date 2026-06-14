@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { EMPTY_LIBRARY_FILTERS } from "../../constants";
 import { t } from "../../i18n";
 import type { Language, LibraryFilters, LibraryImage } from "../../types";
 import type { FacetDimension } from "../../utils/libraryFacets";
+import { useDebouncedValue } from "../../hooks/useDebouncedValue";
 import { useLibraryFilter } from "../../hooks/useLibraryFilter";
 import { Button } from "../Button";
 import { LibraryDetailModal } from "./LibraryDetailModal";
@@ -30,7 +31,33 @@ export function LibraryView(props: LibraryViewProps) {
   const [filters, setFilters] = useState<LibraryFilters>(EMPTY_LIBRARY_FILTERS);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const requested = useRef(false);
-  const { visibleImages, facets } = useLibraryFilter(images, filters, language);
+  // Debounce only the keyword so typing doesn't refilter/facet 36k rows on every
+  // keystroke; the chip dimensions apply immediately. Identity stays stable while
+  // typing (deps are the individual array fields), so the heavy recompute waits.
+  const debouncedKeyword = useDebouncedValue(filters.keyword, 200);
+  const effectiveFilters = useMemo<LibraryFilters>(
+    () => ({
+      keyword: debouncedKeyword,
+      artists: filters.artists,
+      folders: filters.folders,
+      tags: filters.tags,
+      formats: filters.formats,
+      orientations: filters.orientations,
+      resolutions: filters.resolutions,
+      dates: filters.dates
+    }),
+    [
+      debouncedKeyword,
+      filters.artists,
+      filters.folders,
+      filters.tags,
+      filters.formats,
+      filters.orientations,
+      filters.resolutions,
+      filters.dates
+    ]
+  );
+  const { visibleImages, facets } = useLibraryFilter(images, effectiveFilters, language);
 
   useEffect(() => {
     if (loaded || requested.current) {
