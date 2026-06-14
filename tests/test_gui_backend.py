@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import threading
@@ -5,11 +6,12 @@ import time
 import unittest
 from unittest.mock import patch
 
+from pixiv_pbd_manager import downloader
 from pixiv_pbd_manager.database import ArtistDatabase
 from pixiv_pbd_manager.downloader import ArtworkDownloadResult
 from pixiv_pbd_manager.operations import check_artist_updates, download_artist_updates, scan_into_database
 from pixiv_pbd_manager.operations.updates import normalize_download_concurrency
-from pixiv_pbd_manager.resolver import PixivUserCandidate, PixivUserWorks, ResolvedArtist
+from pixiv_pbd_manager.resolver import PixivResolveError, PixivUserCandidate, PixivUserWorks, ResolvedArtist
 
 
 class GuiBackendTests(unittest.TestCase):
@@ -241,6 +243,62 @@ class GuiBackendTests(unittest.TestCase):
         self.assertEqual(normalize_download_concurrency(0), 1)
         self.assertEqual(normalize_download_concurrency(3), 3)
         self.assertEqual(normalize_download_concurrency(99), 5)
+
+    def test_fetch_artwork_pages_rejects_restricted_placeholder(self):
+        # Pixiv serves a "limit_*" placeholder for restricted works requested
+        # without a cookie; treat that as restricted, not a downloadable page.
+        body = json.dumps(
+            {"error": False, "body": [{"urls": {"original": "https://s.pximg.net/common/images/limit_sanity_level_360.png"}}]}
+        )
+        with patch("pixiv_pbd_manager.downloader.read_url_text_with_ssl_fallback", return_value=(body, False)):
+            with self.assertRaises(PixivResolveError):
+                downloader.fetch_artwork_pages("101")
+
+    def test_download_artist_updates_does_not_record_failed_work(self):
+        # A restricted/failed artwork (error result) must not be merged, so it
+        # stays in the artist's available-updates list.
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp) / "downloads"
+            root.mkdir()
+            db_path = Path(tmp) / "artists.json"
+            db = ArtistDatabase.load(db_path)
+            db.upsert("123456", name="Artist", save_path=root, work_ids={"100"})
+            db.artists["123456"].new_work_ids = ["101"]
+            db.save()
+
+            with patch(
+                "pixiv_pbd_manager.downloader.download_artwork",
+                return_value=ArtworkDownloadResult(work_id="101", error="Artwork 101 is restricted"),
+            ):
+                result = download_artist_updates(db_path)
+            db = ArtistDatabase.load(db_path)
+
+            self.assertEqual(result.artworks, 0)
+            self.assertNotIn("101", db.artists["123456"].work_ids)
+            self.assertEqual(db.artists["123456"].new_work_ids, ["101"])
+
+    def test_download_artist_updates_stops_on_cancel(self):
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp) / "downloads"
+            root.mkdir()
+            db_path = Path(tmp) / "artists.json"
+            db = ArtistDatabase.load(db_path)
+            db.upsert("123456", name="Artist", save_path=root, work_ids={"100"})
+            db.artists["123456"].new_work_ids = ["101", "102", "103"]
+            db.save()
+            done = {"n": 0}
+
+            def fake_download(work_id, save_path, **_kwargs):
+                done["n"] += 1
+                return ArtworkDownloadResult(work_id=str(work_id), saved_files=[str(Path(save_path) / f"{work_id}_p0.jpg")])
+
+            with patch("pixiv_pbd_manager.downloader.download_artwork", side_effect=fake_download):
+                result = download_artist_updates(db_path, should_cancel=lambda: done["n"] >= 1)
+            db = ArtistDatabase.load(db_path)
+
+            self.assertTrue(result.cancelled)
+            self.assertEqual(result.artworks, 1)
+            self.assertEqual(len(db.artists["123456"].new_work_ids), 2)
 
 
 if __name__ == "__main__":

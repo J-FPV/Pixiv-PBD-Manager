@@ -7,6 +7,7 @@ pipeline (``_scan_pipeline``) is unrelated.
 from __future__ import annotations
 
 import queue
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -51,6 +52,7 @@ class DownloadUpdatesResult:
     pages_saved: int = 0
     files_skipped: int = 0
     ssl_fallback_used: int = 0
+    cancelled: bool = False
     artwork_results: list[ArtworkDownloadResult] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
 
@@ -193,6 +195,7 @@ def download_artist_updates(
     download_concurrency: int = 1,
     separate_restricted: bool = False,
     progress_callback: ProgressCallback | None = None,
+    should_cancel: Callable[[], bool] | None = None,
 ) -> DownloadUpdatesResult:
     db = ArtistDatabase.load(db_path)
     artists = db.get_many(artist_ids or None)
@@ -284,8 +287,12 @@ def download_artist_updates(
             work_id=task.work_id,
         )
 
+    cancelled = False
     if concurrency <= 1 or len(tasks) <= 1:
         for task in tasks:
+            if should_cancel and should_cancel():
+                cancelled = True
+                break
             record_task(
                 _download_one_task(
                     task,
@@ -326,7 +333,16 @@ def download_artist_updates(
             futures = [executor.submit(run_with_slot, task) for task in tasks]
             for future in as_completed(futures):
                 record_task(future.result())
+                if should_cancel and should_cancel():
+                    cancelled = True
+                    # Cancel queued-but-not-started tasks so the executor's
+                    # shutdown(wait=True) on exit doesn't run them; in-flight
+                    # ones finish but their results are simply not recorded.
+                    for pending in futures:
+                        pending.cancel()
+                    break
 
+    result.cancelled = cancelled
     for artist in downloadable_artists:
         completed_work_ids = completed_by_artist.get(artist.id) or set()
         if completed_work_ids:

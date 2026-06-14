@@ -7,7 +7,7 @@ from pathlib import Path
 from ...cookie_store import load_cookie
 from ...operations import check_artist_updates, download_artist_updates
 from ..payload import as_bool, as_float, as_int, db_path
-from ..runtime import Emitter, JsonDict, make_progress_callback
+from ..runtime import CONTROL, Emitter, JsonDict, make_progress_callback
 from ..serializers import download_result_to_json, update_result_to_json
 from .settings import load_settings_for_payload
 
@@ -66,5 +66,6 @@ def download(payload: JsonDict, emit_event: Emitter) -> JsonDict:
         download_concurrency=as_int(payload, "download_concurrency", as_int(settings, "download_concurrency", 1)),
         separate_restricted=as_bool(payload, "separate_r18", bool(settings.get("separate_r18", False))),
         progress_callback=make_progress_callback(emit_event),
+        should_cancel=CONTROL.is_cancelled,
     )
     return download_result_to_json(result)

@@ -97,6 +97,7 @@ def download_result_to_json(result: DownloadUpdatesResult) -> JsonDict:
         "pages_saved": result.pages_saved,
         "files_skipped": result.files_skipped,
         "ssl_fallback_used": result.ssl_fallback_used,
+        "cancelled": result.cancelled,
         "errors": list(result.errors),
     }
 

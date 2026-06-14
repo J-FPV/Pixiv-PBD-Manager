@@ -28,7 +28,16 @@ from .resolver import (
 PIXIV_ILLUST_PAGES_URL = "https://www.pixiv.net/ajax/illust/{work_id}/pages"
 SAFE_FILENAME_PATTERN = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
 RESTRICTED_SUBDIR = "[R-18&R-18G]"
+# Pixiv serves these placeholder images (instead of the real artwork) when a
+# restricted/login-only work is requested without a valid session cookie. We
+# must NOT treat them as a successful download, otherwise the work would be
+# recorded as "got" and disappear from the artist's available-updates count.
+RESTRICTED_PLACEHOLDER_MARKERS = ("limit_unknown", "limit_sanity_level", "limit_mypixiv")
 ProgressCallback = Callable[[str, dict[str, object]], None]
+
+
+def _is_restricted_placeholder(url: str) -> bool:
+    return any(marker in url for marker in RESTRICTED_PLACEHOLDER_MARKERS)
 
 
 @dataclass(frozen=True)
@@ -87,11 +96,20 @@ def fetch_artwork_pages(
         raise PixivResolveError(f"Pixiv pages request failed for artwork {work_id}: {message}")
 
     pages: list[PixivPage] = []
+    restricted_placeholder_seen = False
     for index, page in enumerate(raw.get("body") or []):
         urls = page.get("urls") or {}
         original_url = urls.get("original")
-        if original_url:
-            pages.append(PixivPage(index=index, original_url=str(original_url)))
+        if not original_url:
+            continue
+        if _is_restricted_placeholder(str(original_url)):
+            restricted_placeholder_seen = True
+            continue
+        pages.append(PixivPage(index=index, original_url=str(original_url)))
+    if not pages and restricted_placeholder_seen:
+        raise PixivResolveError(
+            f"Artwork {work_id} is restricted (R-18/login-only); a logged-in Pixiv cookie is required to download it"
+        )
     return pages, ssl_fallback_used
 
 

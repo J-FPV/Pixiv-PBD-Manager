@@ -224,6 +224,7 @@ export interface DownloadResult {
   pages_saved: number;
   files_skipped: number;
   ssl_fallback_used: number;
+  cancelled?: boolean;
   errors: string[];
 }
 

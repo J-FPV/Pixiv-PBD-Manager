@@ -284,17 +284,23 @@ function refreshArtistNames(deps: ArtistActionsDeps): void {
 function downloadUpdatedForIds(deps: ArtistActionsDeps, artistIds: string[]): void {
   const { language: languageValue, settings, handleEvent, appendLog, runTask } = deps;
   void runTask("library", t(languageValue, "downloadUpdated"), async (signal, registerControls) => {
+    // gracefulCancel: on cancel the backend stops between artworks and returns
+    // a partial result (cancelled=true) and exits cleanly, rather than us
+    // killing the process mid-download (which left the task UI stuck).
     const result = await runGuiApi<DownloadResult>(
       "updates.download",
       { ...settings, artist_ids: artistIds },
       handleEvent,
-      { signal, onStart: registerControls }
+      { signal, onStart: registerControls, gracefulCancel: true }
     );
     appendLog("info", `Downloaded: ${result.artworks} artworks, ${result.pages_saved} files`);
     for (const err of result.errors) {
       appendLog("error", err);
     }
     await loadArtists(deps);
+    if (result.cancelled) {
+      appendLog("warn", t(languageValue, "taskCancelled"));
+    }
   });
 }
 
