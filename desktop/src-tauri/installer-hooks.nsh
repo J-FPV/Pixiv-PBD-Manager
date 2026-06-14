@@ -8,13 +8,17 @@
 ; processes first lets the overwrite succeed.
 
 !macro NSIS_HOOK_PREINSTALL
-  nsExec::Exec 'taskkill /F /T /IM "pixiv-pbd-api.exe"'
+  ; Wildcard image filter covers both the launcher (pixiv-pbd-api.exe) and the
+  ; PyInstaller worker (pixiv-pbd-api-worker.exe).
+  nsExec::Exec 'taskkill /F /T /FI "IMAGENAME eq pixiv-pbd-api*"'
   nsExec::Exec 'taskkill /F /T /IM "Pixiv PBD Manager.exe"'
   Sleep 600
 !macroend
 
 !macro NSIS_HOOK_PREUNINSTALL
-  nsExec::Exec 'taskkill /F /T /IM "pixiv-pbd-api.exe"'
+  ; Wildcard image filter covers both the launcher (pixiv-pbd-api.exe) and the
+  ; PyInstaller worker (pixiv-pbd-api-worker.exe).
+  nsExec::Exec 'taskkill /F /T /FI "IMAGENAME eq pixiv-pbd-api*"'
   nsExec::Exec 'taskkill /F /T /IM "Pixiv PBD Manager.exe"'
   Sleep 600
 !macroend
