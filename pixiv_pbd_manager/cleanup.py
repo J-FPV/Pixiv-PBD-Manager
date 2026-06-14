@@ -12,7 +12,7 @@ from uuid import uuid4
 
 from .events import PROGRESS_CLEANUP_DONE, PROGRESS_CLEANUP_ITEM, PROGRESS_CLEANUP_START
 from .paths import DEFAULT_CLEANUP_STATE, write_json_atomic
-from .similar import ImageFingerprint, load_image_index, save_image_index
+from .similar import ImageFingerprint, load_image_index, save_image_index, sha256_file
 
 
 ProgressCallback = Callable[[str, dict[str, object]], None]
@@ -397,8 +397,13 @@ def quarantine_files(
                 raise FileNotFoundError(f"File does not exist: {source}")
             if item.size_bytes and stat.st_size != item.size_bytes:
                 raise ValueError(f"File changed after the scan: {source}")
+            # mtime is a weak signal — backups, cloud sync, and metadata edits
+            # drift it without changing the bytes. The size already matched, so
+            # only treat an mtime change as "changed" when the content hash
+            # actually differs (re-hash just this one file; cheap and rare).
             if item.mtime_ns and stat.st_mtime_ns != item.mtime_ns:
-                raise ValueError(f"File changed after the scan: {source}")
+                if not item.sha256 or sha256_file(source) != item.sha256:
+                    raise ValueError(f"File changed after the scan: {source}")
             item.status = "moving"
             item.error = ""
             _persist_operation(state_path, state, operation)

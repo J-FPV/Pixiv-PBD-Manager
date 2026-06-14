@@ -21,6 +21,7 @@ from pixiv_pbd_manager.similar import (
     group_signature,
     load_image_index,
     save_image_index,
+    sha256_file,
 )
 
 
@@ -154,6 +155,63 @@ class CleanupFileTests(unittest.TestCase):
             )
             self.assertEqual(deleted["deleted"], 1)
             self.assertFalse(Path(remaining["quarantine_path"]).exists())
+
+    def test_quarantine_tolerates_mtime_drift_when_hash_matches(self):
+        # A drifted mtime (backup/sync/metadata) with unchanged content must NOT
+        # block the move — the content hash still matches.
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            library = root / "library"
+            library.mkdir()
+            quarantine = root / "quarantine"
+            source = library / "image.jpg"
+            source.write_bytes(b"unchanged-content")
+            stat = source.stat()
+            entry = fingerprint(
+                source,
+                sha256=sha256_file(source),
+                width=10,
+                height=10,
+                size=stat.st_size,
+                mtime=stat.st_mtime_ns + 1_000_000_000,  # wrong mtime, right content
+            )
+            result = quarantine_files(
+                [payload(entry)],
+                quarantine_root=quarantine,
+                protected_roots=[library],
+                state_path=root / "state.json",
+                index_path=root / "index.json",
+            )
+            self.assertFalse(source.exists())
+            self.assertEqual(len(result["moved_paths"]), 1)
+
+    def test_quarantine_blocks_when_content_actually_changed(self):
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            library = root / "library"
+            library.mkdir()
+            quarantine = root / "quarantine"
+            source = library / "image.jpg"
+            source.write_bytes(b"new-content-abc")
+            stat = source.stat()
+            entry = fingerprint(
+                source,
+                sha256="0" * 64,  # stale hash != current content
+                width=10,
+                height=10,
+                size=stat.st_size,
+                mtime=stat.st_mtime_ns + 1_000_000_000,
+            )
+            result = quarantine_files(
+                [payload(entry)],
+                quarantine_root=quarantine,
+                protected_roots=[library],
+                state_path=root / "state.json",
+                index_path=root / "index.json",
+            )
+            self.assertTrue(source.exists())
+            self.assertEqual(result["moved_paths"], [])
+            self.assertEqual(result["operations"][0]["items"][0]["status"], "error")
 
     def test_restore_never_overwrites_existing_target(self):
         with TemporaryDirectory() as tmp:
