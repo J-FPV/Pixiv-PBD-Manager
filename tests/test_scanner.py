@@ -3,6 +3,7 @@ from tempfile import TemporaryDirectory
 import unittest
 
 from pixiv_pbd_manager.scanner import (
+    extract_work_ids,
     identify_artist,
     identify_name_only_artist,
     iter_media_files,
@@ -166,6 +167,42 @@ class ScannerTests(unittest.TestCase):
             self.assertIsNotNone(opted_in)
             assert opted_in is not None
             self.assertEqual(opted_in.artist_id, "1234")
+
+    def test_unmatched_folder_captures_work_ids_for_pid_resolution(self):
+        # A plain-named folder (no artist id, not a Pixiv name pattern) full of
+        # PID-named files lands in unmatched, but its work ids are captured so
+        # the pipeline can resolve the artist online from a PID.
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            path = root / "随手存的图" / "12345678_p0.jpg"
+            path.parent.mkdir(parents=True)
+            path.write_bytes(b"")
+
+            summary = scan_roots([root])
+            folder = str(path.parent.resolve())
+
+            self.assertIn(folder, summary.unmatched_folders)
+            self.assertEqual(summary.unmatched_folder_work_ids.get(folder), {"12345678"})
+            self.assertEqual(summary.unmatched_folder_roots.get(folder), str(root.resolve()))
+
+    def test_extract_work_ids_ignores_timestamp_names(self):
+        self.assertEqual(extract_work_ids(Path("20230912_165005.jpg")), set())
+        self.assertEqual(extract_work_ids(Path("IMG_20230912_165005.jpg")), set())
+        self.assertEqual(extract_work_ids(Path("2023-09-12.png")), set())
+        self.assertEqual(extract_work_ids(Path("12345678_p0.jpg")), {"12345678"})
+
+    def test_timestamp_only_folder_has_no_resolvable_work_ids(self):
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            path = root / "screenshots" / "20230912_165005.jpg"
+            path.parent.mkdir(parents=True)
+            path.write_bytes(b"")
+
+            summary = scan_roots([root])
+            folder = str(path.parent.resolve())
+
+            self.assertIn(folder, summary.unmatched_folders)
+            self.assertNotIn(folder, summary.unmatched_folder_work_ids)
 
     def test_stable_artist_key_survives_lone_surrogates(self):
         root = Path("root")

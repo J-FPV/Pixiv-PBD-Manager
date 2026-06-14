@@ -56,6 +56,41 @@ class GuiBackendTests(unittest.TestCase):
             self.assertIn("126324", db.artists)
             self.assertEqual(db.artists["126324"].name, "96YOTTEA")
 
+    def test_scan_into_database_resolves_unmatched_folder_by_pid(self):
+        # A plain-named folder (no artist id, not a Pixiv name pattern) with
+        # PID-named files is resolved online from a sampled work id.
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp) / "downloads"
+            image = root / "随手存的图" / "100187254_p0.jpg"
+            image.parent.mkdir(parents=True)
+            image.write_bytes(b"")
+            db_path = Path(tmp) / "artists.json"
+
+            with patch(
+                "pixiv_pbd_manager.resolver.resolve_name_only_artist",
+                return_value=ResolvedArtist(id="126324", name="96YOTTEA", work_id="100187254"),
+            ):
+                result = scan_into_database([root], db_path, resolve_online=True)
+            db = ArtistDatabase.load(db_path)
+
+            self.assertEqual(result.resolved_by_pid, 1)
+            self.assertIn("126324", db.artists)
+            self.assertIn(str(image.parent.resolve()), db.artists["126324"].save_paths)
+            self.assertNotIn(str(image.parent.resolve()), result.summary.unmatched_folders)
+
+    def test_unmatched_folder_with_pid_stays_unmatched_offline(self):
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp) / "downloads"
+            image = root / "随手存的图" / "100187254_p0.jpg"
+            image.parent.mkdir(parents=True)
+            image.write_bytes(b"")
+            db_path = Path(tmp) / "artists.json"
+
+            result = scan_into_database([root], db_path, resolve_online=False)
+
+            self.assertEqual(result.resolved_by_pid, 0)
+            self.assertIn(str(image.parent.resolve()), result.summary.unmatched_folders)
+
     def test_scan_into_database_fuzzy_resolves_manual_illus_folder(self):
         with TemporaryDirectory() as tmp:
             root = Path(tmp) / "downloads"

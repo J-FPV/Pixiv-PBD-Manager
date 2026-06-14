@@ -51,6 +51,24 @@ KEYWORD_ARTIST_PATTERNS = [
 
 WORK_ID_PATTERN = re.compile(r"(?<!\d)(?P<id>\d{6,12})(?:[_-]p\d+|[^\d]|$)", re.I)
 
+# Camera / screenshot timestamps (20230912_165005, 2023-09-12, IMG_20230912_165005)
+# are NOT Pixiv work ids. Start-anchored (after an optional alpha prefix) so a date
+# inside a real title (e.g. "12345678-2023 spring") doesn't suppress a genuine id.
+TIMESTAMP_NAME_PATTERN = re.compile(
+    r"^(?:[A-Za-z][A-Za-z _-]*?)?"  # optional prefix: IMG_, Screenshot_, VID_, ...
+    r"(?:"
+    r"(?:19|20)\d{6}[ ._-]\d{6}"  # YYYYMMDD_HHMMSS / YYYYMMDD-HHMMSS
+    r"|(?:19|20)\d{2}[-_.](?:0[1-9]|1[0-2])[-_.](?:0[1-9]|[12]\d|3[01])"  # YYYY-MM-DD
+    r")"
+)
+
+# Cap how many sample work ids we keep per unmatched folder for online resolution.
+UNMATCHED_WORK_ID_SAMPLE_CAP = 10
+
+
+def looks_like_timestamp_name(stem: str) -> bool:
+    return bool(TIMESTAMP_NAME_PATTERN.match(stem))
+
 
 @dataclass
 class ScanHit:
@@ -102,6 +120,11 @@ class ScanSummary:
     # "unmatched" when its files hit neither an artist-id pattern nor a Pixiv
     # name-only folder pattern.
     unmatched_folders: dict[str, int] = field(default_factory=dict)
+    # For unmatched folders that still contain Pixiv work ids in their filenames:
+    # a few sample work ids and the scan root, so the pipeline can resolve the
+    # artist online from a PID even when the folder name gives no signal.
+    unmatched_folder_work_ids: dict[str, set[str]] = field(default_factory=dict)
+    unmatched_folder_roots: dict[str, str] = field(default_factory=dict)
 
     def add_hit(self, hit: ScanHit) -> None:
         existing = self.artists.get(hit.artist_id)
@@ -245,8 +268,11 @@ def find_name_only_pixiv_artist(text: str) -> tuple[str, str] | None:
 
 
 def extract_work_ids(path: Path) -> set[str]:
+    stem = path.stem
+    if looks_like_timestamp_name(stem):
+        return set()
     ids: set[str] = set()
-    for match in WORK_ID_PATTERN.finditer(path.stem):
+    for match in WORK_ID_PATTERN.finditer(stem):
         ids.add(match.group("id"))
     return ids
 
@@ -368,6 +394,7 @@ def scan_roots(
     excludes = normalize_exclude_roots(exclude_roots)
     artist_folder_cache: dict[tuple[Path, Path, bool], FolderArtistIdentity | None] = {}
     name_only_folder_cache: dict[tuple[Path, Path], FolderNameOnlyIdentity | None] = {}
+    resolved_parent_cache: dict[Path, Path] = {}
     for root in roots:
         root = root.expanduser().resolve()
         root_excludes = [
@@ -423,13 +450,26 @@ def scan_roots(
             if name_only_hit:
                 summary.add_name_only_hit(name_only_hit)
             else:
-                parent_resolved = parent.resolve()
+                parent_resolved = resolved_parent_cache.get(parent)
+                if parent_resolved is None:
+                    parent_resolved = parent.resolve()
+                    resolved_parent_cache[parent] = parent_resolved
                 # The scan root itself is the library starting point, not a
                 # folder the user needs to attribute or exclude. Loose files at
                 # that top level should not surface the root in the GUI list.
                 if parent_resolved != root:
                     folder_text = str(parent_resolved)
                     summary.unmatched_folders[folder_text] = summary.unmatched_folders.get(folder_text, 0) + 1
+                    # Keep a few sample work ids so the pipeline can resolve the
+                    # artist online from a PID even with no folder-name signal.
+                    work_ids = extract_work_ids(path)
+                    if work_ids:
+                        bucket = summary.unmatched_folder_work_ids.setdefault(folder_text, set())
+                        for work_id in work_ids:
+                            if len(bucket) >= UNMATCHED_WORK_ID_SAMPLE_CAP:
+                                break
+                            bucket.add(work_id)
+                        summary.unmatched_folder_roots.setdefault(folder_text, str(root))
                 if len(summary.unmatched_examples) < 20:
                     summary.unmatched_examples.append(path)
     if progress_callback:

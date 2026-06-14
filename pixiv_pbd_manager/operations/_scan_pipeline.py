@@ -36,7 +36,7 @@ from ..events import (
     PROGRESS_SCAN_FILES,
     PROGRESS_SCAN_START,
 )
-from ..scanner import ScanSummary, scan_roots
+from ..scanner import NameOnlyArtistHit, ScanSummary, scan_roots
 from ._shared import ProgressCallback, emit, filter_assigned_unmatched_folders
 
 # Resolvers are looked up via the ``resolver`` module at call time (rather than
@@ -61,6 +61,7 @@ class ScanPipelineResult:
     summary: ScanSummary
     hits: list[ResolvedHit] = field(default_factory=list)
     resolved_name_only: int = 0
+    resolved_by_pid: int = 0
     fuzzy_resolved_name_only: int = 0
     ssl_fallback_used: int = 0
     resolve_errors: list[str] = field(default_factory=list)
@@ -163,6 +164,59 @@ def collect_resolved_hits(
         )
         result.resolved_name_only += 1
         resolved_hit_keys.add(hit.artist_key)
+
+    # Resolve folders that have Pixiv PIDs in their filenames but no name signal,
+    # by sampling a work id and looking up its author (same resolver as name-only).
+    pid_folders = list(summary.unmatched_folder_work_ids.items())
+    for index, (folder_text, work_ids) in enumerate(pid_folders, 1):
+        if not work_ids:
+            continue
+        emit(
+            progress_callback,
+            PROGRESS_RESOLVE_ARTIST,
+            current=index,
+            total=len(pid_folders),
+            name=Path(folder_text).name,
+        )
+        synthetic = NameOnlyArtistHit(
+            artist_key=f"pid:{folder_text}",
+            artist_name="",
+            source="folder_pid",
+            root=Path(summary.unmatched_folder_roots.get(folder_text, folder_text)),
+            folder=Path(folder_text),
+            path=Path(folder_text),
+            work_ids=set(work_ids),
+        )
+        try:
+            resolved = resolver.resolve_name_only_artist(
+                synthetic,
+                max_work_ids=max(1, resolve_limit),
+                delay_seconds=max(0.0, resolve_delay),
+                cookie=pixiv_cookie,
+                allow_insecure_ssl_fallback=allow_insecure_ssl_fallback,
+            )
+        except resolver.PixivResolveError as exc:
+            result.resolve_errors.append(str(exc))
+            break
+        if not resolved:
+            continue
+        if resolved.ssl_fallback_used:
+            result.ssl_fallback_used += 1
+        result.hits.append(
+            ResolvedHit(
+                artist_id=resolved.id,
+                artist_name=resolved.name or None,
+                source=f"folder_pid:resolved_by_work:{resolved.work_id}",
+                root=synthetic.root,
+                folder=synthetic.folder,
+                work_ids=frozenset(work_ids),
+            )
+        )
+        result.resolved_by_pid += 1
+        # No longer unmatched — drop it from the GUI list and side tables.
+        summary.unmatched_folders.pop(folder_text, None)
+        summary.unmatched_folder_work_ids.pop(folder_text, None)
+        summary.unmatched_folder_roots.pop(folder_text, None)
 
     if not fuzzy_search_names:
         return result

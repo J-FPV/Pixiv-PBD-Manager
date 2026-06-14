@@ -91,6 +91,15 @@ def filter_assigned_unmatched_folders(summary: ScanSummary, db: ArtistDatabase) 
         for folder, count in summary.unmatched_folders.items()
         if not is_under_known_save_root(Path(folder), save_roots)
     }
+    # Keep the PID-resolution side tables in lockstep so a folder that's already
+    # attributed isn't re-resolved online.
+    kept = summary.unmatched_folders.keys()
+    summary.unmatched_folder_work_ids = {
+        folder: work_ids for folder, work_ids in summary.unmatched_folder_work_ids.items() if folder in kept
+    }
+    summary.unmatched_folder_roots = {
+        folder: root for folder, root in summary.unmatched_folder_roots.items() if folder in kept
+    }
     summary.unmatched_examples = [
         path for path in summary.unmatched_examples if not is_under_known_save_root(path.parent, save_roots)
     ]

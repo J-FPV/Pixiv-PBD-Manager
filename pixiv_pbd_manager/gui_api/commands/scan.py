@@ -85,6 +85,7 @@ def preview(payload: JsonDict, emit_event: Emitter) -> JsonDict:
         "artists": len(summary.artists) if summary else 0,
         "name_only_artists": len(summary.name_only_artists) if summary else 0,
         "resolved_name_only": result.resolved_name_only,
+        "resolved_by_pid": result.resolved_by_pid,
         "fuzzy_resolved_name_only": result.fuzzy_resolved_name_only,
         "ssl_fallback_used": result.ssl_fallback_used,
         "resolve_errors": list(result.resolve_errors),

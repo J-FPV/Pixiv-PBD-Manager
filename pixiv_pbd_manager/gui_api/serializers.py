@@ -77,6 +77,7 @@ def scan_result_to_json(result: ScanResult) -> JsonDict:
         "name_only_artists": len(summary.name_only_artists),
         "changed": result.changed,
         "resolved_name_only": result.resolved_name_only,
+        "resolved_by_pid": result.resolved_by_pid,
         "fuzzy_resolved_name_only": result.fuzzy_resolved_name_only,
         "ssl_fallback_used": result.ssl_fallback_used,
         "resolve_errors": list(result.resolve_errors),

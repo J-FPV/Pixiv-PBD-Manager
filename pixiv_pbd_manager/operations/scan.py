@@ -34,6 +34,7 @@ class ScanResult:
     changed: int
     db_path: Path
     resolved_name_only: int = 0
+    resolved_by_pid: int = 0
     fuzzy_resolved_name_only: int = 0
     ssl_fallback_used: int = 0
     resolve_errors: list[str] = field(default_factory=list)
@@ -44,6 +45,7 @@ class ScanPreviewResult:
     changes: list[dict] = field(default_factory=list)
     summary: ScanSummary | None = None
     resolved_name_only: int = 0
+    resolved_by_pid: int = 0
     fuzzy_resolved_name_only: int = 0
     ssl_fallback_used: int = 0
     resolve_errors: list[str] = field(default_factory=list)
@@ -250,6 +252,7 @@ def scan_into_database(
         changed=changed,
         db_path=db.path.resolve(),
         resolved_name_only=pipeline.resolved_name_only,
+        resolved_by_pid=pipeline.resolved_by_pid,
         fuzzy_resolved_name_only=pipeline.fuzzy_resolved_name_only,
         ssl_fallback_used=pipeline.ssl_fallback_used,
         resolve_errors=pipeline.resolve_errors,
@@ -302,6 +305,7 @@ def preview_scan_changes(
         changes=_build_diff_changes(proposed, db),
         summary=pipeline.summary,
         resolved_name_only=pipeline.resolved_name_only,
+        resolved_by_pid=pipeline.resolved_by_pid,
         fuzzy_resolved_name_only=pipeline.fuzzy_resolved_name_only,
         ssl_fallback_used=pipeline.ssl_fallback_used,
         resolve_errors=pipeline.resolve_errors,
