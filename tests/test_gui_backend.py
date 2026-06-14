@@ -11,7 +11,13 @@ from pixiv_pbd_manager.database import ArtistDatabase
 from pixiv_pbd_manager.downloader import ArtworkDownloadResult
 from pixiv_pbd_manager.operations import check_artist_updates, download_artist_updates, scan_into_database
 from pixiv_pbd_manager.operations.updates import normalize_download_concurrency
-from pixiv_pbd_manager.resolver import PixivResolveError, PixivUserCandidate, PixivUserWorks, ResolvedArtist
+from pixiv_pbd_manager.resolver import (
+    PixivResolveError,
+    PixivUserCandidate,
+    PixivUserWorks,
+    ResolvedArtist,
+    fetch_artwork_tags,
+)
 
 
 class GuiBackendTests(unittest.TestCase):
@@ -238,6 +244,26 @@ class GuiBackendTests(unittest.TestCase):
             self.assertGreaterEqual(max_active, 2)
             self.assertEqual(result.artworks, 4)
             self.assertEqual(db.artists["123456"].new_work_ids, [])
+
+    def test_fetch_artwork_tags_parses_tag_and_translation(self):
+        body = {
+            "error": False,
+            "body": {"tags": {"tags": [
+                {"tag": "水色髪", "translation": {"en": "light blue hair"}},
+                {"tag": "オリジナル"},
+            ]}},
+        }
+        with patch("pixiv_pbd_manager.resolver.read_pixiv_json", return_value=body):
+            tags, ssl_used = fetch_artwork_tags("101")
+        self.assertFalse(ssl_used)
+        self.assertEqual([t.tag for t in tags], ["水色髪", "オリジナル"])
+        self.assertEqual(tags[0].translation, "light blue hair")
+        self.assertEqual(tags[1].translation, "")
+
+    def test_fetch_artwork_tags_raises_on_error_body(self):
+        with patch("pixiv_pbd_manager.resolver.read_pixiv_json", return_value={"error": True, "message": "restricted"}):
+            with self.assertRaises(PixivResolveError):
+                fetch_artwork_tags("101")
 
     def test_download_concurrency_is_clamped(self):
         self.assertEqual(normalize_download_concurrency(0), 1)

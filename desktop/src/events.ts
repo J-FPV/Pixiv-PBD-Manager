@@ -45,6 +45,11 @@ export const PROGRESS_LIBRARY_START = "progress_library_start";
 export const PROGRESS_LIBRARY_FILES = "progress_library_files";
 export const PROGRESS_LIBRARY_DONE = "progress_library_done";
 
+// Fetching Pixiv artwork tags onto library images
+export const PROGRESS_FETCH_TAGS_START = "progress_fetch_tags_start";
+export const PROGRESS_FETCH_TAGS_ITEM = "progress_fetch_tags_item";
+export const PROGRESS_FETCH_TAGS_DONE = "progress_fetch_tags_done";
+
 // Similar-image cleanup / quarantine operations
 export const PROGRESS_CLEANUP_START = "progress_cleanup_start";
 export const PROGRESS_CLEANUP_ITEM = "progress_cleanup_item";

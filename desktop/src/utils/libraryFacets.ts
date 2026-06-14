@@ -13,7 +13,8 @@ export const FILTER_DIMENSIONS = [
 export type FacetDimension = (typeof FILTER_DIMENSIONS)[number];
 
 export function imageTagSet(image: LibraryImage): string[] {
-  return Array.from(new Set([...(image.tags || []), ...(image.artist_tags || [])]));
+  const pixiv = (image.pixiv_tags || []).map((entry) => entry.tag);
+  return Array.from(new Set([...(image.tags || []), ...(image.artist_tags || []), ...pixiv]));
 }
 
 export function resolutionBucket(image: LibraryImage): string {
@@ -53,12 +54,16 @@ export function dimensionValues(image: LibraryImage, dim: FacetDimension): strin
 export function matchesKeyword(image: LibraryImage, keyword: string): boolean {
   const needle = keyword.trim().toLowerCase();
   if (!needle) return true;
+  const pixivMatch = (image.pixiv_tags || []).some(
+    (entry) => entry.tag.toLowerCase().includes(needle) || entry.translation.toLowerCase().includes(needle)
+  );
   return (
     image.filename.toLowerCase().includes(needle) ||
     image.folder.toLowerCase().includes(needle) ||
     image.pid.includes(needle) ||
     image.artist_name.toLowerCase().includes(needle) ||
-    image.path.toLowerCase().includes(needle)
+    image.path.toLowerCase().includes(needle) ||
+    pixivMatch
   );
 }
 

@@ -1,8 +1,8 @@
-import { ChevronLeft, ChevronRight, ExternalLink, FolderOpen, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, ExternalLink, FolderOpen, Tags, X } from "lucide-react";
 import { useState } from "react";
 import { runGuiApi } from "../../api";
 import { t } from "../../i18n";
-import type { Language, LibraryImage } from "../../types";
+import type { Language, LibraryImage, PixivTag } from "../../types";
 import { formatBytes } from "../../utils/format";
 import { useImagePreview } from "../../hooks/useImagePreview";
 import { Button } from "../Button";
@@ -16,6 +16,26 @@ export interface LibraryDetailModalProps {
   onClose: () => void;
   revealFile: (path: string) => void;
   setImageTags: (path: string, tags: string[]) => void | Promise<void>;
+  onFetchTags: () => void;
+  busy: boolean;
+}
+
+// Auto-fetched Pixiv tags, shown Pixiv-style: "#原文" with the English
+// translation as muted inline text on the same chip.
+function PixivTagChips({ tags }: { tags: PixivTag[] }) {
+  if (!tags.length) {
+    return null;
+  }
+  return (
+    <div className="pixivTagChips">
+      {tags.map((entry) => (
+        <span key={entry.tag} className="pixivTagChip">
+          #{entry.tag}
+          {entry.translation ? <span className="pixivTagTranslation">{entry.translation}</span> : null}
+        </span>
+      ))}
+    </div>
+  );
 }
 
 function MetaRow({ label, value }: { label: string; value: string }) {
@@ -44,7 +64,9 @@ export function LibraryDetailModal({
   onPathChange,
   onClose,
   revealFile,
-  setImageTags
+  setImageTags,
+  onFetchTags,
+  busy
 }: LibraryDetailModalProps) {
   const [draft, setDraft] = useState("");
   const { image: preview, error } = useImagePreview(image.path, "", "single");
@@ -93,6 +115,15 @@ export function LibraryDetailModal({
             <MetaRow label={t(language, "modified")} value={modified} />
             <MetaRow label={t(language, "pageLabel")} value={image.page !== null ? String(image.page) : ""} />
             <MetaRow label={t(language, "artistTags")} value={image.artist_tags.join(", ")} />
+            <div className="libraryPixivSection">
+              <div className="libraryPixivHeader">
+                <span className="libraryMetaKey">{t(language, "pixivTags")}</span>
+                <Button icon={<Tags size={14} />} iconOnly onClick={onFetchTags} disabled={busy} title={t(language, "fetchPixivTags")}>
+                  {t(language, "fetchPixivTags")}
+                </Button>
+              </div>
+              <PixivTagChips tags={image.pixiv_tags} />
+            </div>
             <MetaRow label={t(language, "folder")} value={image.folder} />
             <MetaRow label={t(language, "path")} value={image.path} />
             <div className="libraryTagEditor">

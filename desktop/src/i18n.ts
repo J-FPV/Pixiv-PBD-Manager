@@ -103,6 +103,8 @@ const zh = {
   library: "图库",
   scanLibrary: "扫描图库",
   rescanLibrary: "重新扫描",
+  fetchPixivTags: "抓取 Pixiv 标签",
+  pixivTags: "Pixiv 标签",
   libraryFilters: "筛选",
   clearFilters: "清除筛选",
   noLibraryYet: "图库还是空的",

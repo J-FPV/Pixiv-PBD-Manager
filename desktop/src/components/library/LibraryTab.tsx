@@ -17,6 +17,7 @@ export function LibraryTab({ state: s, actions }: { state: AppState; actions: Li
       loadLibrary={actions.loadLibrary}
       scanLibrary={actions.scanLibrary}
       setImageTags={actions.setImageTags}
+      fetchTags={actions.fetchTags}
       revealFile={s.revealFile}
     />
   );

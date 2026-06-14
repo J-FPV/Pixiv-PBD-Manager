@@ -386,6 +386,13 @@ export interface ImageDifferencePayload {
 
 export type ImageOrientation = "portrait" | "landscape" | "square" | "unknown";
 
+// A tag fetched from Pixiv: original text + optional English translation,
+// shown together (Pixiv-style) as one chip.
+export interface PixivTag {
+  tag: string;
+  translation: string;
+}
+
 // One row of the image library catalog (joined with live artist data).
 export interface LibraryImage {
   path: string;
@@ -404,6 +411,7 @@ export interface LibraryImage {
   artist_name: string;
   artist_tags: string[];
   tags: string[];
+  pixiv_tags: PixivTag[];
   artwork_url: string;
   artist_url: string;
 }
@@ -455,4 +463,10 @@ export interface LibraryScanSummary {
 
 export interface LibrarySetTagsPayload {
   image: LibraryImage;
+}
+
+export interface LibraryFetchTagsResult {
+  images: LibraryImage[];
+  errors: string[];
+  cancelled?: boolean;
 }

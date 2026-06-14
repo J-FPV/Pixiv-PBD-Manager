@@ -102,6 +102,8 @@ export const en: Dictionary = {
   library: "Library",
   scanLibrary: "Scan library",
   rescanLibrary: "Rescan",
+  fetchPixivTags: "Fetch Pixiv tags",
+  pixivTags: "Pixiv tags",
   libraryFilters: "Filters",
   clearFilters: "Clear filters",
   noLibraryYet: "Your library is empty",

@@ -50,6 +50,7 @@ COMMANDS: dict[str, Callable[[JsonDict, Emitter], JsonDict]] = {
     "library.list": library.list_images,
     "library.scan": library.scan,
     "library.set_tags": library.set_tags,
+    "library.fetch_tags": library.fetch_tags,
     "cleanup.list": cleanup.list_cleanup,
     "cleanup.quarantine": cleanup.quarantine,
     "cleanup.restore": cleanup.restore,

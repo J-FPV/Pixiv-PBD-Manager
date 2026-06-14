@@ -1,4 +1,4 @@
-import { PanelLeft, RefreshCw, Search, XCircle } from "lucide-react";
+import { PanelLeft, RefreshCw, Search, Tags, XCircle } from "lucide-react";
 import { t } from "../../i18n";
 import type { Language } from "../../types";
 import { Button } from "../Button";
@@ -11,6 +11,8 @@ export function LibraryToolbar({
   busy,
   needsScan,
   onScan,
+  onFetchTags,
+  fetchDisabled,
   toggleSidebar
 }: {
   language: Language;
@@ -20,6 +22,8 @@ export function LibraryToolbar({
   busy: boolean;
   needsScan: boolean;
   onScan: () => void;
+  onFetchTags: () => void;
+  fetchDisabled: boolean;
   toggleSidebar: () => void;
 }) {
   return (
@@ -38,6 +42,9 @@ export function LibraryToolbar({
       </div>
       <span className="libraryCount">{t(language, "libraryCount").replace("{count}", String(count))}</span>
       <div className="toolbarSpacer" />
+      <Button icon={<Tags size={15} />} onClick={onFetchTags} disabled={busy || fetchDisabled}>
+        {t(language, "fetchPixivTags")}
+      </Button>
       <Button icon={<RefreshCw size={15} />} onClick={onScan} disabled={busy}>
         {t(language, needsScan ? "scanLibrary" : "rescanLibrary")}
       </Button>

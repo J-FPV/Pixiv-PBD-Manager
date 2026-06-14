@@ -56,6 +56,11 @@ def library_image_to_json(image: LibraryImage, artist: ArtistRecord | None = Non
         "artist_name": (artist.name or "") if artist else "",
         "artist_tags": sorted(set(artist.tags)) if artist else [],
         "tags": sorted(set(image.tags)),
+        "pixiv_tags": [
+            {"tag": str(entry.get("tag") or ""), "translation": str(entry.get("translation") or "")}
+            for entry in image.pixiv_tags
+            if isinstance(entry, dict) and entry.get("tag")
+        ],
         "artwork_url": f"https://www.pixiv.net/artworks/{image.pid}" if image.pid else "",
         "artist_url": artist.pixiv_url if artist else "",
     }

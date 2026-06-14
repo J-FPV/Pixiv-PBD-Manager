@@ -2224,6 +2224,44 @@ body.col-resizing .colHandle::after {
   word-break: break-all;
 }
 
+.libraryPixivSection {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.libraryPixivHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.pixivTagChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.pixivTagChip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+  max-width: 100%;
+  padding: 2px 8px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--accent-strong);
+  font-size: 12px;
+}
+
+.pixivTagTranslation {
+  color: var(--muted);
+  font-size: 11px;
+}
+
 .libraryTagEditor {
   display: flex;
   flex-direction: column;

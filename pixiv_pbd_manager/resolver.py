@@ -64,6 +64,12 @@ class PixivUserProfile:
     ssl_fallback_used: bool = False
 
 
+@dataclass(frozen=True)
+class ArtworkTag:
+    tag: str
+    translation: str = ""
+
+
 class PixivResolveError(RuntimeError):
     pass
 
@@ -248,6 +254,60 @@ def fetch_artwork_xrestrict(
         return int(body.get("xRestrict", 0) or 0), ssl_fallback_used
     except (TypeError, ValueError):
         return -1, ssl_fallback_used
+
+
+def fetch_artwork_tags(
+    illust_id: str,
+    *,
+    timeout: float = 15.0,
+    cookie: str | None = None,
+    allow_insecure_ssl_fallback: bool = True,
+) -> tuple[list[ArtworkTag], bool]:
+    """Return ``(tags, ssl_fallback_used)`` for one artwork.
+
+    Each tag carries Pixiv's original text plus its English translation when
+    Pixiv provides one. Raises ``PixivResolveError`` when the artwork can't be
+    read (network error, or a restricted/login-only work the current cookie
+    can't see) so the caller can report it per-PID without aborting a batch.
+    """
+    ssl_fallback_used = False
+    try:
+        raw = read_pixiv_json(illust_id, timeout=timeout, cookie=cookie, context=None)
+    except urllib.error.HTTPError as exc:
+        raise PixivResolveError(f"Pixiv tags request failed for artwork {illust_id}: HTTP {exc.code}") from exc
+    except urllib.error.URLError as exc:
+        if not allow_insecure_ssl_fallback or not is_ssl_certificate_error(exc):
+            raise PixivResolveError(f"Pixiv tags request failed for artwork {illust_id}: {exc}") from exc
+        ssl_fallback_used = True
+        try:
+            raw = read_pixiv_json(
+                illust_id,
+                timeout=timeout,
+                cookie=cookie,
+                context=ssl._create_unverified_context(),
+            )
+        except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as retry_exc:
+            raise PixivResolveError(f"Pixiv tags request failed for artwork {illust_id}: {retry_exc}") from retry_exc
+    except (TimeoutError, json.JSONDecodeError) as exc:
+        raise PixivResolveError(f"Pixiv tags request failed for artwork {illust_id}: {exc}") from exc
+
+    if raw.get("error"):
+        message = str(raw.get("message") or "").strip() or "artwork is restricted or unavailable"
+        raise PixivResolveError(f"Pixiv tags unavailable for artwork {illust_id}: {message}")
+    body = raw.get("body") or {}
+    raw_tags = ((body.get("tags") or {}).get("tags")) or []
+    tags: list[ArtworkTag] = []
+    seen: set[str] = set()
+    for entry in raw_tags:
+        if not isinstance(entry, dict):
+            continue
+        name = str(entry.get("tag") or "").strip()
+        if not name or name in seen:
+            continue
+        seen.add(name)
+        translation = str((entry.get("translation") or {}).get("en") or "").strip()
+        tags.append(ArtworkTag(tag=name, translation=translation))
+    return tags, ssl_fallback_used
 
 
 def resolve_name_only_artist(

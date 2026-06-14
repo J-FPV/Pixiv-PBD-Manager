@@ -1,12 +1,18 @@
 import { runGuiApi } from "../api";
 import { t } from "../i18n";
-import type { LibraryListPayload, LibraryScanSummary, LibrarySetTagsPayload } from "../types";
+import type {
+  LibraryFetchTagsResult,
+  LibraryListPayload,
+  LibraryScanSummary,
+  LibrarySetTagsPayload
+} from "../types";
 import type { AppState } from "./useAppState";
 
 export interface LibraryActions {
   loadLibrary: () => Promise<void>;
   scanLibrary: () => void;
   setImageTags: (path: string, tags: string[]) => Promise<void>;
+  fetchTags: (paths: string[]) => void;
 }
 
 // Loads the joined catalog once (the frontend then filters/facets in-memory),
@@ -48,5 +54,25 @@ export function useLibraryActions(s: AppState): LibraryActions {
     }
   };
 
-  return { loadLibrary, scanLibrary, setImageTags };
+  // Fetch each artwork's Pixiv tags (original + English translation) and apply
+  // them to every image sharing the PID. Cancellable + rate-limited backend.
+  const fetchTags = (paths: string[]) =>
+    s.runTask("library", t(s.language, "fetchPixivTags"), async (signal, registerControls) => {
+      const result = await runGuiApi<LibraryFetchTagsResult>(
+        "library.fetch_tags",
+        { ...s.settings, paths },
+        s.handleEvent,
+        { signal, onStart: registerControls, gracefulCancel: true }
+      );
+      const byPath = new Map(result.images.map((image) => [image.path, image]));
+      s.setLibraryImages((current) => current.map((image) => byPath.get(image.path) ?? image));
+      for (const err of result.errors) {
+        s.appendLog("error", err);
+      }
+      if (result.cancelled) {
+        s.appendLog("warn", t(s.language, "taskCancelled"));
+      }
+    });
+
+  return { loadLibrary, scanLibrary, setImageTags, fetchTags };
 }

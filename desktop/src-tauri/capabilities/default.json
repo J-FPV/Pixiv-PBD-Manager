@@ -22,7 +22,7 @@
             "-m",
             "pixiv_pbd_manager.gui_api",
             {
-              "validator": "^(?:settings\\.get|settings\\.save|artists\\.list|artists\\.add|artists\\.assign_folder|artists\\.remove|artists\\.refresh_names|artists\\.rename|artists\\.set_save_path|artists\\.set_favorite|artists\\.set_tags|artists\\.add_tag|artists\\.assign_tag|artists\\.rename_tag|artists\\.delete_tag|scan\\.run|scan\\.preview|scan\\.apply|updates\\.check|updates\\.download|similar\\.run|library\\.list|library\\.scan|library\\.set_tags|cleanup\\.list|cleanup\\.quarantine|cleanup\\.restore|cleanup\\.delete|cleanup\\.ignore|cleanup\\.unignore|browser\\.open|file\\.reveal|image\\.thumbnail|image\\.difference|cookie\\.revoke)$"
+              "validator": "^(?:settings\\.get|settings\\.save|artists\\.list|artists\\.add|artists\\.assign_folder|artists\\.remove|artists\\.refresh_names|artists\\.rename|artists\\.set_save_path|artists\\.set_favorite|artists\\.set_tags|artists\\.add_tag|artists\\.assign_tag|artists\\.rename_tag|artists\\.delete_tag|scan\\.run|scan\\.preview|scan\\.apply|updates\\.check|updates\\.download|similar\\.run|library\\.list|library\\.scan|library\\.set_tags|library\\.fetch_tags|cleanup\\.list|cleanup\\.quarantine|cleanup\\.restore|cleanup\\.delete|cleanup\\.ignore|cleanup\\.unignore|browser\\.open|file\\.reveal|image\\.thumbnail|image\\.difference|cookie\\.revoke)$"
             },
             {
               "validator": ".+"
@@ -36,7 +36,7 @@
             "-m",
             "pixiv_pbd_manager.gui_api",
             {
-              "validator": "^(?:settings\\.get|settings\\.save|artists\\.list|artists\\.add|artists\\.assign_folder|artists\\.remove|artists\\.refresh_names|artists\\.rename|artists\\.set_save_path|artists\\.set_favorite|artists\\.set_tags|artists\\.add_tag|artists\\.assign_tag|artists\\.rename_tag|artists\\.delete_tag|scan\\.run|scan\\.preview|scan\\.apply|updates\\.check|updates\\.download|similar\\.run|library\\.list|library\\.scan|library\\.set_tags|cleanup\\.list|cleanup\\.quarantine|cleanup\\.restore|cleanup\\.delete|cleanup\\.ignore|cleanup\\.unignore|browser\\.open|file\\.reveal|image\\.thumbnail|image\\.difference|cookie\\.revoke)$"
+              "validator": "^(?:settings\\.get|settings\\.save|artists\\.list|artists\\.add|artists\\.assign_folder|artists\\.remove|artists\\.refresh_names|artists\\.rename|artists\\.set_save_path|artists\\.set_favorite|artists\\.set_tags|artists\\.add_tag|artists\\.assign_tag|artists\\.rename_tag|artists\\.delete_tag|scan\\.run|scan\\.preview|scan\\.apply|updates\\.check|updates\\.download|similar\\.run|library\\.list|library\\.scan|library\\.set_tags|library\\.fetch_tags|cleanup\\.list|cleanup\\.quarantine|cleanup\\.restore|cleanup\\.delete|cleanup\\.ignore|cleanup\\.unignore|browser\\.open|file\\.reveal|image\\.thumbnail|image\\.difference|cookie\\.revoke)$"
             },
             {
               "validator": ".+"
@@ -48,7 +48,7 @@
           "cmd": "pixiv-pbd-api/pixiv-pbd-api.exe",
           "args": [
             {
-              "validator": "^(?:settings\\.get|settings\\.save|artists\\.list|artists\\.add|artists\\.assign_folder|artists\\.remove|artists\\.refresh_names|artists\\.rename|artists\\.set_save_path|artists\\.set_favorite|artists\\.set_tags|artists\\.add_tag|artists\\.assign_tag|artists\\.rename_tag|artists\\.delete_tag|scan\\.run|scan\\.preview|scan\\.apply|updates\\.check|updates\\.download|similar\\.run|library\\.list|library\\.scan|library\\.set_tags|cleanup\\.list|cleanup\\.quarantine|cleanup\\.restore|cleanup\\.delete|cleanup\\.ignore|cleanup\\.unignore|browser\\.open|file\\.reveal|image\\.thumbnail|image\\.difference|cookie\\.revoke)$"
+              "validator": "^(?:settings\\.get|settings\\.save|artists\\.list|artists\\.add|artists\\.assign_folder|artists\\.remove|artists\\.refresh_names|artists\\.rename|artists\\.set_save_path|artists\\.set_favorite|artists\\.set_tags|artists\\.add_tag|artists\\.assign_tag|artists\\.rename_tag|artists\\.delete_tag|scan\\.run|scan\\.preview|scan\\.apply|updates\\.check|updates\\.download|similar\\.run|library\\.list|library\\.scan|library\\.set_tags|library\\.fetch_tags|cleanup\\.list|cleanup\\.quarantine|cleanup\\.restore|cleanup\\.delete|cleanup\\.ignore|cleanup\\.unignore|browser\\.open|file\\.reveal|image\\.thumbnail|image\\.difference|cookie\\.revoke)$"
             },
             {
               "validator": ".+"

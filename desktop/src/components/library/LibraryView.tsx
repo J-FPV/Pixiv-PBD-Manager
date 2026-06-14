@@ -21,6 +21,7 @@ export interface LibraryViewProps {
   loadLibrary: () => Promise<void>;
   scanLibrary: () => void;
   setImageTags: (path: string, tags: string[]) => void | Promise<void>;
+  fetchTags: (paths: string[]) => void;
   revealFile: (path: string) => void;
 }
 
@@ -77,6 +78,8 @@ export function LibraryView(props: LibraryViewProps) {
         busy={busy}
         needsScan={needsScan}
         onScan={props.scanLibrary}
+        onFetchTags={() => props.fetchTags(visibleImages.map((image) => image.path))}
+        fetchDisabled={!visibleImages.length}
         toggleSidebar={() => setSidebarOpen((value) => !value)}
       />
       <div className="libraryBody">
@@ -100,6 +103,8 @@ export function LibraryView(props: LibraryViewProps) {
           onClose={() => setSelectedPath(null)}
           revealFile={props.revealFile}
           setImageTags={props.setImageTags}
+          onFetchTags={() => props.fetchTags([selectedImage.path])}
+          busy={busy}
         />
       ) : null}
     </section>

@@ -14,6 +14,9 @@ import {
   PROGRESS_DOWNLOAD_START,
   PROGRESS_DOWNLOAD_WORK,
   PROGRESS_DOWNLOAD_WORK_DONE,
+  PROGRESS_FETCH_TAGS_DONE,
+  PROGRESS_FETCH_TAGS_ITEM,
+  PROGRESS_FETCH_TAGS_START,
   PROGRESS_FUZZY_ARTIST,
   PROGRESS_LIBRARY_DONE,
   PROGRESS_LIBRARY_FILES,
@@ -345,6 +348,37 @@ function describeLibrary(language: Language, event: ProgressEvent): PipelineDesc
   }
 }
 
+function describeFetchTags(language: Language, event: ProgressEvent): PipelineDescriptor | null {
+  const p = event.payload;
+  switch (event.key) {
+    case PROGRESS_FETCH_TAGS_START:
+      return {
+        logText: `Fetching Pixiv tags: ${p.total ?? 0} artwork(s)`,
+        progressUpdate: () => ({
+          main: { label: t(language, "fetchPixivTags"), current: 0, total: numberValue(p.total), indeterminate: numberValue(p.total) === 0 }
+        })
+      };
+    case PROGRESS_FETCH_TAGS_ITEM:
+      return {
+        logText: `Pixiv tags: ${p.current}/${p.total} (pid ${p.pid})`,
+        progressUpdate: () => ({
+          main: {
+            label: `${t(language, "fetchPixivTags")}: ${numberValue(p.current)}/${numberValue(p.total)}`,
+            current: numberValue(p.current),
+            total: numberValue(p.total)
+          }
+        })
+      };
+    case PROGRESS_FETCH_TAGS_DONE:
+      return {
+        logText: `Pixiv tags done: ${p.updated} updated, ${p.errors} errors`,
+        progressUpdate: () => ({ main: { label: t(language, "fetchPixivTags"), current: 1, total: 1 } })
+      };
+    default:
+      return null;
+  }
+}
+
 function describeCleanup(language: Language, event: ProgressEvent): PipelineDescriptor | null {
   const p = event.payload;
   const actionLabel =
@@ -392,6 +426,7 @@ const PIPELINES: { lane: TaskLane; describe: (language: Language, event: Progres
   { lane: "library", describe: describeRefreshNames },
   { lane: "library", describe: describeDownload },
   { lane: "library", describe: describeLibrary },
+  { lane: "library", describe: describeFetchTags },
   { lane: "similar", describe: describeSimilar },
   { lane: "similar", describe: describeCleanup }
 ];

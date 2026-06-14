@@ -57,6 +57,22 @@ def _clean_tags(tags: Any) -> list[str]:
     return sorted({str(tag).strip() for tag in tags or [] if str(tag).strip()})
 
 
+def _clean_pixiv_tags(tags: Any) -> list[dict[str, str]]:
+    """Normalize the auto-fetched Pixiv tags to a deduped list of
+    ``{"tag", "translation"}`` (original order preserved)."""
+    cleaned: list[dict[str, str]] = []
+    seen: set[str] = set()
+    for entry in tags or []:
+        if not isinstance(entry, dict):
+            continue
+        name = str(entry.get("tag") or "").strip()
+        if not name or name in seen:
+            continue
+        seen.add(name)
+        cleaned.append({"tag": name, "translation": str(entry.get("translation") or "").strip()})
+    return cleaned
+
+
 @dataclass
 class LibraryImage:
     path: str
@@ -70,6 +86,7 @@ class LibraryImage:
     artist_id: str = ""
     folder: str = ""
     tags: list[str] = field(default_factory=list)
+    pixiv_tags: list[dict[str, str]] = field(default_factory=list)
 
     @classmethod
     def from_json(cls, raw: dict[str, Any]) -> "LibraryImage":
@@ -86,6 +103,7 @@ class LibraryImage:
             artist_id=str(raw.get("artist_id") or ""),
             folder=str(raw.get("folder") or ""),
             tags=_clean_tags(raw.get("tags")),
+            pixiv_tags=_clean_pixiv_tags(raw.get("pixiv_tags")),
         )
 
     def to_json(self) -> dict[str, Any]:
@@ -101,6 +119,7 @@ class LibraryImage:
             "artist_id": self.artist_id,
             "folder": self.folder,
             "tags": _clean_tags(self.tags),
+            "pixiv_tags": _clean_pixiv_tags(self.pixiv_tags),
         }
 
     @property
@@ -189,6 +208,7 @@ def build_catalog(
                     artist_id=pid_map.get(pid, "") if pid else "",
                     folder=str(path.parent),
                     tags=list(prev.tags) if prev else [],
+                    pixiv_tags=[dict(item) for item in prev.pixiv_tags] if prev else [],
                 )
             )
         except Exception as exc:  # noqa: BLE001 -- per-file error boundary, broad on purpose

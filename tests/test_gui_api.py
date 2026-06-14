@@ -13,6 +13,7 @@ from PIL import Image
 
 from pixiv_pbd_manager import gui_api
 from pixiv_pbd_manager.database import ArtistDatabase
+from pixiv_pbd_manager.resolver import ArtworkTag
 from pixiv_pbd_manager.operations.updates import DownloadUpdatesResult
 from pixiv_pbd_manager.resolver import PixivUserProfile
 
@@ -588,6 +589,32 @@ class GuiApiTests(unittest.TestCase):
         self.assertEqual(joined["resolution"], "40x20")
         self.assertEqual(joined["artwork_url"], "https://www.pixiv.net/artworks/12345678")
         self.assertEqual(by_pid["99000099"]["artist_id"], "")
+
+    def test_library_fetch_tags_applies_to_all_pages_of_pid(self):
+        with TemporaryDirectory() as tmp:
+            root = _isolate(tmp)
+            old_cwd = Path.cwd()
+            try:
+                os.chdir(root)
+                images_dir = self._setup_library(root)
+                # A second page of the same artwork shares PID 12345678.
+                Image.new("RGB", (30, 30), "green").save(images_dir / "12345678_p1.jpg")
+                invoke("library.scan")
+                with patch(
+                    "pixiv_pbd_manager.resolver.fetch_artwork_tags",
+                    return_value=([ArtworkTag(tag="水色髪", translation="light blue hair")], False),
+                ):
+                    code, _events = invoke("library.fetch_tags", {"resolve_delay": 0})
+                _, list_events = invoke("library.list")
+            finally:
+                os.chdir(old_cwd)
+
+        self.assertEqual(code, 0)
+        rows = list_events[-1]["payload"]["images"]
+        tagged = [row for row in rows if row["pid"] == "12345678"]
+        self.assertEqual(len(tagged), 2)
+        for row in tagged:
+            self.assertEqual(row["pixiv_tags"], [{"tag": "水色髪", "translation": "light blue hair"}])
 
     def test_library_set_tags_persists_and_reserializes(self):
         with TemporaryDirectory() as tmp:
