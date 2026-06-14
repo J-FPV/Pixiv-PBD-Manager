@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import warnings
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -41,10 +42,26 @@ def read_image_size(path: Path) -> tuple[int, int]:
         return int(image.width), int(image.height)
 
 
+# Camera / screenshot timestamps (e.g. 20230912_165005, 2023-09-12, IMG_20230912_165005)
+# are NOT Pixiv work ids — mining a "PID" out of them mis-attributes the artist.
+# Anchored at the start (after an optional alpha prefix) so a date *inside* a real
+# title (e.g. "12345678-2023 spring") doesn't suppress a genuine id.
+_TIMESTAMP_NAME = re.compile(
+    r"^(?:[A-Za-z][A-Za-z _-]*?)?"  # optional prefix: IMG_, Screenshot_, VID_, ...
+    r"(?:"
+    r"(?:19|20)\d{6}[ ._-]\d{6}"  # YYYYMMDD_HHMMSS / YYYYMMDD-HHMMSS
+    r"|(?:19|20)\d{2}[-_.](?:0[1-9]|1[0-2])[-_.](?:0[1-9]|[12]\d|3[01])"  # YYYY-MM-DD
+    r")"
+)
+
+
 def parse_pixiv_name(path: Path) -> tuple[str, int | None]:
     """Extract (pid, page) from a filename. Prefers the explicit ``{pid}_p{page}``
-    Pixiv form, then falls back to the first standalone work-id-looking number."""
+    Pixiv form, then falls back to the first standalone work-id-looking number.
+    Date/time filenames (camera, screenshots) return no pid."""
     stem = path.stem
+    if _TIMESTAMP_NAME.match(stem):
+        return "", None
     page_match = PIXIV_PAGE_NAME_PATTERN.search(stem)
     if page_match:
         return page_match.group("pid"), int(page_match.group("page"))

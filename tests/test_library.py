@@ -32,6 +32,21 @@ class CatalogParsingTests(unittest.TestCase):
     def test_parse_pixiv_name_returns_empty_when_no_id(self):
         self.assertEqual(parse_pixiv_name(Path("sketch.png")), ("", None))
 
+    def test_parse_pixiv_name_ignores_timestamps(self):
+        for name in (
+            "20230912_165005.jpg",
+            "20230912-165005.jpg",
+            "2023-09-12.png",
+            "IMG_20230912_165005.jpg",
+            "Screenshot_2023-09-12-16-50-05.png",
+        ):
+            self.assertEqual(parse_pixiv_name(Path(name)), ("", None), name)
+
+    def test_parse_pixiv_name_keeps_real_ids(self):
+        # A date inside a title must not suppress a genuine leading work id.
+        self.assertEqual(parse_pixiv_name(Path("12345678-2023 spring.jpg")), ("12345678", None))
+        self.assertEqual(parse_pixiv_name(Path("100949474_p0.jpg")), ("100949474", 0))
+
 
 class CatalogBuildTests(unittest.TestCase):
     def test_build_extracts_metadata_and_orientation(self):
