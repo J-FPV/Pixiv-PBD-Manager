@@ -52,7 +52,7 @@ def library_image_to_json(image: LibraryImage, artist: ArtistRecord | None = Non
         "format": image.format,
         "pid": image.pid,
         "page": image.page,
-        "artist_id": image.artist_id,
+        "artist_id": artist.id if artist else "",
         "artist_name": (artist.name or "") if artist else "",
         "artist_tags": sorted(set(artist.tags)) if artist else [],
         "tags": sorted(set(image.tags)),

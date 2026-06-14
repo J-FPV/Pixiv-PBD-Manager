@@ -11,6 +11,7 @@ any per-image tags the user has set.
 from __future__ import annotations
 
 import json
+import os
 import warnings
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -154,6 +155,36 @@ def build_pid_to_artist(db: ArtistDatabase) -> dict[str, str]:
         for work_id in artist.work_ids:
             mapping.setdefault(str(work_id), artist.id)
     return mapping
+
+
+def build_save_path_index(db: ArtistDatabase) -> dict[str, str]:
+    """Map normalized, resolved save-path -> artist id, so an image can be
+    attributed to the artist whose folder it lives under (first wins)."""
+    index: dict[str, str] = {}
+    for artist in db.artists.values():
+        for save_path in artist.save_paths:
+            try:
+                key = os.path.normcase(str(Path(save_path).expanduser().resolve()))
+            except OSError:
+                continue
+            index.setdefault(key, artist.id)
+    return index
+
+
+def resolve_folder_artist(folder: str, save_index: dict[str, str]) -> str:
+    """Return the artist id whose save folder contains ``folder`` (checking the
+    folder and up to a few parent levels), or "" when none matches."""
+    if not save_index or not folder:
+        return ""
+    try:
+        path = Path(folder).expanduser().resolve()
+    except OSError:
+        return ""
+    for ancestor in (path, *path.parents)[:8]:
+        artist_id = save_index.get(os.path.normcase(str(ancestor)))
+        if artist_id:
+            return artist_id
+    return ""
 
 
 def _progress_step(total: int, requested_interval: int) -> int:

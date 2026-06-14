@@ -43,7 +43,8 @@ function compareArtists(left: Artist, right: Artist, sortKey: ArtistSortKey): nu
 }
 
 // Filters artists by the search keyword (id / name / save-path / folder name),
-// the favorites-only toggle, and the set of active tag chips (OR semantics),
+// the favorites-only toggle, and the set of active tag chips (AND semantics —
+// an artist must carry every selected tag),
 // then sorts by the active column with a stable id tiebreak. Owns the favorite
 // and tag-filter state; ``artistTags`` (the backend's global tag list) is used
 // only to drop a stale selected tag after it is renamed or deleted.
@@ -100,7 +101,7 @@ export function useArtistSort(artists: Artist[], filter: string, artistTags: str
       if (favoriteOnly && !artist.favorite) {
         return false;
       }
-      if (selectedTags.size && !artist.tags.some((tag) => selectedTags.has(tag))) {
+      if (selectedTags.size && ![...selectedTags].every((tag) => artist.tags.includes(tag))) {
         return false;
       }
       return matchesKeyword(artist, keyword);

@@ -616,6 +616,32 @@ class GuiApiTests(unittest.TestCase):
         for row in tagged:
             self.assertEqual(row["pixiv_tags"], [{"tag": "水色髪", "translation": "light blue hair"}])
 
+    def test_library_list_attributes_artist_by_folder(self):
+        with TemporaryDirectory() as tmp:
+            root = _isolate(tmp)
+            old_cwd = Path.cwd()
+            try:
+                os.chdir(root)
+                images_dir = self._setup_library(root)
+                db_file = root / ".pixiv-pbd-manager" / "artists.json"
+                db = ArtistDatabase.load(db_file)
+                db.artists["555"].save_paths = [str(images_dir.resolve())]
+                db.set_artist_tags("555", ["feet"])
+                db.save()
+                invoke("library.scan")
+                _, list_events = invoke("library.list")
+            finally:
+                os.chdir(old_cwd)
+
+        rows = list_events[-1]["payload"]["images"]
+        by_pid = {row["pid"]: row for row in rows}
+        # 99000099 is NOT in artist 555's work_ids, but its file lives in 555's
+        # save folder, so it should inherit the artist and the artist's tags.
+        attributed = by_pid["99000099"]
+        self.assertEqual(attributed["artist_id"], "555")
+        self.assertEqual(attributed["artist_name"], "Tester")
+        self.assertEqual(attributed["artist_tags"], ["feet"])
+
     def test_library_set_tags_persists_and_reserializes(self):
         with TemporaryDirectory() as tmp:
             root = _isolate(tmp)

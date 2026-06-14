@@ -17,7 +17,9 @@ from ...events import (
 from ...library import (
     build_catalog,
     build_pid_to_artist,
+    build_save_path_index,
     load_library_index,
+    resolve_folder_artist,
     save_library_index,
 )
 from ...paths import DEFAULT_LIBRARY_INDEX
@@ -36,10 +38,25 @@ def list_images(payload: JsonDict, _emit_event: Emitter) -> JsonDict:
     db = ArtistDatabase.load(db_path(payload, settings))
     catalog = load_library_index(_index_path(payload))
     images = sorted(catalog.values(), key=lambda image: image.mtime_ns, reverse=True)
-    rows = [
-        library_image_to_json(image, db.artists.get(image.artist_id) if image.artist_id else None)
-        for image in images
-    ]
+
+    # Attribute each image to an artist live: the folder it lives under wins (so
+    # works filed under an artist's folder inherit the artist + its tags even
+    # when their PID isn't in that artist's online work-id list), then the PID
+    # mapping. Folder resolution is cached per unique folder.
+    pid_map = build_pid_to_artist(db)
+    save_index = build_save_path_index(db)
+    folder_cache: dict[str, str] = {}
+
+    def artist_for(image):
+        artist_id = folder_cache.get(image.folder)
+        if artist_id is None:
+            artist_id = resolve_folder_artist(image.folder, save_index)
+            folder_cache[image.folder] = artist_id
+        if not artist_id and image.pid:
+            artist_id = pid_map.get(image.pid, "")
+        return db.artists.get(artist_id) if artist_id else None
+
+    rows = [library_image_to_json(image, artist_for(image)) for image in images]
     return {"images": rows, "needs_scan": not catalog, "db_path": str(db.path)}
 
 
