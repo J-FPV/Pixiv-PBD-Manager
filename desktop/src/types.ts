@@ -1,6 +1,6 @@
 import type { PathPickKind } from "./api";
 
-export type Language = "zh" | "en";
+export type Language = "zh" | "en" | "ja" | "es" | "fr" | "de";
 export type ThemeMode = "system" | "light" | "dark";
 
 // Independent task lanes. The library lane (scan / update-check / download /

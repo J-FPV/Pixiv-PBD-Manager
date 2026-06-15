@@ -1,5 +1,9 @@
 import type { Language } from "./types";
 import { en } from "./i18n.en";
+import { ja } from "./i18n.ja";
+import { es } from "./i18n.es";
+import { fr } from "./i18n.fr";
+import { de } from "./i18n.de";
 
 const zh = {
   scanResults: "扫描结果",
@@ -291,7 +295,7 @@ const zh = {
 
 export type Dictionary = typeof zh;
 
-const dictionaries = { zh, en };
+const dictionaries = { zh, en, ja, es, fr, de };
 
 export function t(language: Language, key: keyof typeof zh): string {
   return dictionaries[language]?.[key] ?? zh[key] ?? key;
