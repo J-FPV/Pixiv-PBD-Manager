@@ -2120,13 +2120,13 @@ body.col-resizing .colHandle::after {
   align-items: center;
   gap: 6px;
   max-width: 100%;
-  padding: 3px 8px;
+  padding: 4px 9px;
   border: 1px solid var(--line);
   border-radius: 999px;
   background: var(--surface);
   color: var(--text);
   font-size: 12px;
-  line-height: 1;
+  line-height: 1.45;
   cursor: pointer;
 }
 
