@@ -191,6 +191,14 @@ class ScannerTests(unittest.TestCase):
         self.assertEqual(extract_work_ids(Path("2023-09-12.png")), set())
         self.assertEqual(extract_work_ids(Path("12345678_p0.jpg")), {"12345678"})
 
+    def test_extract_work_ids_ignores_embedded_export_date_and_time(self):
+        self.assertEqual(
+            extract_work_ids(Path("illust_79761336_20200323_002344.jpg")),
+            {"79761336"},
+        )
+        self.assertEqual(extract_work_ids(Path("album_20240501_final.png")), set())
+        self.assertEqual(extract_work_ids(Path("作品_20240501_002344.png")), set())
+
     def test_timestamp_only_folder_has_no_resolvable_work_ids(self):
         with TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -229,6 +237,19 @@ class ScannerTests(unittest.TestCase):
 
             depth1 = sorted(p.name for p in iter_media_files(root, max_depth=1))
             self.assertEqual(depth1, ["a.jpg", "b.jpg"])
+
+    def test_scan_collapses_overlapping_roots(self):
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            child = root / "child"
+            image = child / "Artist-111222" / "90000001-one.jpg"
+            image.parent.mkdir(parents=True)
+            image.write_bytes(b"")
+
+            summary = scan_roots([child, root])
+
+            self.assertEqual(summary.files_seen, 1)
+            self.assertEqual(summary.files_matched, 1)
 
 
 if __name__ == "__main__":

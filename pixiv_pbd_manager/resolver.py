@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+from collections import Counter
 import difflib
 import html
 import json
 import re
 import ssl
 import time
+import unicodedata
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -318,22 +320,48 @@ def resolve_name_only_artist(
     cookie: str | None = None,
     allow_insecure_ssl_fallback: bool = True,
 ) -> ResolvedArtist | None:
-    work_ids = sorted(hit.work_ids, key=lambda value: (len(value), value), reverse=True)
+    work_ids = sorted(hit.work_ids, key=int, reverse=True)
+    resolved_items: list[ResolvedArtist] = []
     for index, work_id in enumerate(work_ids[:max_work_ids]):
-        resolved = fetch_artwork_author(
-            work_id,
-            cookie=cookie,
-            allow_insecure_ssl_fallback=allow_insecure_ssl_fallback,
-        )
+        try:
+            resolved = fetch_artwork_author(
+                work_id,
+                cookie=cookie,
+                allow_insecure_ssl_fallback=allow_insecure_ssl_fallback,
+            )
+        except PixivResolveError:
+            if not resolved_items:
+                raise
+            break
         if resolved:
-            return resolved
+            resolved_items.append(resolved)
         if index != min(len(work_ids), max_work_ids) - 1 and delay_seconds > 0:
             time.sleep(delay_seconds)
-    return None
+    if not resolved_items:
+        return None
+
+    votes = Counter(item.id for item in resolved_items)
+    ranked = votes.most_common()
+    if len(ranked) > 1 and ranked[0][1] == ranked[1][1]:
+        return None
+    winning_id = ranked[0][0]
+    if len(ranked) > 1 and ranked[0][1] < 2:
+        return None
+    return next(item for item in resolved_items if item.id == winning_id)
 
 
 def normalize_search_text(value: str) -> str:
-    return "".join(value.lower().split())
+    normalized = unicodedata.normalize("NFKC", value).casefold()
+    return "".join(character for character in normalized if character.isalnum())
+
+
+def search_name_variants(value: str) -> set[str]:
+    variants = {normalize_search_text(value)}
+    for part in re.split(r"[@＠|｜/／]", unicodedata.normalize("NFKC", value)):
+        normalized = normalize_search_text(part)
+        if normalized:
+            variants.add(normalized)
+    return {item for item in variants if item}
 
 
 def json_string(value: str) -> str:
@@ -344,16 +372,20 @@ def json_string(value: str) -> str:
 
 
 def candidate_score(keyword: str, name: str) -> float:
-    key = normalize_search_text(keyword)
-    value = normalize_search_text(name)
-    if not key or not value:
+    keys = search_name_variants(keyword)
+    values = search_name_variants(name)
+    if not keys or not values:
         return 0.0
-    if key == value:
-        return 1.0
-    score = difflib.SequenceMatcher(None, key, value).ratio()
-    if key in value or value in key:
-        score = max(score, 0.82)
-    return score
+    best = 0.0
+    for key in keys:
+        for value in values:
+            if key == value:
+                return 1.0
+            score = difflib.SequenceMatcher(None, key, value).ratio()
+            if key in value or value in key:
+                score = max(score, 0.82)
+            best = max(best, score)
+    return best
 
 
 def collect_user_candidates_from_json(data: Any, keyword: str, out: dict[str, PixivUserCandidate]) -> None:
@@ -400,7 +432,7 @@ def parse_user_search_html(raw_html: str, keyword: str, ssl_fallback_used: bool)
         artist_id = match.group("id")
         candidates.setdefault(
             artist_id,
-            PixivUserCandidate(id=artist_id, name=keyword, score=0.45, source="search_link"),
+            PixivUserCandidate(id=artist_id, name="", score=0.0, source="search_link"),
         )
 
     return [
@@ -452,12 +484,16 @@ def resolve_name_by_fuzzy_search(
 ) -> PixivUserCandidate | None:
     candidates = search_pixiv_users(
         artist_name,
-        limit=1,
+        limit=2,
         min_score=min_score,
         cookie=cookie,
         allow_insecure_ssl_fallback=allow_insecure_ssl_fallback,
     )
-    return candidates[0] if candidates else None
+    if not candidates:
+        return None
+    if len(candidates) > 1 and candidates[0].score < 0.999 and candidates[0].score - candidates[1].score < 0.08:
+        return None
+    return candidates[0]
 
 
 def fetch_user_work_ids(

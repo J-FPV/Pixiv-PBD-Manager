@@ -6,12 +6,17 @@ from unittest.mock import patch
 from pixiv_pbd_manager.resolver import (
     PIXIV_PROFILE_WORKS_PER_PAGE,
     PixivResolveError,
+    ResolvedArtist,
+    candidate_score,
     fetch_artwork_author,
     fetch_user_profile,
     parse_user_name_from_profile_all,
     parse_user_work_ids_from_profile_all,
     parse_user_search_html,
+    resolve_name_only_artist,
 )
+from pixiv_pbd_manager.scanner import NameOnlyArtistHit
+from pathlib import Path
 
 
 class FakeResponse:
@@ -51,6 +56,50 @@ class ResolverTests(unittest.TestCase):
         self.assertEqual(candidates[0].id, "123456")
         self.assertEqual(candidates[0].name, "一条レイ")
         self.assertGreater(candidates[0].score, 0.9)
+
+    def test_candidate_score_handles_full_width_and_display_suffix(self):
+        self.assertEqual(candidate_score("Ａｎｍｉ", "Anmi@画集発売中"), 1.0)
+
+    def test_name_only_resolution_requires_consistent_pid_authors(self):
+        hit = NameOnlyArtistHit(
+            artist_key="name:test",
+            artist_name="Artist",
+            source="test",
+            root=Path("."),
+            folder=Path("."),
+            path=Path("100.jpg"),
+            work_ids={"100", "101", "102"},
+        )
+        results = [
+            ResolvedArtist(id="1", name="A", work_id="102"),
+            ResolvedArtist(id="1", name="A", work_id="101"),
+            ResolvedArtist(id="2", name="B", work_id="100"),
+        ]
+        with patch("pixiv_pbd_manager.resolver.fetch_artwork_author", side_effect=results):
+            resolved = resolve_name_only_artist(hit, max_work_ids=3, delay_seconds=0)
+
+        self.assertIsNotNone(resolved)
+        assert resolved is not None
+        self.assertEqual(resolved.id, "1")
+
+    def test_name_only_resolution_rejects_split_vote(self):
+        hit = NameOnlyArtistHit(
+            artist_key="name:test",
+            artist_name="Artist",
+            source="test",
+            root=Path("."),
+            folder=Path("."),
+            path=Path("100.jpg"),
+            work_ids={"100", "101"},
+        )
+        results = [
+            ResolvedArtist(id="1", name="A", work_id="101"),
+            ResolvedArtist(id="2", name="B", work_id="100"),
+        ]
+        with patch("pixiv_pbd_manager.resolver.fetch_artwork_author", side_effect=results):
+            resolved = resolve_name_only_artist(hit, max_work_ids=2, delay_seconds=0)
+
+        self.assertIsNone(resolved)
 
     def test_parse_user_name_from_profile_all_meta_title(self):
         raw = {"body": {"illusts": {}}, "extraData": {"meta": {"title": "Artist Name - pixiv"}}}

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -11,6 +12,7 @@ from pixiv_pbd_manager.library import (
     LibraryImage,
     build_catalog,
     build_pid_to_artist,
+    build_save_path_index,
     load_library_index,
     parse_pixiv_name,
     read_image_size,
@@ -46,6 +48,13 @@ class CatalogParsingTests(unittest.TestCase):
         # A date inside a title must not suppress a genuine leading work id.
         self.assertEqual(parse_pixiv_name(Path("12345678-2023 spring.jpg")), ("12345678", None))
         self.assertEqual(parse_pixiv_name(Path("100949474_p0.jpg")), ("100949474", 0))
+
+    def test_parse_pixiv_name_prefers_export_pid_over_date_metadata(self):
+        self.assertEqual(
+            parse_pixiv_name(Path("illust_103493847_20221224_205536.jpg")),
+            ("103493847", None),
+        )
+        self.assertEqual(parse_pixiv_name(Path("album_20240501_final.png")), ("", None))
 
 
 class CatalogBuildTests(unittest.TestCase):
@@ -85,6 +94,21 @@ class CatalogBuildTests(unittest.TestCase):
         self.assertEqual(summary.changed, 0)
         self.assertEqual(images[0].tags, ["fanart", "wallpaper"])
 
+    def test_build_prefers_unique_save_path_artist(self):
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            artist_dir = root / "artist"
+            artist_dir.mkdir()
+            Image.new("RGB", (30, 30), "green").save(artist_dir / "100949474_p0.png")
+            images, _ = build_catalog(
+                [root],
+                [],
+                pid_to_artist={"100949474": "wrong"},
+                save_path_index={os.path.normcase(str(artist_dir.resolve())): "right"},
+            )
+
+        self.assertEqual(images[0].artist_id, "right")
+
     def test_round_trip_through_index_file(self):
         with TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -111,6 +135,18 @@ class PidToArtistTests(unittest.TestCase):
             mapping = build_pid_to_artist(db)
 
         self.assertEqual(mapping, {"1001": "111", "1002": "111", "2001": "222"})
+
+    def test_omits_conflicting_work_ids_and_save_paths(self):
+        with TemporaryDirectory() as tmp:
+            shared = Path(tmp) / "shared"
+            db = ArtistDatabase(Path(tmp) / "artists.json")
+            db.upsert("111", name="A", source="manual", save_path=shared)
+            db.artists["111"].work_ids = ["1001"]
+            db.upsert("222", name="B", source="manual", save_path=shared)
+            db.artists["222"].work_ids = ["1001"]
+
+            self.assertNotIn("1001", build_pid_to_artist(db))
+            self.assertNotIn(os.path.normcase(str(shared.resolve())), build_save_path_index(db))
 
 
 class ReadImageSizeTests(unittest.TestCase):

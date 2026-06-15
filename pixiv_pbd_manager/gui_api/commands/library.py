@@ -71,6 +71,7 @@ def scan(payload: JsonDict, emit_event: Emitter) -> JsonDict:
         roots,
         exclude_roots,
         pid_to_artist=build_pid_to_artist(db),
+        save_path_index=build_save_path_index(db),
         old_catalog=load_library_index(index_path),
         progress_callback=make_progress_callback(emit_event),
     )

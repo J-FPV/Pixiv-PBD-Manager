@@ -39,7 +39,9 @@ from ..events import (
 from ..scanner import NameOnlyArtistHit, ScanSummary, scan_roots
 from ._shared import (
     ProgressCallback,
+    build_artist_save_path_index,
     emit,
+    find_artist_by_save_path,
     filter_assigned_unmatched_folders,
     is_under_known_save_root,
     known_save_roots,
@@ -128,12 +130,45 @@ def collect_resolved_hits(
 
     resolved_hit_keys: set[str] = set()
     name_only_hits = list(summary.name_only_artists.values())
+    save_path_index = build_artist_save_path_index(existing_db)
+
+    # Existing database evidence is faster and safer than hitting Pixiv again.
+    # A known save path wins; otherwise an exact normalized display-name match
+    # is accepted only when it identifies one database record.
+    for hit in name_only_hits:
+        existing = find_artist_by_save_path(save_path_index, hit.folder)
+        source = "local_save_path"
+        if existing is None and hit.artist_name:
+            candidates = [
+                artist
+                for artist in existing_db.artists.values()
+                if artist.name and resolver.candidate_score(hit.artist_name, artist.name) == 1.0
+            ]
+            if len(candidates) == 1:
+                existing = candidates[0]
+                source = "local_exact_name"
+        if existing is None:
+            continue
+        result.hits.append(
+            ResolvedHit(
+                artist_id=existing.id,
+                artist_name=existing.name or hit.artist_name,
+                source=f"{hit.source};{source}",
+                root=hit.root,
+                folder=hit.folder,
+                work_ids=frozenset(hit.work_ids),
+            )
+        )
+        resolved_hit_keys.add(hit.artist_key)
 
     if not resolve_online:
         _surface_unresolved_name_only(summary, name_only_hits, resolved_hit_keys, existing_db)
         return result
 
+    consecutive_errors = 0
     for index, hit in enumerate(name_only_hits, 1):
+        if hit.artist_key in resolved_hit_keys:
+            continue
         if not hit.work_ids:
             continue
         emit(
@@ -153,7 +188,11 @@ def collect_resolved_hits(
             )
         except resolver.PixivResolveError as exc:
             result.resolve_errors.append(str(exc))
-            break
+            consecutive_errors += 1
+            if consecutive_errors >= 3:
+                break
+            continue
+        consecutive_errors = 0
         if not resolved:
             continue
         if resolved.ssl_fallback_used:
@@ -175,6 +214,7 @@ def collect_resolved_hits(
     # Resolve folders that have Pixiv PIDs in their filenames but no name signal,
     # by sampling a work id and looking up its author (same resolver as name-only).
     pid_folders = list(summary.unmatched_folder_work_ids.items())
+    consecutive_errors = 0
     for index, (folder_text, work_ids) in enumerate(pid_folders, 1):
         if not work_ids:
             continue
@@ -204,7 +244,11 @@ def collect_resolved_hits(
             )
         except resolver.PixivResolveError as exc:
             result.resolve_errors.append(str(exc))
-            break
+            consecutive_errors += 1
+            if consecutive_errors >= 3:
+                break
+            continue
+        consecutive_errors = 0
         if not resolved:
             continue
         if resolved.ssl_fallback_used:
@@ -229,6 +273,7 @@ def collect_resolved_hits(
         _surface_unresolved_name_only(summary, name_only_hits, resolved_hit_keys, existing_db)
         return result
 
+    consecutive_errors = 0
     for index, hit in enumerate(name_only_hits, 1):
         if hit.artist_key in resolved_hit_keys:
             continue
@@ -248,7 +293,11 @@ def collect_resolved_hits(
             )
         except resolver.PixivResolveError as exc:
             result.resolve_errors.append(str(exc))
-            break
+            consecutive_errors += 1
+            if consecutive_errors >= 3:
+                break
+            continue
+        consecutive_errors = 0
         if not candidate:
             continue
         if candidate.ssl_fallback_used:

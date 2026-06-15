@@ -6,7 +6,7 @@ import os
 from collections.abc import Iterator
 from pathlib import Path
 
-from ..scanner import is_excluded_path, normalize_exclude_roots
+from ..scanner import is_excluded_path, normalize_exclude_roots, normalize_scan_roots
 
 
 IMAGE_SUFFIXES = {".jpg", ".jpeg", ".png", ".webp", ".bmp", ".gif"}
@@ -14,8 +14,7 @@ IMAGE_SUFFIXES = {".jpg", ".jpeg", ".png", ".webp", ".bmp", ".gif"}
 
 def iter_image_files(roots: list[Path], exclude_roots: list[Path] | None = None) -> Iterator[Path]:
     excludes = normalize_exclude_roots(exclude_roots)
-    for root in roots:
-        root = root.expanduser().resolve()
+    for root in normalize_scan_roots(roots):
         if root.is_file():
             if not is_excluded_path(root, excludes) and root.suffix.lower() in IMAGE_SUFFIXES:
                 yield root

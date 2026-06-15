@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -49,7 +50,13 @@ KEYWORD_ARTIST_PATTERNS = [
     re.compile(r"(?:user|uid|member|artist)[= _-]*(?P<id>\d{3,12})(?:[ _-]+(?P<name>[^\\/]+))?", re.I),
 ]
 
-WORK_ID_PATTERN = re.compile(r"(?<!\d)(?P<id>\d{6,12})(?:[_-]p\d+|[^\d]|$)", re.I)
+WORK_ID_PATTERN = re.compile(r"(?<!\d)(?P<id>\d{6,12})(?!\d)", re.I)
+PIXIV_PAGE_WORK_PATTERN = re.compile(r"(?<!\d)(?P<id>\d{4,12})[_-]p(?P<page>\d+)(?!\d)", re.I)
+PIXIV_PREFIX_WORK_PATTERNS = [
+    re.compile(r"(?:^|[^\w])(?:illust|artwork|pixiv|work)[_-](?P<id>\d{4,12})(?!\d)", re.I),
+    re.compile(r"(?:^|[^\w])(?:pid|illust[_-]?id|work[_-]?id)[= _-]*(?P<id>\d{4,12})(?!\d)", re.I),
+]
+LEADING_WORK_ID_PATTERN = re.compile(r"^(?P<id>\d{6,12})(?=$|[ ._-])", re.I)
 
 # Camera / screenshot timestamps (20230912_165005, 2023-09-12, IMG_20230912_165005)
 # are NOT Pixiv work ids. Start-anchored (after an optional alpha prefix) so a date
@@ -61,6 +68,10 @@ TIMESTAMP_NAME_PATTERN = re.compile(
     r"|(?:19|20)\d{2}[-_.](?:0[1-9]|1[0-2])[-_.](?:0[1-9]|[12]\d|3[01])"  # YYYY-MM-DD
     r")"
 )
+EMBEDDED_TIMESTAMP_PATTERN = re.compile(
+    r"(?<!\d)(?:19|20)\d{2}(?:0[1-9]|1[0-2])(?:0[1-9]|[12]\d|3[01])"
+    r"[ ._-](?:[01]\d|2[0-3])[0-5]\d[0-5]\d(?!\d)"
+)
 
 # Cap how many sample work ids we keep per unmatched folder for online resolution.
 UNMATCHED_WORK_ID_SAMPLE_CAP = 10
@@ -68,6 +79,57 @@ UNMATCHED_WORK_ID_SAMPLE_CAP = 10
 
 def looks_like_timestamp_name(stem: str) -> bool:
     return bool(TIMESTAMP_NAME_PATTERN.match(stem))
+
+
+def looks_like_calendar_date_token(value: str) -> bool:
+    if len(value) != 8 or not value.startswith(("19", "20")):
+        return False
+    try:
+        datetime.strptime(value, "%Y%m%d")
+    except ValueError:
+        return False
+    return True
+
+
+@dataclass(frozen=True)
+class PixivWorkReference:
+    work_id: str
+    page: int | None = None
+    source: str = ""
+
+
+def parse_pixiv_work_reference(path: Path) -> PixivWorkReference | None:
+    """Return the single most credible Pixiv work reference in a filename.
+
+    Pixiv/PBD-specific forms win over generic numeric tokens. The generic
+    fallback deliberately rejects valid YYYYMMDD values so export timestamps
+    do not become artwork IDs.
+    """
+    stem = path.stem
+    if looks_like_timestamp_name(stem):
+        return None
+
+    match = PIXIV_PAGE_WORK_PATTERN.search(stem)
+    if match:
+        return PixivWorkReference(match.group("id"), int(match.group("page")), "page")
+
+    for pattern in PIXIV_PREFIX_WORK_PATTERNS:
+        match = pattern.search(stem)
+        if match:
+            return PixivWorkReference(match.group("id"), None, "prefix")
+
+    match = LEADING_WORK_ID_PATTERN.search(stem)
+    if match and not looks_like_calendar_date_token(match.group("id")):
+        return PixivWorkReference(match.group("id"), None, "leading")
+
+    if EMBEDDED_TIMESTAMP_PATTERN.search(stem):
+        return None
+
+    for match in WORK_ID_PATTERN.finditer(stem):
+        work_id = match.group("id")
+        if not looks_like_calendar_date_token(work_id):
+            return PixivWorkReference(work_id, None, "generic")
+    return None
 
 
 @dataclass
@@ -148,7 +210,23 @@ class ScanSummary:
 
 
 def normalize_exclude_roots(exclude_roots: list[Path] | None = None) -> list[Path]:
-    return [path.expanduser().resolve() for path in (exclude_roots or [])]
+    return normalize_scan_roots(exclude_roots or [])
+
+
+def normalize_scan_roots(roots: list[Path]) -> list[Path]:
+    """Resolve, de-duplicate, and collapse roots covered by an ancestor root."""
+    unique: dict[str, tuple[int, Path]] = {}
+    for index, path in enumerate(roots):
+        resolved = path.expanduser().resolve()
+        unique.setdefault(os.path.normcase(str(resolved)), (index, resolved))
+
+    ordered = sorted(unique.values(), key=lambda item: (len(item[1].parts), item[0]))
+    kept: list[Path] = []
+    for _index, candidate in ordered:
+        if any(candidate == parent or is_relative_to(candidate, parent) for parent in kept):
+            continue
+        kept.append(candidate)
+    return kept
 
 
 def is_relative_to(path: Path, parent: Path) -> bool:
@@ -270,13 +348,8 @@ def find_name_only_pixiv_artist(text: str) -> tuple[str, str] | None:
 
 
 def extract_work_ids(path: Path) -> set[str]:
-    stem = path.stem
-    if looks_like_timestamp_name(stem):
-        return set()
-    ids: set[str] = set()
-    for match in WORK_ID_PATTERN.finditer(stem):
-        ids.add(match.group("id"))
-    return ids
+    reference = parse_pixiv_work_reference(path)
+    return {reference.work_id} if reference else set()
 
 
 def stable_artist_key(root: Path, folder: Path, name: str) -> str:
@@ -397,8 +470,7 @@ def scan_roots(
     artist_folder_cache: dict[tuple[Path, Path, bool], FolderArtistIdentity | None] = {}
     name_only_folder_cache: dict[tuple[Path, Path], FolderNameOnlyIdentity | None] = {}
     resolved_parent_cache: dict[Path, Path] = {}
-    for root in roots:
-        root = root.expanduser().resolve()
+    for root in normalize_scan_roots(roots):
         root_excludes = [
             exclude
             for exclude in excludes

@@ -8,6 +8,7 @@ These are intentionally module-internal (``_shared``): callers outside the
 from __future__ import annotations
 
 from collections.abc import Callable
+import os
 from pathlib import Path
 
 from ..database import ArtistDatabase
@@ -69,6 +70,31 @@ def known_save_roots(db: ArtistDatabase) -> list[Path]:
     for artist in db.artists.values():
         roots.extend(artist_save_roots(artist))
     return roots
+
+
+def build_artist_save_path_index(db: ArtistDatabase) -> dict[str, ArtistRecord | None]:
+    """Build an exact save-path index; ``None`` marks ambiguous ownership."""
+    owners: dict[str, dict[str, ArtistRecord]] = {}
+    for artist in db.artists.values():
+        for root in artist_save_roots(artist):
+            owners.setdefault(os.path.normcase(str(root)), {})[artist.id] = artist
+    return {
+        path: next(iter(artists.values())) if len(artists) == 1 else None
+        for path, artists in owners.items()
+    }
+
+
+def find_artist_by_save_path(
+    save_path_index: dict[str, ArtistRecord | None],
+    path: Path,
+) -> ArtistRecord | None:
+    """Return the nearest indexed save-path owner, stopping on ambiguity."""
+    resolved = path.expanduser().resolve()
+    for ancestor in (resolved, *resolved.parents):
+        key = os.path.normcase(str(ancestor))
+        if key in save_path_index:
+            return save_path_index[key]
+    return None
 
 
 def is_under_known_save_root(path: Path, save_roots: list[Path]) -> bool:

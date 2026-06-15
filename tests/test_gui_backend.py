@@ -56,6 +56,48 @@ class GuiBackendTests(unittest.TestCase):
             self.assertIn("126324", db.artists)
             self.assertEqual(db.artists["126324"].name, "96YOTTEA")
 
+    def test_scan_uses_existing_save_path_without_online_request(self):
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp) / "downloads"
+            folder = root / "96YOTTEA's illustrations／manga - pixiv"
+            image = folder / "100187254_p0.jpg"
+            folder.mkdir(parents=True)
+            image.write_bytes(b"")
+            db_path = Path(tmp) / "artists.json"
+            db = ArtistDatabase.load(db_path)
+            db.upsert("126324", name="96YOTTEA", source="manual", save_path=folder)
+            db.save()
+
+            with patch("pixiv_pbd_manager.resolver.resolve_name_only_artist") as online:
+                result = scan_into_database([root], db_path, resolve_online=True)
+
+            online.assert_not_called()
+            self.assertEqual(result.resolved_name_only, 0)
+
+    def test_scan_continues_after_one_folder_resolution_error(self):
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp) / "downloads"
+            first = root / "First's illustrations - pixiv" / "100187254_p0.jpg"
+            second = root / "Second's illustrations - pixiv" / "100187255_p0.jpg"
+            first.parent.mkdir(parents=True)
+            second.parent.mkdir(parents=True)
+            first.write_bytes(b"")
+            second.write_bytes(b"")
+            db_path = Path(tmp) / "artists.json"
+
+            with patch(
+                "pixiv_pbd_manager.resolver.resolve_name_only_artist",
+                side_effect=[
+                    PixivResolveError("temporary failure"),
+                    ResolvedArtist(id="126325", name="Second", work_id="100187255"),
+                ],
+            ):
+                result = scan_into_database([root], db_path, resolve_online=True)
+
+            db = ArtistDatabase.load(db_path)
+            self.assertIn("126325", db.artists)
+            self.assertEqual(len(result.resolve_errors), 1)
+
     def test_scan_into_database_resolves_unmatched_folder_by_pid(self):
         # A plain-named folder (no artist id, not a Pixiv name pattern) with
         # PID-named files is resolved online from a sampled work id.

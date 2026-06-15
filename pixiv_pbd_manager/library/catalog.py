@@ -20,10 +20,9 @@ from typing import Any
 from ..database import ArtistDatabase
 from ..events import PROGRESS_LIBRARY_DONE, PROGRESS_LIBRARY_FILES, PROGRESS_LIBRARY_START
 from ..paths import DEFAULT_LIBRARY_INDEX, write_json_atomic
-from ..scanner import WORK_ID_PATTERN, looks_like_timestamp_name
+from ..scanner import parse_pixiv_work_reference
 from ..similar._shared import ProgressCallback, emit
 from ..similar.filewalk import iter_image_files
-from ..similar.grouping import PIXIV_PAGE_NAME_PATTERN
 
 
 def _pillow():
@@ -42,19 +41,9 @@ def read_image_size(path: Path) -> tuple[int, int]:
 
 
 def parse_pixiv_name(path: Path) -> tuple[str, int | None]:
-    """Extract (pid, page) from a filename. Prefers the explicit ``{pid}_p{page}``
-    Pixiv form, then falls back to the first standalone work-id-looking number.
-    Date/time filenames (camera, screenshots) return no pid."""
-    stem = path.stem
-    if looks_like_timestamp_name(stem):
-        return "", None
-    page_match = PIXIV_PAGE_NAME_PATTERN.search(stem)
-    if page_match:
-        return page_match.group("pid"), int(page_match.group("page"))
-    work_match = WORK_ID_PATTERN.search(stem)
-    if work_match:
-        return work_match.group("id"), None
-    return "", None
+    """Extract the shared scanner's most credible ``(pid, page)`` reference."""
+    reference = parse_pixiv_work_reference(path)
+    return (reference.work_id, reference.page) if reference else ("", None)
 
 
 def _clean_tags(tags: Any) -> list[str]:
@@ -152,26 +141,31 @@ class CatalogSummary:
 
 
 def build_pid_to_artist(db: ArtistDatabase) -> dict[str, str]:
-    """Map every known work id to the artist that owns it (first wins)."""
-    mapping: dict[str, str] = {}
+    """Map unambiguous known work ids to their artist.
+
+    Duplicate ownership is omitted instead of silently depending on database
+    iteration order.
+    """
+    owners: dict[str, set[str]] = {}
     for artist in db.artists.values():
         for work_id in artist.work_ids:
-            mapping.setdefault(str(work_id), artist.id)
-    return mapping
+            owners.setdefault(str(work_id), set()).add(artist.id)
+    return {work_id: next(iter(artist_ids)) for work_id, artist_ids in owners.items() if len(artist_ids) == 1}
 
 
 def build_save_path_index(db: ArtistDatabase) -> dict[str, str]:
     """Map normalized, resolved save-path -> artist id, so an image can be
-    attributed to the artist whose folder it lives under (first wins)."""
-    index: dict[str, str] = {}
+    attributed to the artist whose folder it lives under. Ambiguous exact
+    paths are omitted."""
+    owners: dict[str, set[str]] = {}
     for artist in db.artists.values():
         for save_path in artist.save_paths:
             try:
                 key = os.path.normcase(str(Path(save_path).expanduser().resolve()))
             except OSError:
                 continue
-            index.setdefault(key, artist.id)
-    return index
+            owners.setdefault(key, set()).add(artist.id)
+    return {path: next(iter(artist_ids)) for path, artist_ids in owners.items() if len(artist_ids) == 1}
 
 
 def resolve_folder_artist(folder: str, save_index: dict[str, str]) -> str:
@@ -202,12 +196,15 @@ def build_catalog(
     exclude_roots: list[Path] | None = None,
     *,
     pid_to_artist: dict[str, str] | None = None,
+    save_path_index: dict[str, str] | None = None,
     old_catalog: dict[str, LibraryImage] | None = None,
     progress_callback: ProgressCallback | None = None,
     progress_interval: int = 100,
     max_errors: int = 200,
 ) -> tuple[list[LibraryImage], CatalogSummary]:
     pid_map = pid_to_artist or {}
+    save_index = save_path_index or {}
+    folder_artist_cache: dict[str, str] = {}
     old = old_catalog or {}
     images: list[LibraryImage] = []
     summary = CatalogSummary()
@@ -229,6 +226,11 @@ def build_catalog(
                 width, height = read_image_size(path)
                 summary.changed += 1
             pid, page = parse_pixiv_name(path)
+            folder = str(path.parent)
+            folder_artist = folder_artist_cache.get(folder)
+            if folder_artist is None:
+                folder_artist = resolve_folder_artist(folder, save_index)
+                folder_artist_cache[folder] = folder_artist
             images.append(
                 LibraryImage(
                     path=resolved,
@@ -239,8 +241,8 @@ def build_catalog(
                     format=path.suffix.lower().lstrip("."),
                     pid=pid,
                     page=page,
-                    artist_id=pid_map.get(pid, "") if pid else "",
-                    folder=str(path.parent),
+                    artist_id=folder_artist or (pid_map.get(pid, "") if pid else ""),
+                    folder=folder,
                     tags=list(prev.tags) if prev else [],
                     pixiv_tags=[dict(item) for item in prev.pixiv_tags] if prev else [],
                 )
