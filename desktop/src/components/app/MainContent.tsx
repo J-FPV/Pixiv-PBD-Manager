@@ -41,6 +41,7 @@ export function MainContent({
           checkUpdates={artistActions.checkUpdates}
           checkArtistUpdates={artistActions.checkArtistUpdates}
           refreshArtistNames={artistActions.refreshArtistNames}
+          rebuildWorkIndex={artistActions.rebuildWorkIndex}
           downloadUpdated={artistActions.downloadUpdated}
           downloadArtistUpdated={artistActions.downloadArtistUpdated}
           openSelected={artistActions.openSelected}

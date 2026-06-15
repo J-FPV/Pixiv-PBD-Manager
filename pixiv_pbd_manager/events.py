@@ -31,6 +31,11 @@ PROGRESS_REFRESH_NAMES_START = "progress_refresh_names_start"
 PROGRESS_REFRESH_NAMES_ARTIST = "progress_refresh_names_artist"
 PROGRESS_REFRESH_NAMES_DONE = "progress_refresh_names_done"
 
+# Local artist work-id index rebuild
+PROGRESS_REBUILD_INDEX_START = "progress_rebuild_index_start"
+PROGRESS_REBUILD_INDEX_ARTIST = "progress_rebuild_index_artist"
+PROGRESS_REBUILD_INDEX_DONE = "progress_rebuild_index_done"
+
 # Download pipeline (multi-artist, multi-work, multi-page)
 PROGRESS_DOWNLOAD_START = "progress_download_start"
 PROGRESS_DOWNLOAD_ARTIST = "progress_download_artist"

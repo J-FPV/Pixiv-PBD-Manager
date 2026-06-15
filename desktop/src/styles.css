@@ -2004,7 +2004,6 @@ body.col-resizing .colHandle::after {
 .libraryBody {
   display: flex;
   min-height: 0;
-  gap: 10px;
   overflow: hidden;
 }
 
@@ -2019,13 +2018,50 @@ body.col-resizing .colHandle::after {
 }
 
 .libraryFilterSidebar {
-  flex: 0 0 240px;
-  width: 240px;
+  flex: 0 0 auto;
+  min-width: 180px;
+  max-width: calc(100% - 300px);
   overflow-y: auto;
   padding: 8px;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--surface);
+}
+
+.librarySidebarResizeHandle {
+  position: relative;
+  flex: 0 0 12px;
+  width: 12px;
+  cursor: col-resize;
+  touch-action: none;
+  user-select: none;
+  outline: none;
+}
+
+.librarySidebarResizeHandle::after {
+  content: "";
+  position: absolute;
+  top: 12px;
+  bottom: 12px;
+  left: 5px;
+  width: 2px;
+  border-radius: 1px;
+  background: var(--line);
+  transition: background 0.12s ease;
+}
+
+.librarySidebarResizeHandle:hover::after,
+.librarySidebarResizeHandle:focus-visible::after {
+  background: var(--accent);
+}
+
+.panelResizeOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  cursor: col-resize;
+  user-select: none;
+  background: transparent;
 }
 
 .filterSidebarHead {

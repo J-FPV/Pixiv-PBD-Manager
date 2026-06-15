@@ -19,7 +19,8 @@ import type {
   ScanPreviewPayload,
   SettingsPayload,
   UnmatchedFolder,
-  UpdateResult
+  UpdateResult,
+  WorkIndexRebuildResult
 } from "../types";
 import type { TaskRunner } from "./useTaskRunner";
 
@@ -58,6 +59,7 @@ export interface ArtistActions {
   checkUpdates: () => void;
   checkArtistUpdates: (id: string) => void;
   refreshArtistNames: () => void;
+  rebuildWorkIndex: () => void;
   downloadUpdated: () => void;
   downloadArtistUpdated: (id: string) => void;
   openSelected: () => Promise<void>;
@@ -278,6 +280,90 @@ function refreshArtistNames(deps: ArtistActionsDeps): void {
     for (const err of result.errors) {
       appendLog("error", err);
     }
+  });
+}
+
+function workIndexPreviewBody(language: Language, result: WorkIndexRebuildResult): string {
+  const summary =
+    language === "zh"
+      ? [
+          `扫描艺术家：${result.artists_scanned}/${result.artists_total}`,
+          `扫描文件：${result.files_seen}`,
+          `将修改艺术家：${result.artists_changed}`,
+          `作品 ID：${result.old_ids} → ${result.new_ids}`,
+          `新增 ${result.added_ids}，移除 ${result.removed_ids}`,
+          `清除已下载的更新标记：${result.pending_ids_cleared}`,
+          `冲突 ID：${result.conflicting_ids.length}`,
+          `跳过艺术家：${result.artists_skipped}`,
+          `不存在的保存路径：${result.missing_paths.length}`
+        ]
+      : [
+          `Artists scanned: ${result.artists_scanned}/${result.artists_total}`,
+          `Files scanned: ${result.files_seen}`,
+          `Artists to change: ${result.artists_changed}`,
+          `Work IDs: ${result.old_ids} → ${result.new_ids}`,
+          `Add ${result.added_ids}, remove ${result.removed_ids}`,
+          `Downloaded update markers cleared: ${result.pending_ids_cleared}`,
+          `Conflicting IDs: ${result.conflicting_ids.length}`,
+          `Artists skipped: ${result.artists_skipped}`,
+          `Missing save paths: ${result.missing_paths.length}`
+        ];
+  const details = result.changes.slice(0, 8).map((change) => {
+    const name = change.name || change.artist_id;
+    return `${name} (${change.artist_id}): ${change.old_count} → ${change.new_count} (+${change.added_ids.length}/-${change.removed_ids.length})`;
+  });
+  if (result.changes.length > details.length) {
+    details.push(`... +${result.changes.length - details.length}`);
+  }
+  return [t(language, "rebuildWorkIndexConfirm"), "", ...summary, ...(details.length ? ["", ...details] : [])].join("\n");
+}
+
+function rebuildWorkIndex(deps: ArtistActionsDeps): void {
+  const { language, settings, handleEvent, appendLog, showToast, setArtists, setConfirm, runTask } = deps;
+  void runTask("library", t(language, "rebuildWorkIndexPreview"), async (signal, registerControls) => {
+    const preview = await runGuiApi<WorkIndexRebuildResult>(
+      "artists.rebuild_work_index.preview",
+      settings,
+      handleEvent,
+      { signal, onStart: registerControls, gracefulCancel: true }
+    );
+    if (preview.cancelled) {
+      return;
+    }
+    if (preview.artists_changed === 0 && preview.pending_ids_cleared === 0) {
+      const message = t(language, "rebuildWorkIndexNoChanges");
+      appendLog("info", message);
+      showToast(message);
+      return;
+    }
+    setConfirm({
+      title: t(language, "rebuildWorkIndexConfirmTitle"),
+      body: workIndexPreviewBody(language, preview),
+      confirmLabel: t(language, "rebuildWorkIndex"),
+      onConfirm: () =>
+        runTask("library", t(language, "rebuildWorkIndex"), async (applySignal, applyControls) => {
+          const result = await runGuiApi<WorkIndexRebuildResult>(
+            "artists.rebuild_work_index.apply",
+            settings,
+            handleEvent,
+            { signal: applySignal, onStart: applyControls, gracefulCancel: true }
+          );
+          if (result.cancelled) {
+            return;
+          }
+          if (Array.isArray(result.artists)) {
+            setArtists(result.artists);
+          } else {
+            await loadArtists(deps);
+          }
+          const message = `${t(language, "rebuildWorkIndexDone")}: ${result.artists_changed}, +${result.added_ids}/-${result.removed_ids}`;
+          appendLog("info", message);
+          if (result.backup_path) {
+            appendLog("info", `${t(language, "databaseBackup")}: ${result.backup_path}`);
+          }
+          showToast(message);
+        })
+    });
   });
 }
 
@@ -527,6 +613,7 @@ export function useArtistActions(deps: ArtistActionsDeps): ArtistActions {
     checkUpdates: () => checkUpdates(deps),
     checkArtistUpdates: (id) => checkArtistUpdates(deps, id),
     refreshArtistNames: () => refreshArtistNames(deps),
+    rebuildWorkIndex: () => rebuildWorkIndex(deps),
     downloadUpdated: () => downloadUpdated(deps),
     downloadArtistUpdated: (id) => downloadArtistUpdated(deps, id),
     openSelected: () => openSelected(deps),

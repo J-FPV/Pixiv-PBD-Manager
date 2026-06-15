@@ -14,12 +14,16 @@ from .scan import (
     preview_scan_changes,
     scan_into_database,
 )
+from .rebuild_index import WorkIndexArtistChange, WorkIndexRebuildResult, rebuild_artist_work_index
 from .updates import DownloadUpdatesResult, UpdateCheckResult, check_artist_updates, download_artist_updates
 
 
 __all__ = [
     "ProgressCallback",
     "collect_local_work_ids",
+    "WorkIndexArtistChange",
+    "WorkIndexRebuildResult",
+    "rebuild_artist_work_index",
     "ScanResult",
     "ScanPreviewResult",
     "ScanApplyResult",

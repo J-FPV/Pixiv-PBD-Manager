@@ -21,6 +21,11 @@ export const PROGRESS_REFRESH_NAMES_START = "progress_refresh_names_start";
 export const PROGRESS_REFRESH_NAMES_ARTIST = "progress_refresh_names_artist";
 export const PROGRESS_REFRESH_NAMES_DONE = "progress_refresh_names_done";
 
+// Local artist work-id index rebuild
+export const PROGRESS_REBUILD_INDEX_START = "progress_rebuild_index_start";
+export const PROGRESS_REBUILD_INDEX_ARTIST = "progress_rebuild_index_artist";
+export const PROGRESS_REBUILD_INDEX_DONE = "progress_rebuild_index_done";
+
 // Download pipeline
 export const PROGRESS_DOWNLOAD_START = "progress_download_start";
 export const PROGRESS_DOWNLOAD_ARTIST = "progress_download_artist";

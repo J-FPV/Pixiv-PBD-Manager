@@ -16,9 +16,9 @@ from ...events import (
     PROGRESS_REFRESH_NAMES_DONE,
     PROGRESS_REFRESH_NAMES_START,
 )
-from ...operations import collect_local_work_ids
-from ..payload import base_dir, db_path, resolve_path
-from ..runtime import Emitter, JsonDict
+from ...operations import collect_local_work_ids, rebuild_artist_work_index
+from ..payload import base_dir, db_path, paths, resolve_path
+from ..runtime import CONTROL, Emitter, JsonDict, make_progress_callback
 from ..serializers import artist_to_json
 from .settings import load_settings_for_payload
 
@@ -178,6 +178,71 @@ def refresh_names(payload: JsonDict, emit_event: Emitter) -> JsonDict:
         "failed": len(errors),
         "errors": errors,
         "refreshed": refreshed,
+        "artists": [artist_to_json(artist) for artist in db.get_many()],
+    }
+
+
+def _work_index_result_payload(result) -> JsonDict:
+    return {
+        "artists_total": result.artists_total,
+        "artists_scanned": result.artists_scanned,
+        "artists_skipped": result.artists_skipped,
+        "artists_changed": result.artists_changed,
+        "files_seen": result.files_seen,
+        "old_ids": result.old_ids,
+        "new_ids": result.new_ids,
+        "added_ids": result.added_ids,
+        "removed_ids": result.removed_ids,
+        "pending_ids_cleared": result.pending_ids_cleared,
+        "conflicting_ids": list(result.conflicting_ids),
+        "missing_paths": list(result.missing_paths),
+        "cancelled": result.cancelled,
+        "applied": result.applied,
+        "db_path": str(result.db_path or ""),
+        "backup_path": str(result.backup_path or ""),
+        "changes": [
+            {
+                "artist_id": change.artist_id,
+                "name": change.name,
+                "files_seen": change.files_seen,
+                "old_count": change.old_count,
+                "new_count": change.new_count,
+                "added_ids": list(change.added_ids),
+                "removed_ids": list(change.removed_ids),
+            }
+            for change in result.changes
+        ],
+    }
+
+
+def preview_work_index(payload: JsonDict, emit_event: Emitter) -> JsonDict:
+    settings = load_settings_for_payload(payload)
+    excludes = paths(payload.get("exclude_roots") or settings.get("exclude_roots"), base_dir(payload))
+    result = rebuild_artist_work_index(
+        db_path(payload, settings),
+        exclude_roots=excludes,
+        progress_callback=make_progress_callback(emit_event),
+        is_cancelled=CONTROL.is_cancelled,
+        wait_if_paused=CONTROL.wait_if_paused,
+    )
+    return _work_index_result_payload(result)
+
+
+def apply_work_index(payload: JsonDict, emit_event: Emitter) -> JsonDict:
+    settings = load_settings_for_payload(payload)
+    resolved_db_path = db_path(payload, settings)
+    excludes = paths(payload.get("exclude_roots") or settings.get("exclude_roots"), base_dir(payload))
+    result = rebuild_artist_work_index(
+        resolved_db_path,
+        apply=True,
+        exclude_roots=excludes,
+        progress_callback=make_progress_callback(emit_event),
+        is_cancelled=CONTROL.is_cancelled,
+        wait_if_paused=CONTROL.wait_if_paused,
+    )
+    db = ArtistDatabase.load(resolved_db_path)
+    return {
+        **_work_index_result_payload(result),
         "artists": [artist_to_json(artist) for artist in db.get_many()],
     }
 

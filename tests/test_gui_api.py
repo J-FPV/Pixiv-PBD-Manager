@@ -37,6 +37,33 @@ def _isolate(directory) -> Path:
 
 
 class GuiApiTests(unittest.TestCase):
+    def test_rebuild_work_index_preview_and_apply(self):
+        with TemporaryDirectory() as tmp:
+            root = _isolate(tmp)
+            folder = root / "images" / "artist"
+            folder.mkdir(parents=True)
+            (folder / "100000001_p0.jpg").write_bytes(b"")
+            db_path = root / ".pixiv-pbd-manager" / "artists.json"
+            db = ArtistDatabase.load(db_path)
+            db.upsert("111", name="Artist", source="manual", save_path=folder)
+            db.artists["111"].work_ids = ["999999999"]
+            db.save()
+            settings = {"database": str(db_path), "exclude_roots": []}
+            old_cwd = Path.cwd()
+            try:
+                os.chdir(root)
+                invoke("settings.save", {"settings": settings})
+                preview_code, preview_events = invoke("artists.rebuild_work_index.preview")
+                apply_code, apply_events = invoke("artists.rebuild_work_index.apply")
+            finally:
+                os.chdir(old_cwd)
+
+        self.assertEqual(preview_code, 0)
+        self.assertEqual(preview_events[-1]["payload"]["added_ids"], 1)
+        self.assertEqual(preview_events[-1]["payload"]["removed_ids"], 1)
+        self.assertEqual(apply_code, 0)
+        self.assertEqual(apply_events[-1]["payload"]["artists"][0]["work_ids"], ["100000001"])
+
     def test_settings_get_outputs_result_event(self):
         with TemporaryDirectory() as tmp:
             _isolate(tmp)

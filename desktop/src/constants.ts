@@ -49,6 +49,7 @@ export const WINDOW_STATE_KEY = "pixiv-pbd-manager.windowState.v1";
 export const UNMATCHED_CACHE_KEY = "pixiv-pbd-manager.unmatchedFolders.v1";
 export const SIMILAR_RESULT_CACHE_KEY = "pixiv-pbd-manager.similarResult.v1";
 export const ARTISTS_COL_WIDTHS_KEY = "pixiv-pbd-manager.artistsColWidths.v1";
+export const LIBRARY_SIDEBAR_WIDTH_KEY = "pixiv-pbd-manager.librarySidebarWidth.v1";
 
 // Drag-and-drop payload: a JSON array of artist ids dragged from the table onto
 // a tag chip to assign that tag to all of them.

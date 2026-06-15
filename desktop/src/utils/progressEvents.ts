@@ -24,6 +24,9 @@ import {
   PROGRESS_REFRESH_NAMES_ARTIST,
   PROGRESS_REFRESH_NAMES_DONE,
   PROGRESS_REFRESH_NAMES_START,
+  PROGRESS_REBUILD_INDEX_ARTIST,
+  PROGRESS_REBUILD_INDEX_DONE,
+  PROGRESS_REBUILD_INDEX_START,
   PROGRESS_RESOLVE_ARTIST,
   PROGRESS_SCAN_DONE,
   PROGRESS_SCAN_FILES,
@@ -170,6 +173,39 @@ function describeRefreshNames(language: Language, event: ProgressEvent): Pipelin
       return {
         logText: `Refreshed names: ${p.changed} changed, ${p.failed} failed`,
         progressUpdate: () => ({ main: { label: t(language, "refreshArtistNames"), current: 1, total: 1 } })
+      };
+    default:
+      return null;
+  }
+}
+
+function describeRebuildIndex(language: Language, event: ProgressEvent): PipelineDescriptor | null {
+  const p = event.payload;
+  switch (event.key) {
+    case PROGRESS_REBUILD_INDEX_START:
+      return {
+        logText: `Rebuilding work index for ${p.total} artist(s)`,
+        progressUpdate: () => ({
+          main: { label: t(language, "rebuildWorkIndex"), current: 0, total: numberValue(p.total) }
+        })
+      };
+    case PROGRESS_REBUILD_INDEX_ARTIST:
+      return {
+        logText: `Work index: ${p.current}/${p.total} ${p.artist}, ${p.files} files, ${p.work_ids} IDs`,
+        progressUpdate: () => ({
+          main: {
+            label: `${t(language, "rebuildWorkIndex")}: ${String(p.artist ?? p.artist_id ?? "")}`,
+            current: numberValue(p.current),
+            total: numberValue(p.total)
+          }
+        })
+      };
+    case PROGRESS_REBUILD_INDEX_DONE:
+      return {
+        logText: `Work index: ${p.changed} artist(s) changed, +${p.added}/-${p.removed}, ${p.conflicts} conflict(s)`,
+        progressUpdate: () => ({
+          main: { label: t(language, "rebuildWorkIndex"), current: numberValue(p.artists), total: numberValue(p.artists) }
+        })
       };
     default:
       return null;
@@ -424,6 +460,7 @@ const PIPELINES: { lane: TaskLane; describe: (language: Language, event: Progres
   { lane: "library", describe: describeScan },
   { lane: "library", describe: describeUpdateCheck },
   { lane: "library", describe: describeRefreshNames },
+  { lane: "library", describe: describeRebuildIndex },
   { lane: "library", describe: describeDownload },
   { lane: "library", describe: describeLibrary },
   { lane: "library", describe: describeFetchTags },

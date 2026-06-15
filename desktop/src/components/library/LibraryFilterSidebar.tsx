@@ -17,18 +17,20 @@ export function LibraryFilterSidebar({
   language,
   facets,
   filters,
+  width,
   onToggle,
   onClear
 }: {
   language: Language;
   facets: LibraryFacets;
   filters: LibraryFilters;
+  width: number;
   onToggle: (dim: FacetDimension, value: string) => void;
   onClear: () => void;
 }) {
   const hasActive = SECTIONS.some((section) => filters[section.dim].length);
   return (
-    <aside className="libraryFilterSidebar">
+    <aside className="libraryFilterSidebar" style={{ width, flexBasis: width }}>
       <div className="filterSidebarHead">
         <span>{t(language, "libraryFilters")}</span>
         {hasActive ? (

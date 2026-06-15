@@ -22,6 +22,7 @@ type ArtistsViewProps = {
   checkUpdates: () => void;
   checkArtistUpdates: (id: string) => void;
   refreshArtistNames: () => void;
+  rebuildWorkIndex: () => void;
   downloadUpdated: () => void;
   downloadArtistUpdated: (id: string) => void;
   openSelected: () => void;
@@ -55,6 +56,7 @@ export function ArtistsView({
   checkUpdates,
   checkArtistUpdates,
   refreshArtistNames,
+  rebuildWorkIndex,
   downloadUpdated,
   downloadArtistUpdated,
   openSelected,
@@ -93,6 +95,7 @@ export function ArtistsView({
         setFavoriteOnly={setFavoriteOnly}
         busy={busy}
         selected={selected}
+        artistsCount={artists.length}
         visibleArtists={visibleArtists}
         selectAll={selectAll}
         clearAll={clearAll}
@@ -102,6 +105,7 @@ export function ArtistsView({
         downloadUpdated={downloadUpdated}
         openSelected={openSelected}
         refreshArtistNames={refreshArtistNames}
+        rebuildWorkIndex={rebuildWorkIndex}
         copyUrls={copyUrls}
         removeSelectedArtists={removeSelectedArtists}
       />

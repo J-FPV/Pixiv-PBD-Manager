@@ -174,6 +174,37 @@ export interface ArtistNameRefreshResult {
   artists: Artist[];
 }
 
+export interface WorkIndexArtistChange {
+  artist_id: string;
+  name: string;
+  files_seen: number;
+  old_count: number;
+  new_count: number;
+  added_ids: string[];
+  removed_ids: string[];
+}
+
+export interface WorkIndexRebuildResult {
+  artists_total: number;
+  artists_scanned: number;
+  artists_skipped: number;
+  artists_changed: number;
+  files_seen: number;
+  old_ids: number;
+  new_ids: number;
+  added_ids: number;
+  removed_ids: number;
+  pending_ids_cleared: number;
+  conflicting_ids: string[];
+  missing_paths: string[];
+  changes: WorkIndexArtistChange[];
+  cancelled: boolean;
+  applied: boolean;
+  db_path: string;
+  backup_path: string;
+  artists?: Artist[];
+}
+
 export interface ProgressEvent {
   type: "progress";
   key: string;

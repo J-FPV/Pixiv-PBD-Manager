@@ -12,6 +12,7 @@ export function ArtistsToolbar({
   setFavoriteOnly,
   busy,
   selected,
+  artistsCount,
   visibleArtists,
   selectAll,
   clearAll,
@@ -21,6 +22,7 @@ export function ArtistsToolbar({
   downloadUpdated,
   openSelected,
   refreshArtistNames,
+  rebuildWorkIndex,
   copyUrls,
   removeSelectedArtists
 }: {
@@ -31,6 +33,7 @@ export function ArtistsToolbar({
   setFavoriteOnly: (value: boolean) => void;
   busy: boolean;
   selected: Set<string>;
+  artistsCount: number;
   visibleArtists: Artist[];
   selectAll: (ids: string[]) => void;
   clearAll: () => void;
@@ -40,6 +43,7 @@ export function ArtistsToolbar({
   downloadUpdated: () => void;
   openSelected: () => void;
   refreshArtistNames: () => void;
+  rebuildWorkIndex: () => void;
   copyUrls: () => void;
   removeSelectedArtists: () => void;
 }) {
@@ -94,8 +98,10 @@ export function ArtistsToolbar({
         language={language}
         busy={busy}
         selectedCount={selected.size}
+        artistsCount={artistsCount}
         openSelected={openSelected}
         refreshArtistNames={refreshArtistNames}
+        rebuildWorkIndex={rebuildWorkIndex}
         copyUrls={copyUrls}
       />
       <Button

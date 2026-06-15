@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ChevronDown, Copy, ExternalLink, MoreHorizontal, RefreshCw } from "lucide-react";
+import { ChevronDown, Copy, DatabaseBackup, ExternalLink, MoreHorizontal, RefreshCw } from "lucide-react";
 import { t } from "../i18n";
 import type { Language } from "../types";
 
@@ -9,15 +9,19 @@ export function ArtistsMoreMenu({
   language,
   busy,
   selectedCount,
+  artistsCount,
   openSelected,
   refreshArtistNames,
+  rebuildWorkIndex,
   copyUrls
 }: {
   language: Language;
   busy: boolean;
   selectedCount: number;
+  artistsCount: number;
   openSelected: () => void;
   refreshArtistNames: () => void;
+  rebuildWorkIndex: () => void;
   copyUrls: () => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -59,6 +63,10 @@ export function ArtistsMoreMenu({
           <button type="button" disabled={busy || selectedCount === 0} onClick={run(refreshArtistNames)}>
             <RefreshCw size={15} />
             <span>{t(language, "refreshArtistNames")}{selectedCount ? ` (${selectedCount})` : ""}</span>
+          </button>
+          <button type="button" disabled={busy || artistsCount === 0} onClick={run(rebuildWorkIndex)}>
+            <DatabaseBackup size={15} />
+            <span>{t(language, "rebuildWorkIndex")}</span>
           </button>
           <button type="button" onClick={run(copyUrls)}>
             <Copy size={15} />

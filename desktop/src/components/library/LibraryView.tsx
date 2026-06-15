@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { EMPTY_LIBRARY_FILTERS } from "../../constants";
+import { EMPTY_LIBRARY_FILTERS, LIBRARY_SIDEBAR_WIDTH_KEY } from "../../constants";
 import { t } from "../../i18n";
 import type { Language, LibraryFilters, LibraryImage } from "../../types";
 import type { FacetDimension } from "../../utils/libraryFacets";
 import { useDebouncedValue } from "../../hooks/useDebouncedValue";
 import { useLibraryFilter } from "../../hooks/useLibraryFilter";
+import { useResizablePanel } from "../../hooks/useResizablePanel";
 import { Button } from "../Button";
 import { LibraryDetailModal } from "./LibraryDetailModal";
 import { LibraryFilterSidebar } from "./LibraryFilterSidebar";
@@ -31,6 +32,15 @@ export function LibraryView(props: LibraryViewProps) {
   const [filters, setFilters] = useState<LibraryFilters>(EMPTY_LIBRARY_FILTERS);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const requested = useRef(false);
+  const libraryBodyRef = useRef<HTMLDivElement>(null);
+  const sidebar = useResizablePanel({
+    storageKey: LIBRARY_SIDEBAR_WIDTH_KEY,
+    containerRef: libraryBodyRef,
+    defaultWidth: 240,
+    minWidth: 180,
+    maxWidth: 520,
+    reservedWidth: 300
+  });
   // Debounce only the keyword so typing doesn't refilter/facet 36k rows on every
   // keystroke; the chip dimensions apply immediately. Identity stays stable while
   // typing (deps are the individual array fields), so the heavy recompute waits.
@@ -109,18 +119,34 @@ export function LibraryView(props: LibraryViewProps) {
         fetchDisabled={!visibleImages.length}
         toggleSidebar={() => setSidebarOpen((value) => !value)}
       />
-      <div className="libraryBody">
+      <div className="libraryBody" ref={libraryBodyRef}>
         {sidebarOpen ? (
-          <LibraryFilterSidebar
-            language={language}
-            facets={facets}
-            filters={filters}
-            onToggle={toggleFilter}
-            onClear={() => setFilters((current) => ({ ...EMPTY_LIBRARY_FILTERS, keyword: current.keyword }))}
-          />
+          <>
+            <LibraryFilterSidebar
+              language={language}
+              facets={facets}
+              filters={filters}
+              width={sidebar.width}
+              onToggle={toggleFilter}
+              onClear={() => setFilters((current) => ({ ...EMPTY_LIBRARY_FILTERS, keyword: current.keyword }))}
+            />
+            <div
+              className="librarySidebarResizeHandle"
+              role="separator"
+              aria-orientation="vertical"
+              aria-label={t(language, "resizeLibrarySidebar")}
+              aria-valuemin={180}
+              aria-valuemax={520}
+              aria-valuenow={sidebar.width}
+              tabIndex={0}
+              title={t(language, "resizeLibrarySidebar")}
+              {...sidebar.handleProps}
+            />
+          </>
         ) : null}
         <LibraryGrid language={language} images={visibleImages} selectedPath={selectedPath} onOpen={setSelectedPath} />
       </div>
+      {sidebar.resizing ? <div className="panelResizeOverlay" /> : null}
       {selectedImage ? (
         <LibraryDetailModal
           language={language}
