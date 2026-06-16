@@ -1,3 +1,4 @@
+import base64
 import io
 import json
 import os
@@ -522,6 +523,32 @@ class GuiApiTests(unittest.TestCase):
         self.assertEqual(payload["width"], 48)
         self.assertEqual(payload["height"], 32)
         self.assertTrue(payload["data_url"].startswith("data:image/"))
+
+    def test_image_thumbnail_can_render_long_preview_by_width(self):
+        with TemporaryDirectory() as tmp:
+            root = _isolate(tmp)
+            image_path = root / "long.png"
+            Image.new("RGB", (500, 5000), "red").save(image_path)
+            old_cwd = Path.cwd()
+            try:
+                os.chdir(root)
+                exit_code, events = invoke(
+                    "image.thumbnail",
+                    {
+                        "path": str(image_path),
+                        "max_size": 6000,
+                        "target_width": 300,
+                        "max_pixels": 1_000_000,
+                    },
+                )
+            finally:
+                os.chdir(old_cwd)
+
+        self.assertEqual(exit_code, 0)
+        payload = events[-1]["payload"]
+        _prefix, encoded = payload["data_url"].split(",", 1)
+        with Image.open(io.BytesIO(base64.b64decode(encoded))) as preview:
+            self.assertEqual(preview.size, (300, 3000))
 
     def test_image_difference_outputs_data_url(self):
         with TemporaryDirectory() as tmp:

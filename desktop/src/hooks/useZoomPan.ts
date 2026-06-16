@@ -22,7 +22,8 @@ function clamp(value: number, min: number, max: number): number {
 // before/after slider modes apply the same transform to each layer to keep
 // them in lockstep. `resetKey` snaps back to 1x whenever the shown image
 // identity changes (path/mode/compare switch).
-export function useZoomPan(resetKey: string) {
+export function useZoomPan(resetKey: string, options: { panAtMinScale?: boolean } = {}) {
+  const panAtMinScale = options.panAtMinScale === true;
   const [transform, setTransform] = useState<ZoomTransform>(IDENTITY);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const transformRef = useRef<ZoomTransform>(IDENTITY);
@@ -59,12 +60,12 @@ export function useZoomPan(resetKey: string) {
   }, []);
 
   const onPointerDown = useCallback((event: ReactPointerEvent<HTMLElement>) => {
-    if (event.button !== 0 || transformRef.current.scale <= MIN_SCALE) {
+    if (event.button !== 0 || (!panAtMinScale && transformRef.current.scale <= MIN_SCALE)) {
       return;
     }
     drag.current = { x: event.clientX - transformRef.current.x, y: event.clientY - transformRef.current.y };
     event.currentTarget.setPointerCapture(event.pointerId);
-  }, []);
+  }, [panAtMinScale]);
 
   const onPointerMove = useCallback((event: ReactPointerEvent<HTMLElement>) => {
     const start = drag.current;

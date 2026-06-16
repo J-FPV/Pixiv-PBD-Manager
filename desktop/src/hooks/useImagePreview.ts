@@ -1,11 +1,18 @@
 import { useEffect, useState } from "react";
 import { runGuiApi } from "../api";
 import type { ImageDifferencePayload, ImageThumbnailPayload } from "../types";
-import { thumbnailCache } from "../components/thumbnailCache";
+import { thumbnailCache, thumbnailCacheKey } from "../components/thumbnailCache";
 
 export type PreviewMode = "single" | "side" | "slider" | "difference";
 
 const PREVIEW_MAX = 1200;
+
+export interface ImagePreviewOptions {
+  maxSize?: number;
+  targetWidth?: number;
+  maxPixels?: number;
+  cacheVariant?: string;
+}
 
 // Modes that need the comparison image rendered next to / over the base one.
 function needsCompareImage(mode: PreviewMode): boolean {
@@ -26,8 +33,25 @@ export interface ImagePreviewState {
 // Loads the full-size thumbnail for `path`, the compare image (side/slider),
 // and the aligned diff (difference mode). Every fetch is abortable so rapid
 // path/mode changes don't race a stale response onto the screen.
-export function useImagePreview(path: string, comparePath: string, mode: PreviewMode): ImagePreviewState {
-  const [image, setImage] = useState<ImageThumbnailPayload | null>(() => thumbnailCache.get(path) || null);
+export function useImagePreview(
+  path: string,
+  comparePath: string,
+  mode: PreviewMode,
+  options: ImagePreviewOptions = {}
+): ImagePreviewState {
+  const maxSize = options.maxSize ?? PREVIEW_MAX;
+  const targetWidth = options.targetWidth ?? 0;
+  const maxPixels = options.maxPixels ?? 0;
+  const cacheVariant = options.cacheVariant || `preview-${maxSize}-${targetWidth}-${maxPixels}`;
+  const imageCacheKey = thumbnailCacheKey(path, cacheVariant);
+  const compareCacheKey = thumbnailCacheKey(comparePath, cacheVariant);
+  const requestPayload = (targetPath: string) => ({
+    path: targetPath,
+    max_size: maxSize,
+    ...(targetWidth ? { target_width: targetWidth } : {}),
+    ...(maxPixels ? { max_pixels: maxPixels } : {})
+  });
+  const [image, setImage] = useState<ImageThumbnailPayload | null>(() => thumbnailCache.get(imageCacheKey) || null);
   const [compareImage, setCompareImage] = useState<ImageThumbnailPayload | null>(null);
   const [difference, setDifference] = useState<ImageDifferencePayload | null>(null);
   const [error, setError] = useState("");
@@ -35,11 +59,11 @@ export function useImagePreview(path: string, comparePath: string, mode: Preview
   useEffect(() => {
     let cancelled = false;
     setError("");
-    setImage(thumbnailCache.get(path) || null);
-    void runGuiApi<ImageThumbnailPayload>("image.thumbnail", { path, max_size: PREVIEW_MAX })
+    setImage(thumbnailCache.get(imageCacheKey) || null);
+    void runGuiApi<ImageThumbnailPayload>("image.thumbnail", requestPayload(path))
       .then((payload) => {
         if (!cancelled) {
-          thumbnailCache.set(path, payload);
+          thumbnailCache.set(imageCacheKey, payload);
           setImage(payload);
         }
       })
@@ -51,7 +75,7 @@ export function useImagePreview(path: string, comparePath: string, mode: Preview
     return () => {
       cancelled = true;
     };
-  }, [path]);
+  }, [imageCacheKey, maxPixels, maxSize, path, targetWidth]);
 
   useEffect(() => {
     let cancelled = false;
@@ -61,11 +85,11 @@ export function useImagePreview(path: string, comparePath: string, mode: Preview
         cancelled = true;
       };
     }
-    setCompareImage(thumbnailCache.get(comparePath) || null);
-    void runGuiApi<ImageThumbnailPayload>("image.thumbnail", { path: comparePath, max_size: PREVIEW_MAX })
+    setCompareImage(thumbnailCache.get(compareCacheKey) || null);
+    void runGuiApi<ImageThumbnailPayload>("image.thumbnail", requestPayload(comparePath))
       .then((payload) => {
         if (!cancelled) {
-          thumbnailCache.set(comparePath, payload);
+          thumbnailCache.set(compareCacheKey, payload);
           setCompareImage(payload);
         }
       })
@@ -77,7 +101,7 @@ export function useImagePreview(path: string, comparePath: string, mode: Preview
     return () => {
       cancelled = true;
     };
-  }, [comparePath, mode, path]);
+  }, [compareCacheKey, comparePath, maxPixels, maxSize, mode, path, targetWidth]);
 
   useEffect(() => {
     let cancelled = false;
@@ -91,7 +115,7 @@ export function useImagePreview(path: string, comparePath: string, mode: Preview
     void runGuiApi<ImageDifferencePayload>("image.difference", {
       base_path: path,
       compare_path: comparePath,
-      max_size: PREVIEW_MAX
+      max_size: maxSize
     })
       .then((payload) => {
         if (!cancelled) {
@@ -106,7 +130,7 @@ export function useImagePreview(path: string, comparePath: string, mode: Preview
     return () => {
       cancelled = true;
     };
-  }, [comparePath, mode, path]);
+  }, [comparePath, maxSize, mode, path]);
 
   return { image, compareImage, difference, error };
 }

@@ -120,11 +120,19 @@ def image_thumbnail(payload: JsonDict, _emit_event: Emitter) -> JsonDict:
     path_text = str(payload.get("path") or "").strip()
     if not path_text:
         raise ValueError("Missing path")
-    max_size = max(48, min(1600, as_int(payload, "max_size", 180)))
+    target_width = max(0, min(1600, as_int(payload, "target_width", 0)))
+    max_size_limit = 12000 if target_width else 1600
+    max_size = max(48, min(max_size_limit, as_int(payload, "max_size", 180)))
+    max_pixels = max(0, min(12_000_000, as_int(payload, "max_pixels", 0)))
     path = Path(path_text).expanduser()
     if not path.is_file():
         raise ValueError(f"Image file does not exist: {path}")
-    data_url, width, height = render_thumbnail(path, max_size)
+    data_url, width, height = render_thumbnail(
+        path,
+        max_size,
+        target_width=target_width or None,
+        max_pixels=max_pixels or None,
+    )
     return {
         "path": str(path),
         "data_url": data_url,

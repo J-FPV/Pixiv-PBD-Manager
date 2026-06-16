@@ -2230,6 +2230,24 @@ body.col-resizing .colHandle::after {
   overflow: hidden;
   border-radius: 8px;
   background: var(--preview-bg);
+  touch-action: none;
+}
+
+.libraryDetailStage.zoomed {
+  cursor: grab;
+}
+
+.libraryDetailStage.zoomed:active {
+  cursor: grabbing;
+}
+
+.libraryDetailStage.tall {
+  place-items: start center;
+}
+
+.libraryDetailStage.tall .zoomLayer {
+  width: 100%;
+  max-height: none;
 }
 
 .libraryDetailStage img {

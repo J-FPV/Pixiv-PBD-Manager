@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { runGuiApi } from "../api";
 import { t } from "../i18n";
 import type { ImageThumbnailPayload, Language } from "../types";
-import { thumbnailCache } from "./thumbnailCache";
+import { thumbnailCache, thumbnailCacheKey } from "./thumbnailCache";
 
 export function SimilarThumbnail({
   language,
@@ -13,12 +13,13 @@ export function SimilarThumbnail({
   path: string;
   onPreview: (path: string) => void;
 }) {
-  const [thumbnail, setThumbnail] = useState<ImageThumbnailPayload | null>(() => thumbnailCache.get(path) || null);
+  const cacheKey = thumbnailCacheKey(path, "similar-144");
+  const [thumbnail, setThumbnail] = useState<ImageThumbnailPayload | null>(() => thumbnailCache.get(cacheKey) || null);
   const [failed, setFailed] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
-    const cached = thumbnailCache.get(path);
+    const cached = thumbnailCache.get(cacheKey);
     if (cached) {
       setThumbnail(cached);
       setFailed(false);
@@ -33,7 +34,7 @@ export function SimilarThumbnail({
         if (cancelled) {
           return;
         }
-        thumbnailCache.set(path, payload);
+        thumbnailCache.set(cacheKey, payload);
         setThumbnail(payload);
       })
       .catch(() => {
@@ -44,7 +45,7 @@ export function SimilarThumbnail({
     return () => {
       cancelled = true;
     };
-  }, [path]);
+  }, [cacheKey, path]);
 
   return (
     <button

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import base64
 from io import BytesIO
+import math
 from pathlib import Path
 import warnings
 
@@ -32,7 +33,36 @@ def _encode_image(image, *, prefer_jpeg: bool = True) -> tuple[str, str]:
     return f"data:{mime};base64,{encoded}", mime
 
 
-def _open_preview_image(path: Path, max_size: int):
+def _resize_for_preview(
+    Image,
+    image,
+    max_size: int,
+    *,
+    target_width: int | None = None,
+    max_pixels: int | None = None,
+):
+    width, height = image.size
+    if target_width and target_width > 0 and width > 0 and height > 0:
+        scale = min(1.0, target_width / width, max_size / max(width, height))
+        if max_pixels and max_pixels > 0:
+            scale = min(scale, math.sqrt(max_pixels / (width * height)))
+        if scale < 1.0:
+            next_size = (max(1, round(width * scale)), max(1, round(height * scale)))
+            return image.resize(next_size, Image.Resampling.LANCZOS)
+        return image.copy()
+
+    image = image.copy()
+    image.thumbnail((max_size, max_size), Image.Resampling.LANCZOS)
+    return image
+
+
+def _open_preview_image(
+    path: Path,
+    max_size: int,
+    *,
+    target_width: int | None = None,
+    max_pixels: int | None = None,
+):
     Image, _ImageChops, ImageOps = _pillow()
     with Image.open(path) as image:
         try:
@@ -41,12 +71,29 @@ def _open_preview_image(path: Path, max_size: int):
             pass
         image = ImageOps.exif_transpose(image)
         width, height = image.size
-        image.thumbnail((max_size, max_size), Image.Resampling.LANCZOS)
-        return image.copy(), width, height
+        preview = _resize_for_preview(
+            Image,
+            image,
+            max_size,
+            target_width=target_width,
+            max_pixels=max_pixels,
+        )
+        return preview, width, height
 
 
-def image_thumbnail(path: Path, max_size: int) -> tuple[str, int, int]:
-    image, width, height = _open_preview_image(path, max_size)
+def image_thumbnail(
+    path: Path,
+    max_size: int,
+    *,
+    target_width: int | None = None,
+    max_pixels: int | None = None,
+) -> tuple[str, int, int]:
+    image, width, height = _open_preview_image(
+        path,
+        max_size,
+        target_width=target_width,
+        max_pixels=max_pixels,
+    )
     data_url, _mime = _encode_image(image)
     return data_url, width, height
 

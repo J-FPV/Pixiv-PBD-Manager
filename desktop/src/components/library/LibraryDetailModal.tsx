@@ -5,8 +5,10 @@ import { t } from "../../i18n";
 import type { Language, LibraryImage, PixivTag } from "../../types";
 import { formatBytes } from "../../utils/format";
 import { useImagePreview } from "../../hooks/useImagePreview";
+import { useZoomPan } from "../../hooks/useZoomPan";
 import { Button } from "../Button";
 import { ModalOverlay } from "../ModalOverlay";
+import { ZoomLayer } from "../preview/ZoomLayer";
 
 export interface LibraryDetailModalProps {
   language: Language;
@@ -69,7 +71,21 @@ export function LibraryDetailModal({
   busy
 }: LibraryDetailModalProps) {
   const [draft, setDraft] = useState("");
-  const { image: preview, error } = useImagePreview(image.path, "", "single");
+  const isTallImage = image.width > 0 && image.height / image.width >= 2.2;
+  const { image: preview, error } = useImagePreview(
+    image.path,
+    "",
+    "single",
+    isTallImage
+      ? {
+          maxSize: 10000,
+          targetWidth: 1000,
+          maxPixels: 8_000_000,
+          cacheVariant: `library-long-${image.mtime_ns}`
+        }
+      : { cacheVariant: `library-detail-${image.mtime_ns}` }
+  );
+  const zoom = useZoomPan(`${image.path}:${isTallImage ? "long" : "fit"}`, { panAtMinScale: isTallImage });
   const index = Math.max(0, images.findIndex((item) => item.path === image.path));
   const step = (offset: number) => {
     if (images.length > 1) {
@@ -97,9 +113,16 @@ export function LibraryDetailModal({
           </div>
         </div>
         <div className="libraryDetailBody">
-          <div className="libraryDetailStage">
+          <div
+            className={`libraryDetailStage${isTallImage ? " tall" : ""}${zoom.isZoomed || isTallImage ? " zoomed" : ""}`}
+            ref={zoom.containerRef}
+            onPointerDown={zoom.panHandlers.onPointerDown}
+            onPointerMove={zoom.panHandlers.onPointerMove}
+            onPointerUp={zoom.panHandlers.onPointerUp}
+            onPointerCancel={zoom.panHandlers.onPointerCancel}
+          >
             {preview?.data_url ? (
-              <img src={preview.data_url} alt={image.filename} />
+              <ZoomLayer dataUrl={preview.data_url} alt={image.filename} transform={zoom.transform} />
             ) : (
               <span className="previewPlaceholder">{t(language, "loadingPreview")}</span>
             )}
