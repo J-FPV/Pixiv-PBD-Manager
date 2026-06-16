@@ -220,6 +220,12 @@ footer {
   font-weight: 600;
 }
 
+.button.danger > span,
+.button.danger svg {
+  color: #ffffff;
+  stroke: currentColor;
+}
+
 .button.quiet {
   border-color: transparent;
   background: transparent;
@@ -241,6 +247,11 @@ footer {
 .button.danger:disabled {
   color: #ffffff;
   opacity: 0.72;
+}
+
+.button.danger:disabled > span,
+.button.danger:disabled svg {
+  color: #ffffff;
 }
 
 .button.iconOnly {
