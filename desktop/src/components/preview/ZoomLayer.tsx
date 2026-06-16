@@ -6,14 +6,24 @@ import type { ZoomTransform } from "../../hooks/useZoomPan";
 export function ZoomLayer({
   dataUrl,
   alt,
-  transform
+  transform,
+  fitSize
 }: {
   dataUrl: string;
   alt: string;
   transform: ZoomTransform;
+  fitSize?: { width: number; height: number };
 }) {
   const style: CSSProperties = {
-    transform: `translate(${transform.x}px, ${transform.y}px) scale(${transform.scale})`
+    transform: `translate(${transform.x}px, ${transform.y}px) scale(${transform.scale})`,
+    ...(fitSize
+      ? {
+          width: `${fitSize.width}px`,
+          height: `${fitSize.height}px`,
+          maxWidth: "none",
+          maxHeight: "none"
+        }
+      : {})
   };
   return <img className="zoomLayer" src={dataUrl} alt={alt} style={style} draggable={false} />;
 }

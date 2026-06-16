@@ -1,5 +1,5 @@
 import { ChevronLeft, ChevronRight, ExternalLink, FolderOpen, Tags, X } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { runGuiApi } from "../../api";
 import { t } from "../../i18n";
 import type { Language, LibraryImage, PixivTag } from "../../types";
@@ -59,6 +59,20 @@ function orientationLabel(language: Language, value: LibraryImage["orientation"]
   return t(language, "unknownOrientation");
 }
 
+function containSize(
+  box: { width: number; height: number },
+  image: { width: number; height: number }
+): { width: number; height: number } | undefined {
+  if (box.width <= 0 || box.height <= 0 || image.width <= 0 || image.height <= 0) {
+    return undefined;
+  }
+  const scale = Math.min(box.width / image.width, box.height / image.height);
+  return {
+    width: Math.max(1, Math.floor(image.width * scale)),
+    height: Math.max(1, Math.floor(image.height * scale))
+  };
+}
+
 export function LibraryDetailModal({
   language,
   image,
@@ -85,8 +99,29 @@ export function LibraryDetailModal({
         }
       : { cacheVariant: `library-detail-${image.mtime_ns}` }
   );
-  const zoom = useZoomPan(`${image.path}:${isTallImage ? "long" : "fit"}`, { panAtMinScale: isTallImage });
+  const zoom = useZoomPan(`${image.path}:${isTallImage ? "long" : "fit"}`);
+  const [stageSize, setStageSize] = useState({ width: 0, height: 0 });
+  const fitSize = useMemo(
+    () => containSize(stageSize, { width: preview?.width || image.width || 0, height: preview?.height || image.height || 0 }),
+    [image.height, image.width, preview?.height, preview?.width, stageSize]
+  );
   const index = Math.max(0, images.findIndex((item) => item.path === image.path));
+
+  useEffect(() => {
+    const node = zoom.containerRef.current;
+    if (!node) {
+      return;
+    }
+    const update = () => {
+      const rect = node.getBoundingClientRect();
+      setStageSize({ width: rect.width, height: rect.height });
+    };
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [zoom.containerRef]);
+
   const step = (offset: number) => {
     if (images.length > 1) {
       onPathChange(images[(index + offset + images.length) % images.length].path);
@@ -114,7 +149,7 @@ export function LibraryDetailModal({
         </div>
         <div className="libraryDetailBody">
           <div
-            className={`libraryDetailStage${isTallImage ? " tall" : ""}${zoom.isZoomed || isTallImage ? " zoomed" : ""}`}
+            className={`libraryDetailStage${zoom.isZoomed ? " zoomed" : ""}`}
             ref={zoom.containerRef}
             onPointerDown={zoom.panHandlers.onPointerDown}
             onPointerMove={zoom.panHandlers.onPointerMove}
@@ -122,7 +157,7 @@ export function LibraryDetailModal({
             onPointerCancel={zoom.panHandlers.onPointerCancel}
           >
             {preview?.data_url ? (
-              <ZoomLayer dataUrl={preview.data_url} alt={image.filename} transform={zoom.transform} />
+              <ZoomLayer dataUrl={preview.data_url} alt={image.filename} transform={zoom.transform} fitSize={fitSize} />
             ) : (
               <span className="previewPlaceholder">{t(language, "loadingPreview")}</span>
             )}

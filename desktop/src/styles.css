@@ -47,8 +47,8 @@
   --muted: #9aa7b3;
   --accent: #13a875;
   --accent-strong: #68d8a8;
-  --danger: #d05252;
-  --danger-strong: #a83a3a;
+  --danger: #b83f45;
+  --danger-strong: #8f3035;
   --danger-soft: #3a2023;
   --warn: #f1b85b;
   --input-bg: #12171d;
@@ -217,6 +217,7 @@ footer {
   border-color: var(--danger);
   background: var(--danger);
   color: #ffffff;
+  font-weight: 600;
 }
 
 .button.quiet {
@@ -234,6 +235,12 @@ footer {
 
 .button.danger:active:not(:disabled) {
   background: var(--danger-strong);
+  color: #ffffff;
+}
+
+.button.danger:disabled {
+  color: #ffffff;
+  opacity: 0.72;
 }
 
 .button.iconOnly {
@@ -2219,6 +2226,8 @@ body.col-resizing .colHandle::after {
   flex: 1 1 0;
   gap: 16px;
   min-height: 0;
+  height: 100%;
+  overflow: hidden;
 }
 
 .libraryDetailStage {
@@ -2239,15 +2248,6 @@ body.col-resizing .colHandle::after {
 
 .libraryDetailStage.zoomed:active {
   cursor: grabbing;
-}
-
-.libraryDetailStage.tall {
-  place-items: start center;
-}
-
-.libraryDetailStage.tall .zoomLayer {
-  width: 100%;
-  max-height: none;
 }
 
 .libraryDetailStage img {
