@@ -28,6 +28,20 @@ class ScannerTests(unittest.TestCase):
             self.assertEqual(hit.artist_name, "Some Artist")
             self.assertIn("98765432", hit.work_ids)
 
+    def test_identifies_artist_when_scan_root_is_artist_folder(self):
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp) / "Some Artist-123456"
+            root.mkdir()
+            path = root / "98765432-title.jpg"
+            path.write_bytes(b"")
+
+            hit = identify_artist(path, root)
+
+            self.assertIsNotNone(hit)
+            assert hit is not None
+            self.assertEqual(hit.artist_id, "123456")
+            self.assertEqual(hit.folder.resolve(), root.resolve())
+
     def test_identifies_keyword_in_filename(self):
         with TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -99,6 +113,32 @@ class ScannerTests(unittest.TestCase):
             assert hit is not None
             self.assertEqual(hit.artist_name, "96YOTTEA")
             self.assertEqual(hit.work_ids, {"100187254"})
+
+    def test_identifies_name_only_pixiv_folder_with_spaced_slash(self):
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            path = root / "96YOTTEA's illustrations ／ manga - pixiv" / "100187254_p0.jpg"
+            path.parent.mkdir(parents=True)
+            path.write_bytes(b"")
+
+            hit = identify_name_only_artist(path, root)
+
+            self.assertIsNotNone(hit)
+            assert hit is not None
+            self.assertEqual(hit.artist_name, "96YOTTEA")
+
+    def test_identifies_name_only_when_scan_root_is_pixiv_folder(self):
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp) / "96YOTTEA's illustrations／manga - pixiv"
+            root.mkdir()
+            path = root / "100187254_p0.jpg"
+            path.write_bytes(b"")
+
+            hit = identify_name_only_artist(path, root)
+
+            self.assertIsNotNone(hit)
+            assert hit is not None
+            self.assertEqual(hit.artist_name, "96YOTTEA")
 
     def test_name_only_pixiv_folder_keeps_parentheses_in_name(self):
         with TemporaryDirectory() as tmp:
@@ -184,6 +224,19 @@ class ScannerTests(unittest.TestCase):
             self.assertIn(folder, summary.unmatched_folders)
             self.assertEqual(summary.unmatched_folder_work_ids.get(folder), {"12345678"})
             self.assertEqual(summary.unmatched_folder_roots.get(folder), str(root.resolve()))
+
+    def test_scan_root_with_pid_files_can_be_resolved_online(self):
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp) / "plain-folder"
+            root.mkdir()
+            path = root / "12345678_p0.jpg"
+            path.write_bytes(b"")
+
+            summary = scan_roots([root])
+            folder = str(root.resolve())
+
+            self.assertIn(folder, summary.unmatched_folders)
+            self.assertEqual(summary.unmatched_folder_work_ids.get(folder), {"12345678"})
 
     def test_extract_work_ids_ignores_timestamp_names(self):
         self.assertEqual(extract_work_ids(Path("20230912_165005.jpg")), set())

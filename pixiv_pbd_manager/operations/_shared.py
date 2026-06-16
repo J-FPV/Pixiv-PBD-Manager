@@ -84,6 +84,18 @@ def build_artist_save_path_index(db: ArtistDatabase) -> dict[str, ArtistRecord |
     }
 
 
+def build_artist_work_id_index(db: ArtistDatabase) -> dict[str, ArtistRecord | None]:
+    """Build a work-id owner index; ``None`` marks ambiguous ownership."""
+    owners: dict[str, dict[str, ArtistRecord]] = {}
+    for artist in db.artists.values():
+        for work_id in artist.work_ids:
+            owners.setdefault(str(work_id), {})[artist.id] = artist
+    return {
+        work_id: next(iter(artists.values())) if len(artists) == 1 else None
+        for work_id, artists in owners.items()
+    }
+
+
 def find_artist_by_save_path(
     save_path_index: dict[str, ArtistRecord | None],
     path: Path,
@@ -95,6 +107,30 @@ def find_artist_by_save_path(
         if key in save_path_index:
             return save_path_index[key]
     return None
+
+
+def find_artist_by_work_ids(
+    work_id_index: dict[str, ArtistRecord | None],
+    work_ids: set[str] | frozenset[str],
+) -> ArtistRecord | None:
+    """Return the unique known owner for any of ``work_ids``.
+
+    If different ids point to different artists, or any matched id is already
+    ambiguous, decline the match. This keeps offline PID attribution conservative.
+    """
+    matched_records: list[ArtistRecord] = []
+    matched_ids: set[str] = set()
+    for work_id in work_ids:
+        if work_id not in work_id_index:
+            continue
+        match = work_id_index[work_id]
+        if match is None:
+            return None
+        matched_records.append(match)
+        matched_ids.add(match.id)
+    if len(matched_ids) != 1:
+        return None
+    return matched_records[0]
 
 
 def is_under_known_save_root(path: Path, save_roots: list[Path]) -> bool:

@@ -82,6 +82,27 @@ class ResolverTests(unittest.TestCase):
         assert resolved is not None
         self.assertEqual(resolved.id, "1")
 
+    def test_name_only_resolution_skips_bad_pid_and_keeps_trying(self):
+        hit = NameOnlyArtistHit(
+            artist_key="name:test",
+            artist_name="Artist",
+            source="test",
+            root=Path("."),
+            folder=Path("."),
+            path=Path("100.jpg"),
+            work_ids={"100", "101"},
+        )
+        results = [
+            PixivResolveError("temporary failure"),
+            ResolvedArtist(id="1", name="A", work_id="100"),
+        ]
+        with patch("pixiv_pbd_manager.resolver.fetch_artwork_author", side_effect=results):
+            resolved = resolve_name_only_artist(hit, max_work_ids=2, delay_seconds=0)
+
+        self.assertIsNotNone(resolved)
+        assert resolved is not None
+        self.assertEqual(resolved.id, "1")
+
     def test_name_only_resolution_rejects_split_vote(self):
         hit = NameOnlyArtistHit(
             artist_key="name:test",

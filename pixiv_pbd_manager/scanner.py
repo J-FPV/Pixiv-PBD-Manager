@@ -39,7 +39,7 @@ FOLDER_ARTIST_PATTERNS = [
 LOW_PID_THRESHOLD = 3000
 
 NAME_ONLY_PIXIV_FOLDER_PATTERNS = [
-    re.compile(r"^(?:illus[-_ ])?(?P<name>.+?)'s illustrations[／/]manga(?: - pixiv)?$", re.I),
+    re.compile(r"^(?:illus[-_ ])?(?P<name>.+?)'s illustrations\s*[／/]\s*manga(?: - pixiv)?$", re.I),
     re.compile(r"^(?:illus[-_ ])?(?P<name>.+?)'s illustrations(?: - pixiv|-)?$", re.I),
     re.compile(r"^(?:illus[-_ ])?(?P<name>.+?) - pixiv$", re.I),
     re.compile(r"^illus[-_ ](?P<name>[^\\/\-_]+)(?:[-_ ].*)?$", re.I),
@@ -370,7 +370,10 @@ def _folder_parts_for_path(path: Path, root: Path) -> tuple[list[str], list[tupl
         relative_parts = list(path.parts)
 
     folder_parts = relative_parts[:-1]
-    folder_paths: list[tuple[str, Path]] = []
+    # Include the scan root itself. If the user scans an artist folder directly
+    # instead of its parent directory, the root name is the only folder-level
+    # artist signal available.
+    folder_paths: list[tuple[str, Path]] = [(root.name, root)]
     current_folder = root
     for part in folder_parts:
         current_folder = current_folder / part
@@ -529,15 +532,17 @@ def scan_roots(
                 if parent_resolved is None:
                     parent_resolved = parent.resolve()
                     resolved_parent_cache[parent] = parent_resolved
-                # The scan root itself is the library starting point, not a
-                # folder the user needs to attribute or exclude. Loose files at
-                # that top level should not surface the root in the GUI list.
-                if parent_resolved != root:
+                work_ids = extract_work_ids(path)
+                # The scan root itself is normally the library starting point,
+                # not a folder the user needs to attribute. The exception is
+                # when the root directly contains Pixiv PID-named files: that is
+                # common when the user scans one artist folder directly, and it
+                # gives the online resolver enough evidence to identify it.
+                if parent_resolved != root or work_ids:
                     folder_text = str(parent_resolved)
                     summary.unmatched_folders[folder_text] = summary.unmatched_folders.get(folder_text, 0) + 1
                     # Keep a few sample work ids so the pipeline can resolve the
                     # artist online from a PID even with no folder-name signal.
-                    work_ids = extract_work_ids(path)
                     if work_ids:
                         bucket = summary.unmatched_folder_work_ids.setdefault(folder_text, set())
                         for work_id in work_ids:

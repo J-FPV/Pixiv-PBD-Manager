@@ -322,6 +322,7 @@ def resolve_name_only_artist(
 ) -> ResolvedArtist | None:
     work_ids = sorted(hit.work_ids, key=int, reverse=True)
     resolved_items: list[ResolvedArtist] = []
+    last_error: PixivResolveError | None = None
     for index, work_id in enumerate(work_ids[:max_work_ids]):
         try:
             resolved = fetch_artwork_author(
@@ -329,15 +330,18 @@ def resolve_name_only_artist(
                 cookie=cookie,
                 allow_insecure_ssl_fallback=allow_insecure_ssl_fallback,
             )
-        except PixivResolveError:
-            if not resolved_items:
-                raise
-            break
+        except PixivResolveError as exc:
+            # One inaccessible/deleted/restricted PID should not sink the whole
+            # folder if later files can still identify a consistent author.
+            last_error = exc
+            resolved = None
         if resolved:
             resolved_items.append(resolved)
         if index != min(len(work_ids), max_work_ids) - 1 and delay_seconds > 0:
             time.sleep(delay_seconds)
     if not resolved_items:
+        if last_error is not None:
+            raise last_error
         return None
 
     votes = Counter(item.id for item in resolved_items)

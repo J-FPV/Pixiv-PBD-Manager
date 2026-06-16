@@ -120,6 +120,25 @@ class GuiBackendTests(unittest.TestCase):
             self.assertIn(str(image.parent.resolve()), db.artists["126324"].save_paths)
             self.assertNotIn(str(image.parent.resolve()), result.summary.unmatched_folders)
 
+    def test_scan_into_database_resolves_scan_root_by_pid(self):
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp) / "plain-folder"
+            image = root / "100187254_p0.jpg"
+            root.mkdir(parents=True)
+            image.write_bytes(b"")
+            db_path = Path(tmp) / "artists.json"
+
+            with patch(
+                "pixiv_pbd_manager.resolver.resolve_name_only_artist",
+                return_value=ResolvedArtist(id="126324", name="96YOTTEA", work_id="100187254"),
+            ):
+                result = scan_into_database([root], db_path, resolve_online=True)
+            db = ArtistDatabase.load(db_path)
+
+            self.assertEqual(result.resolved_by_pid, 1)
+            self.assertIn("126324", db.artists)
+            self.assertIn(str(root.resolve()), db.artists["126324"].save_paths)
+
     def test_unmatched_folder_with_pid_stays_unmatched_offline(self):
         with TemporaryDirectory() as tmp:
             root = Path(tmp) / "downloads"
@@ -132,6 +151,44 @@ class GuiBackendTests(unittest.TestCase):
 
             self.assertEqual(result.resolved_by_pid, 0)
             self.assertIn(str(image.parent.resolve()), result.summary.unmatched_folders)
+
+    def test_scan_resolves_unknown_pid_folder_from_existing_database(self):
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp) / "downloads"
+            image = root / "moved-folder" / "100187254_p0.jpg"
+            image.parent.mkdir(parents=True)
+            image.write_bytes(b"")
+            db_path = Path(tmp) / "artists.json"
+            db = ArtistDatabase.load(db_path)
+            db.upsert("126324", name="96YOTTEA", source="manual", work_ids={"100187254"})
+            db.save()
+
+            result = scan_into_database([root], db_path, resolve_online=False)
+            db = ArtistDatabase.load(db_path)
+
+            self.assertEqual(result.resolved_by_pid, 1)
+            self.assertIn(str(image.parent.resolve()), db.artists["126324"].save_paths)
+            self.assertNotIn(str(image.parent.resolve()), result.summary.unmatched_folders)
+
+    def test_scan_keeps_mixed_known_pid_folder_unmatched(self):
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp) / "downloads"
+            folder = root / "mixed-folder"
+            first = folder / "100187254_p0.jpg"
+            second = folder / "100187255_p0.jpg"
+            folder.mkdir(parents=True)
+            first.write_bytes(b"")
+            second.write_bytes(b"")
+            db_path = Path(tmp) / "artists.json"
+            db = ArtistDatabase.load(db_path)
+            db.upsert("126324", name="A", source="manual", work_ids={"100187254"})
+            db.upsert("126325", name="B", source="manual", work_ids={"100187255"})
+            db.save()
+
+            result = scan_into_database([root], db_path, resolve_online=False)
+
+            self.assertEqual(result.resolved_by_pid, 0)
+            self.assertIn(str(folder.resolve()), result.summary.unmatched_folders)
 
     def test_unresolved_name_only_folder_surfaces_as_unmatched(self):
         # A ``... - pixiv`` folder whose sample work ids don't resolve (offline,

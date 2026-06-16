@@ -40,8 +40,10 @@ from ..scanner import NameOnlyArtistHit, ScanSummary, scan_roots
 from ._shared import (
     ProgressCallback,
     build_artist_save_path_index,
+    build_artist_work_id_index,
     emit,
     find_artist_by_save_path,
+    find_artist_by_work_ids,
     filter_assigned_unmatched_folders,
     is_under_known_save_root,
     known_save_roots,
@@ -131,10 +133,13 @@ def collect_resolved_hits(
     resolved_hit_keys: set[str] = set()
     name_only_hits = list(summary.name_only_artists.values())
     save_path_index = build_artist_save_path_index(existing_db)
+    work_id_index = build_artist_work_id_index(existing_db)
 
     # Existing database evidence is faster and safer than hitting Pixiv again.
     # A known save path wins; otherwise an exact normalized display-name match
-    # is accepted only when it identifies one database record.
+    # is accepted only when it identifies one database record. If the folder has
+    # PID-named files already known in the DB, use that as a conservative
+    # offline fallback.
     for hit in name_only_hits:
         existing = find_artist_by_save_path(save_path_index, hit.folder)
         source = "local_save_path"
@@ -147,6 +152,9 @@ def collect_resolved_hits(
             if len(candidates) == 1:
                 existing = candidates[0]
                 source = "local_exact_name"
+        if existing is None and hit.work_ids:
+            existing = find_artist_by_work_ids(work_id_index, frozenset(hit.work_ids))
+            source = "local_work_id"
         if existing is None:
             continue
         result.hits.append(
@@ -160,6 +168,29 @@ def collect_resolved_hits(
             )
         )
         resolved_hit_keys.add(hit.artist_key)
+
+    pid_folders = list(summary.unmatched_folder_work_ids.items())
+    resolved_pid_folders: set[str] = set()
+    for folder_text, work_ids in pid_folders:
+        existing = find_artist_by_work_ids(work_id_index, frozenset(work_ids))
+        if existing is None:
+            continue
+        folder = Path(folder_text)
+        result.hits.append(
+            ResolvedHit(
+                artist_id=existing.id,
+                artist_name=existing.name or None,
+                source="folder_pid;local_work_id",
+                root=Path(summary.unmatched_folder_roots.get(folder_text, folder_text)),
+                folder=folder,
+                work_ids=frozenset(work_ids),
+            )
+        )
+        result.resolved_by_pid += 1
+        resolved_pid_folders.add(folder_text)
+        summary.unmatched_folders.pop(folder_text, None)
+        summary.unmatched_folder_work_ids.pop(folder_text, None)
+        summary.unmatched_folder_roots.pop(folder_text, None)
 
     if not resolve_online:
         _surface_unresolved_name_only(summary, name_only_hits, resolved_hit_keys, existing_db)
@@ -213,9 +244,10 @@ def collect_resolved_hits(
 
     # Resolve folders that have Pixiv PIDs in their filenames but no name signal,
     # by sampling a work id and looking up its author (same resolver as name-only).
-    pid_folders = list(summary.unmatched_folder_work_ids.items())
     consecutive_errors = 0
     for index, (folder_text, work_ids) in enumerate(pid_folders, 1):
+        if folder_text in resolved_pid_folders:
+            continue
         if not work_ids:
             continue
         emit(
