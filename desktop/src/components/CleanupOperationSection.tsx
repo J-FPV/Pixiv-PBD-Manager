@@ -1,8 +1,12 @@
+import { useEffect, useMemo, useState } from "react";
 import { RotateCcw, Trash2 } from "lucide-react";
 import { t } from "../i18n";
 import type { CleanupOperation, Language } from "../types";
 import { formatBytes } from "../utils/format";
 import { Button } from "./Button";
+import { PaginationBar } from "./PaginationBar";
+
+const ITEM_PAGE_SIZE_OPTIONS = [25, 50, 100];
 
 function statusLabel(language: Language, status: string): string {
   if (status === "quarantined") {
@@ -41,10 +45,21 @@ export function CleanupOperationSection({
   deleteItems: (operationId: string, itemIds: string[]) => void;
   revealFile: (path: string) => void;
 }) {
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(50);
   const selectable = operation.items.filter((item) => item.status === "quarantined");
   const operationSelected = operation.items.filter((item) => selected.has(item.id)).map((item) => item.id);
   const allSelected = selectable.length > 0 && operationSelected.length === selectable.length;
   const totalSize = operation.items.reduce((total, item) => total + item.size_bytes, 0);
+  const pageCount = Math.max(1, Math.ceil(operation.items.length / pageSize));
+  const visibleItems = useMemo(() => {
+    const start = (page - 1) * pageSize;
+    return operation.items.slice(start, start + pageSize);
+  }, [operation.items, page, pageSize]);
+
+  useEffect(() => {
+    setPage((current) => Math.min(Math.max(1, current), pageCount));
+  }, [pageCount]);
 
   return (
     <section className="cleanupOperation">
@@ -75,13 +90,29 @@ export function CleanupOperationSection({
           </Button>
         </div>
       </div>
+      {operation.items.length > ITEM_PAGE_SIZE_OPTIONS[0] ? (
+        <PaginationBar
+          language={language}
+          page={page}
+          pageCount={pageCount}
+          total={operation.items.length}
+          pageSize={pageSize}
+          pageSizeOptions={ITEM_PAGE_SIZE_OPTIONS}
+          compact
+          onPageChange={setPage}
+          onPageSizeChange={(value) => {
+            setPageSize(value);
+            setPage(1);
+          }}
+        />
+      ) : null}
       <div className="cleanupItemHeader">
         <span />
         <span>{t(language, "originalPath")}</span>
         <span>{t(language, "size")}</span>
         <span>{t(language, "cleanupStatus")}</span>
       </div>
-      {operation.items.map((item) => {
+      {visibleItems.map((item) => {
         const currentPath = item.status === "quarantined" ? item.quarantine_path : item.original_path;
         return (
           <div

@@ -1413,12 +1413,69 @@ body.col-resizing .colHandle::after {
   background: var(--input-bg);
 }
 
+.cleanupHistoryShell {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  min-height: 0;
+  height: 100%;
+  gap: 8px;
+}
+
 .cleanupHistory {
   min-height: 0;
+  height: 100%;
   overflow: auto;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--surface);
+}
+
+.paginationBar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  min-height: 34px;
+  padding: 0 2px;
+}
+
+.paginationBar.compact {
+  justify-content: flex-start;
+  min-height: 30px;
+  padding: 4px 10px;
+  border-top: 1px solid var(--row-border);
+  background: var(--subtle-row);
+}
+
+.paginationBar .button {
+  min-height: 28px;
+  padding: 0 8px;
+}
+
+.paginationStatus {
+  min-width: 86px;
+  color: var(--muted);
+  font-size: 12px;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.paginationSize {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.paginationSize select {
+  min-height: 28px;
+  width: 68px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--text);
+  background: var(--input-bg);
 }
 
 .cleanupOperation + .cleanupOperation {
@@ -1429,14 +1486,14 @@ body.col-resizing .colHandle::after {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
-  padding: 12px 14px;
+  gap: 12px;
+  padding: 8px 12px;
   background: var(--surface-muted);
 }
 
 .cleanupOperationHeader > div:first-child {
   display: grid;
-  gap: 4px;
+  gap: 2px;
   min-width: 0;
 }
 
@@ -1451,19 +1508,25 @@ body.col-resizing .colHandle::after {
 .cleanupOperationActions {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   flex: 0 0 auto;
+}
+
+.cleanupOperationActions .button {
+  min-height: 30px;
+  padding: 0 9px;
 }
 
 .cleanupItemHeader,
 .cleanupItemRow {
   display: grid;
-  grid-template-columns: 36px minmax(260px, 1fr) 100px 110px;
+  grid-template-columns: 28px minmax(220px, 1fr) 86px 96px;
   align-items: center;
-  gap: 8px;
-  min-height: 40px;
-  padding: 0 14px;
+  gap: 6px;
+  min-height: 30px;
+  padding: 0 10px;
   border-top: 1px solid var(--row-border);
+  font-size: 13px;
 }
 
 .cleanupItemHeader {
@@ -1471,6 +1534,7 @@ body.col-resizing .colHandle::after {
   background: var(--subtle-row);
   font-size: 12px;
   font-weight: 600;
+  min-height: 28px;
 }
 
 .cleanupItemRow {
@@ -1483,8 +1547,9 @@ body.col-resizing .colHandle::after {
 
 .cleanupItemRow > small {
   grid-column: 2 / -1;
-  padding-bottom: 8px;
+  padding-bottom: 4px;
   color: var(--danger);
+  font-size: 11px;
 }
 
 .cleanupStatus {

@@ -320,10 +320,10 @@ def resolve_name_only_artist(
     cookie: str | None = None,
     allow_insecure_ssl_fallback: bool = True,
 ) -> ResolvedArtist | None:
-    work_ids = sorted(hit.work_ids, key=int, reverse=True)
+    work_ids = select_resolution_work_ids(hit.work_ids, max_work_ids)
     resolved_items: list[ResolvedArtist] = []
     last_error: PixivResolveError | None = None
-    for index, work_id in enumerate(work_ids[:max_work_ids]):
+    for index, work_id in enumerate(work_ids):
         try:
             resolved = fetch_artwork_author(
                 work_id,
@@ -337,7 +337,7 @@ def resolve_name_only_artist(
             resolved = None
         if resolved:
             resolved_items.append(resolved)
-        if index != min(len(work_ids), max_work_ids) - 1 and delay_seconds > 0:
+        if index != len(work_ids) - 1 and delay_seconds > 0:
             time.sleep(delay_seconds)
     if not resolved_items:
         if last_error is not None:
@@ -352,6 +352,27 @@ def resolve_name_only_artist(
     if len(ranked) > 1 and ranked[0][1] < 2:
         return None
     return next(item for item in resolved_items if item.id == winning_id)
+
+
+def select_resolution_work_ids(work_ids: set[str], max_work_ids: int) -> list[str]:
+    """Pick bounded PID samples from newest, middle, and oldest positions."""
+    limit = max(0, int(max_work_ids))
+    if limit <= 0:
+        return []
+    ordered = sorted({str(work_id) for work_id in work_ids if str(work_id).isdigit()}, key=int, reverse=True)
+    if len(ordered) <= limit:
+        return ordered
+    if limit == 1:
+        return [ordered[0]]
+    last = len(ordered) - 1
+    indexes = [int(round(index * last / (limit - 1))) for index in range(limit)]
+    selected: list[str] = []
+    seen: set[int] = set()
+    for index in indexes:
+        if index not in seen:
+            selected.append(ordered[index])
+            seen.add(index)
+    return selected
 
 
 def normalize_search_text(value: str) -> str:

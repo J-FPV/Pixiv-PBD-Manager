@@ -1,6 +1,8 @@
+import { useEffect, useMemo, useRef, useState } from "react";
 import { t } from "../../i18n";
 import type { Language, SimilarEntry } from "../../types";
 import type { ZoomTransform } from "../../hooks/useZoomPan";
+import { containSize } from "../../utils/imageFit";
 import { ImageMeta } from "./ImageMeta";
 import { ZoomLayer } from "./ZoomLayer";
 
@@ -14,11 +16,33 @@ export interface SideBySidePaneProps {
 }
 
 function Pane({ language, loadingText, transform, dataUrl, entry, isKeep }: SideBySidePaneProps) {
+  const stageRef = useRef<HTMLDivElement>(null);
+  const [stageSize, setStageSize] = useState({ width: 0, height: 0 });
+  const fitSize = useMemo(
+    () => containSize(stageSize, { width: entry?.width || 0, height: entry?.height || 0 }),
+    [entry?.height, entry?.width, stageSize]
+  );
+
+  useEffect(() => {
+    const node = stageRef.current;
+    if (!node) {
+      return;
+    }
+    const update = () => {
+      const rect = node.getBoundingClientRect();
+      setStageSize({ width: rect.width, height: rect.height });
+    };
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
+
   return (
     <div className={`previewPane${isKeep ? " keep" : ""}`}>
-      <div className="previewPaneStage">
+      <div className="previewPaneStage" ref={stageRef}>
         {dataUrl ? (
-          <ZoomLayer dataUrl={dataUrl} alt={entry?.path || ""} transform={transform} />
+          <ZoomLayer dataUrl={dataUrl} alt={entry?.path || ""} transform={transform} fitSize={fitSize} />
         ) : (
           <span className="previewPlaceholder">{loadingText}</span>
         )}

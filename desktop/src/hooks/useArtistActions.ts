@@ -583,8 +583,16 @@ function editArtist(deps: ArtistActionsDeps, artistId: string): void {
 
 async function openArtist(deps: ArtistActionsDeps, id: string): Promise<void> {
   const { settings, handleEvent, appendLog } = deps;
+  const artistId = id.trim();
+  if (!artistId) {
+    return;
+  }
   try {
-    const result = await runGuiApi<{ opened: number }>("browser.open", { ...settings, artist_ids: [id] }, handleEvent);
+    const result = await runGuiApi<{ opened: number }>(
+      "browser.open",
+      { ...settings, urls: [`https://www.pixiv.net/users/${encodeURIComponent(artistId)}/artworks`] },
+      handleEvent
+    );
     appendLog("info", `Opened ${result.opened} page(s)`);
   } catch (error) {
     appendLog("error", error instanceof Error ? error.message : String(error));

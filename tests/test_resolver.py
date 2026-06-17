@@ -14,6 +14,7 @@ from pixiv_pbd_manager.resolver import (
     parse_user_work_ids_from_profile_all,
     parse_user_search_html,
     resolve_name_only_artist,
+    select_resolution_work_ids,
 )
 from pixiv_pbd_manager.scanner import NameOnlyArtistHit
 from pathlib import Path
@@ -121,6 +122,13 @@ class ResolverTests(unittest.TestCase):
             resolved = resolve_name_only_artist(hit, max_work_ids=2, delay_seconds=0)
 
         self.assertIsNone(resolved)
+
+    def test_resolution_work_id_sampling_spreads_across_pid_range(self):
+        work_ids = {str(work_id) for work_id in range(100, 110)}
+
+        selected = select_resolution_work_ids(work_ids, 3)
+
+        self.assertEqual(selected, ["109", "105", "100"])
 
     def test_parse_user_name_from_profile_all_meta_title(self):
         raw = {"body": {"illusts": {}}, "extraData": {"meta": {"title": "Artist Name - pixiv"}}}

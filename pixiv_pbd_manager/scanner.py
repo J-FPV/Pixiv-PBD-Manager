@@ -73,10 +73,6 @@ EMBEDDED_TIMESTAMP_PATTERN = re.compile(
     r"[ ._-](?:[01]\d|2[0-3])[0-5]\d[0-5]\d(?!\d)"
 )
 
-# Cap how many sample work ids we keep per unmatched folder for online resolution.
-UNMATCHED_WORK_ID_SAMPLE_CAP = 10
-
-
 def looks_like_timestamp_name(stem: str) -> bool:
     return bool(TIMESTAMP_NAME_PATTERN.match(stem))
 
@@ -541,14 +537,13 @@ def scan_roots(
                 if parent_resolved != root or work_ids:
                     folder_text = str(parent_resolved)
                     summary.unmatched_folders[folder_text] = summary.unmatched_folders.get(folder_text, 0) + 1
-                    # Keep a few sample work ids so the pipeline can resolve the
-                    # artist online from a PID even with no folder-name signal.
+                    # Keep every PID we can recognize here. The resolver later
+                    # samples across newest/middle/oldest IDs, so the request
+                    # count stays bounded while large folders get better
+                    # coverage than "first N files encountered".
                     if work_ids:
                         bucket = summary.unmatched_folder_work_ids.setdefault(folder_text, set())
-                        for work_id in work_ids:
-                            if len(bucket) >= UNMATCHED_WORK_ID_SAMPLE_CAP:
-                                break
-                            bucket.add(work_id)
+                        bucket.update(work_ids)
                         summary.unmatched_folder_roots.setdefault(folder_text, str(root))
                 if len(summary.unmatched_examples) < 20:
                     summary.unmatched_examples.append(path)

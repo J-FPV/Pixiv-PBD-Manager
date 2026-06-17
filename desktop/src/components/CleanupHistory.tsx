@@ -2,6 +2,9 @@ import { useEffect, useMemo, useState } from "react";
 import { t } from "../i18n";
 import type { CleanupOperation, CleanupSummary, Language } from "../types";
 import { CleanupOperationSection } from "./CleanupOperationSection";
+import { PaginationBar } from "./PaginationBar";
+
+const OPERATION_PAGE_SIZE_OPTIONS = [5, 10, 20];
 
 export function CleanupHistory({
   language,
@@ -19,6 +22,8 @@ export function CleanupHistory({
   revealFile: (path: string) => void;
 }) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
   const availableIds = useMemo(
     () =>
       new Set(
@@ -28,10 +33,19 @@ export function CleanupHistory({
       ),
     [summary]
   );
+  const pageCount = Math.max(1, Math.ceil(summary.operations.length / pageSize));
+  const visibleOperations = useMemo(() => {
+    const start = (page - 1) * pageSize;
+    return summary.operations.slice(start, start + pageSize);
+  }, [page, pageSize, summary.operations]);
 
   useEffect(() => {
     setSelected((current) => new Set([...current].filter((id) => availableIds.has(id))));
   }, [availableIds]);
+
+  useEffect(() => {
+    setPage((current) => Math.min(Math.max(1, current), pageCount));
+  }, [pageCount]);
 
   const toggleAll = (operation: CleanupOperation) => {
     const ids = operation.items.filter((item) => item.status === "quarantined").map((item) => item.id);
@@ -66,21 +80,36 @@ export function CleanupHistory({
   }
 
   return (
-    <div className="cleanupHistory">
-      {summary.operations.map((operation) => (
-        <CleanupOperationSection
-          key={operation.id}
-          language={language}
-          operation={operation}
-          busy={busy}
-          selected={selected}
-          toggleAll={() => toggleAll(operation)}
-          toggleItem={toggleItem}
-          restoreItems={restoreItems}
-          deleteItems={deleteItems}
-          revealFile={revealFile}
-        />
-      ))}
+    <div className="cleanupHistoryShell">
+      <PaginationBar
+        language={language}
+        page={page}
+        pageCount={pageCount}
+        total={summary.operations.length}
+        pageSize={pageSize}
+        pageSizeOptions={OPERATION_PAGE_SIZE_OPTIONS}
+        onPageChange={setPage}
+        onPageSizeChange={(value) => {
+          setPageSize(value);
+          setPage(1);
+        }}
+      />
+      <div className="cleanupHistory">
+        {visibleOperations.map((operation) => (
+          <CleanupOperationSection
+            key={operation.id}
+            language={language}
+            operation={operation}
+            busy={busy}
+            selected={selected}
+            toggleAll={() => toggleAll(operation)}
+            toggleItem={toggleItem}
+            restoreItems={restoreItems}
+            deleteItems={deleteItems}
+            revealFile={revealFile}
+          />
+        ))}
+      </div>
     </div>
   );
 }

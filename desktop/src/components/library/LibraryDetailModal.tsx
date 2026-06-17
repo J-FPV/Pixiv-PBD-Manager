@@ -9,6 +9,7 @@ import { useZoomPan } from "../../hooks/useZoomPan";
 import { Button } from "../Button";
 import { ModalOverlay } from "../ModalOverlay";
 import { ZoomLayer } from "../preview/ZoomLayer";
+import { containSize } from "../../utils/imageFit";
 
 export interface LibraryDetailModalProps {
   language: Language;
@@ -57,20 +58,6 @@ function orientationLabel(language: Language, value: LibraryImage["orientation"]
     return t(language, value);
   }
   return t(language, "unknownOrientation");
-}
-
-function containSize(
-  box: { width: number; height: number },
-  image: { width: number; height: number }
-): { width: number; height: number } | undefined {
-  if (box.width <= 0 || box.height <= 0 || image.width <= 0 || image.height <= 0) {
-    return undefined;
-  }
-  const scale = Math.min(box.width / image.width, box.height / image.height);
-  return {
-    width: Math.max(1, Math.floor(image.width * scale)),
-    height: Math.max(1, Math.floor(image.height * scale))
-  };
 }
 
 export function LibraryDetailModal({
