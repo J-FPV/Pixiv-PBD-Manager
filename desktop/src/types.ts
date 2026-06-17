@@ -75,6 +75,7 @@ export interface ScanPreviewPayload {
   ssl_fallback_used: number;
   resolve_errors: string[];
   unmatched_folders: UnmatchedFolder[];
+  cancelled?: boolean;
 }
 
 export interface ScanApplyPayload {

@@ -9,7 +9,12 @@ from unittest.mock import patch
 from pixiv_pbd_manager import downloader
 from pixiv_pbd_manager.database import ArtistDatabase
 from pixiv_pbd_manager.downloader import ArtworkDownloadResult
-from pixiv_pbd_manager.operations import check_artist_updates, download_artist_updates, scan_into_database
+from pixiv_pbd_manager.operations import (
+    check_artist_updates,
+    download_artist_updates,
+    preview_scan_changes,
+    scan_into_database,
+)
 from pixiv_pbd_manager.operations.updates import normalize_download_concurrency
 from pixiv_pbd_manager.resolver import (
     PixivResolveError,
@@ -223,6 +228,43 @@ class GuiBackendTests(unittest.TestCase):
 
             self.assertEqual(result.resolved_name_only, 1)
             self.assertNotIn(str(image.parent.resolve()), result.summary.unmatched_folders)
+
+    def test_scan_is_cancellable_and_does_not_write(self):
+        # A cancel signal must stop the scan promptly: no online resolve, no DB
+        # write, and the result flagged cancelled so the GUI doesn't pop a preview.
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp) / "downloads"
+            image = root / "96YOTTEA's illustrations／manga - pixiv" / "100187254_p0.jpg"
+            image.parent.mkdir(parents=True)
+            image.write_bytes(b"")
+            db_path = Path(tmp) / "artists.json"
+
+            with patch(
+                "pixiv_pbd_manager.resolver.resolve_name_only_artist",
+                side_effect=AssertionError("resolver must not run when cancelled"),
+            ):
+                result = scan_into_database(
+                    [root], db_path, resolve_online=True, should_cancel=lambda: True
+                )
+
+            self.assertTrue(result.cancelled)
+            self.assertEqual(result.changed, 0)
+            self.assertFalse(db_path.exists(), "a cancelled scan must not write the database")
+
+    def test_scan_preview_reports_cancelled(self):
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp) / "downloads"
+            image = root / "随手存的图" / "100187254_p0.jpg"
+            image.parent.mkdir(parents=True)
+            image.write_bytes(b"")
+            db_path = Path(tmp) / "artists.json"
+
+            result = preview_scan_changes(
+                [root], db_path, resolve_online=True, should_cancel=lambda: True
+            )
+
+            self.assertTrue(result.cancelled)
+            self.assertEqual(result.changes, [])
 
     def test_scan_into_database_fuzzy_resolves_manual_illus_folder(self):
         with TemporaryDirectory() as tmp:

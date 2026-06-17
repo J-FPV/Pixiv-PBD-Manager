@@ -8,7 +8,7 @@ from ...cookie_store import load_cookie
 from ...database import ArtistDatabase
 from ...operations import apply_scan_changes, preview_scan_changes, scan_into_database
 from ..payload import as_bool, as_float, as_int, base_dir, db_path, paths
-from ..runtime import Emitter, JsonDict, make_progress_callback
+from ..runtime import CONTROL, Emitter, JsonDict, make_progress_callback
 from ..serializers import artist_to_json, scan_result_to_json
 from .settings import load_settings_for_payload
 
@@ -47,6 +47,7 @@ def run(payload: JsonDict, emit_event: Emitter) -> JsonDict:
         fuzzy_min_score=as_float(payload, "fuzzy_min_score", float(settings.get("fuzzy_min_score", 0.35))),
         max_depth=_as_optional_depth(payload, "scan_max_depth", settings, "scan_max_depth"),
         allow_low_pids=as_bool(payload, "scan_recognize_low_pids", bool(settings.get("scan_recognize_low_pids", False))),
+        should_cancel=CONTROL.is_cancelled,
         progress_callback=make_progress_callback(emit_event),
     )
     return scan_result_to_json(result)
@@ -70,6 +71,7 @@ def preview(payload: JsonDict, emit_event: Emitter) -> JsonDict:
         fuzzy_min_score=as_float(payload, "fuzzy_min_score", float(settings.get("fuzzy_min_score", 0.35))),
         max_depth=_as_optional_depth(payload, "scan_max_depth", settings, "scan_max_depth"),
         allow_low_pids=as_bool(payload, "scan_recognize_low_pids", bool(settings.get("scan_recognize_low_pids", False))),
+        should_cancel=CONTROL.is_cancelled,
         progress_callback=make_progress_callback(emit_event),
     )
     summary = result.summary
@@ -90,6 +92,7 @@ def preview(payload: JsonDict, emit_event: Emitter) -> JsonDict:
         "ssl_fallback_used": result.ssl_fallback_used,
         "resolve_errors": list(result.resolve_errors),
         "unmatched_folders": unmatched,
+        "cancelled": result.cancelled,
     }
 
 

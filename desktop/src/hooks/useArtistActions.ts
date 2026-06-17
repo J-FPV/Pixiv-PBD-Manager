@@ -95,8 +95,15 @@ function scan(deps: ArtistActionsDeps): void {
   void runTask("library", t(languageValue, "scan"), async (signal, registerControls) => {
     const result = await runGuiApi<ScanPreviewPayload>("scan.preview", settings, handleEvent, {
       signal,
-      onStart: registerControls
+      onStart: registerControls,
+      gracefulCancel: true
     });
+    // Graceful cancel returns a partial result with cancelled=true (no exception),
+    // so don't pop the preview or overwrite the unmatched list — just stop.
+    if (result.cancelled) {
+      appendLog("info", t(languageValue, "taskCancelled"));
+      return;
+    }
     appendLog("info", `Scan preview: ${result.files_seen} files, ${result.changes.length} proposed change(s)`);
     setUnmatchedFolders(result.unmatched_folders || []);
     if (result.changes.length === 0) {

@@ -83,6 +83,7 @@ def scan_result_to_json(result: ScanResult) -> JsonDict:
         "resolve_errors": list(result.resolve_errors),
         "db_path": str(result.db_path),
         "unmatched_folders": [{"path": path, "count": count} for path, count in unmatched],
+        "cancelled": result.cancelled,
     }
 
 

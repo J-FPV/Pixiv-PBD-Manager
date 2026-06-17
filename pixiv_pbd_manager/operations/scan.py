@@ -14,6 +14,7 @@ thin: each calls the pipeline, then walks the resulting hits in its own way.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -38,6 +39,7 @@ class ScanResult:
     fuzzy_resolved_name_only: int = 0
     ssl_fallback_used: int = 0
     resolve_errors: list[str] = field(default_factory=list)
+    cancelled: bool = False
 
 
 @dataclass
@@ -49,6 +51,7 @@ class ScanPreviewResult:
     fuzzy_resolved_name_only: int = 0
     ssl_fallback_used: int = 0
     resolve_errors: list[str] = field(default_factory=list)
+    cancelled: bool = False
 
 
 @dataclass
@@ -227,6 +230,7 @@ def scan_into_database(
     fuzzy_min_score: float = 0.35,
     max_depth: int | None = None,
     allow_low_pids: bool = False,
+    should_cancel: Callable[[], bool] | None = None,
     progress_callback: ProgressCallback | None = None,
 ) -> ScanResult:
     db = ArtistDatabase.load(db_path)
@@ -243,8 +247,18 @@ def scan_into_database(
         fuzzy_min_score=fuzzy_min_score,
         max_depth=max_depth,
         allow_low_pids=allow_low_pids,
+        should_cancel=should_cancel,
         progress_callback=progress_callback,
     )
+    # On cancel, don't write a partial scan into the DB; report it as cancelled.
+    if pipeline.cancelled:
+        return ScanResult(
+            summary=pipeline.summary,
+            changed=0,
+            db_path=db.path.resolve(),
+            resolve_errors=pipeline.resolve_errors,
+            cancelled=True,
+        )
     changed = sum(1 for hit in pipeline.hits if _merge_scan_hit(db, hit))
     db.save()
     return ScanResult(
@@ -273,6 +287,7 @@ def preview_scan_changes(
     fuzzy_min_score: float = 0.35,
     max_depth: int | None = None,
     allow_low_pids: bool = False,
+    should_cancel: Callable[[], bool] | None = None,
     progress_callback: ProgressCallback | None = None,
 ) -> ScanPreviewResult:
     """Run the scan but produce a diff of proposed changes instead of writing.
@@ -296,6 +311,7 @@ def preview_scan_changes(
         fuzzy_min_score=fuzzy_min_score,
         max_depth=max_depth,
         allow_low_pids=allow_low_pids,
+        should_cancel=should_cancel,
         progress_callback=progress_callback,
     )
     proposed: dict[str, dict] = {}
@@ -309,6 +325,7 @@ def preview_scan_changes(
         fuzzy_resolved_name_only=pipeline.fuzzy_resolved_name_only,
         ssl_fallback_used=pipeline.ssl_fallback_used,
         resolve_errors=pipeline.resolve_errors,
+        cancelled=pipeline.cancelled,
     )
 
 

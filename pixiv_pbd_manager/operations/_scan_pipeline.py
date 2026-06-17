@@ -24,6 +24,7 @@ online-resolve phase rather than spamming the API.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -75,6 +76,7 @@ class ScanPipelineResult:
     fuzzy_resolved_name_only: int = 0
     ssl_fallback_used: int = 0
     resolve_errors: list[str] = field(default_factory=list)
+    cancelled: bool = False
 
 
 def collect_resolved_hits(
@@ -91,8 +93,10 @@ def collect_resolved_hits(
     fuzzy_min_score: float = 0.35,
     max_depth: int | None = None,
     allow_low_pids: bool = False,
+    should_cancel: Callable[[], bool] | None = None,
     progress_callback: ProgressCallback | None = None,
 ) -> ScanPipelineResult:
+    cancelled = should_cancel or (lambda: False)
     emit(progress_callback, PROGRESS_SCAN_START, roots=len(roots))
     summary = scan_roots(
         roots,
@@ -106,6 +110,7 @@ def collect_resolved_hits(
         ),
         max_depth=max_depth,
         allow_low_pids=allow_low_pids,
+        should_cancel=should_cancel,
     )
     emit(
         progress_callback,
@@ -117,6 +122,9 @@ def collect_resolved_hits(
     filter_assigned_unmatched_folders(summary, existing_db)
 
     result = ScanPipelineResult(summary=summary)
+    if cancelled():
+        result.cancelled = True
+        return result
 
     for artist_id, hit in summary.artists.items():
         result.hits.append(
@@ -198,6 +206,9 @@ def collect_resolved_hits(
 
     consecutive_errors = 0
     for index, hit in enumerate(name_only_hits, 1):
+        if cancelled():
+            result.cancelled = True
+            return result
         if hit.artist_key in resolved_hit_keys:
             continue
         if not hit.work_ids:
@@ -246,6 +257,9 @@ def collect_resolved_hits(
     # by sampling a work id and looking up its author (same resolver as name-only).
     consecutive_errors = 0
     for index, (folder_text, work_ids) in enumerate(pid_folders, 1):
+        if cancelled():
+            result.cancelled = True
+            return result
         if folder_text in resolved_pid_folders:
             continue
         if not work_ids:
@@ -307,6 +321,9 @@ def collect_resolved_hits(
 
     consecutive_errors = 0
     for index, hit in enumerate(name_only_hits, 1):
+        if cancelled():
+            result.cancelled = True
+            return result
         if hit.artist_key in resolved_hit_keys:
             continue
         emit(

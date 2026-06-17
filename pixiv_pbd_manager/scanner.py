@@ -463,6 +463,7 @@ def scan_roots(
     *,
     max_depth: int | None = None,
     allow_low_pids: bool = False,
+    should_cancel: Callable[[], bool] | None = None,
 ) -> ScanSummary:
     summary = ScanSummary()
     excludes = normalize_exclude_roots(exclude_roots)
@@ -470,6 +471,8 @@ def scan_roots(
     name_only_folder_cache: dict[tuple[Path, Path], FolderNameOnlyIdentity | None] = {}
     resolved_parent_cache: dict[Path, Path] = {}
     for root in normalize_scan_roots(roots):
+        if should_cancel and should_cancel():
+            break
         root_excludes = [
             exclude
             for exclude in excludes
@@ -477,6 +480,10 @@ def scan_roots(
         ]
         summary.excluded_dirs += len(root_excludes)
         for path in iter_media_files(root, root_excludes, max_depth=max_depth):
+            # Cancellation checkpoint: a 36k-file walk must stop promptly when the
+            # user cancels rather than running to completion in the background.
+            if should_cancel and summary.files_seen % 256 == 0 and should_cancel():
+                return summary
             summary.files_seen += 1
             if progress_callback and progress_interval > 0 and summary.files_seen % progress_interval == 0:
                 progress_callback(summary)
