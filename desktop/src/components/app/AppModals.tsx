@@ -16,7 +16,8 @@ export function AppModals({
   setDisclaimer,
   acceptDisclaimer,
   scanPreview,
-  setScanPreview,
+  scanPreviewOpen,
+  setScanPreviewOpen,
   applyScanChanges,
   openArtist,
   toastMessage
@@ -30,7 +31,8 @@ export function AppModals({
   setDisclaimer: Dispatch<SetStateAction<"accept" | "view" | null>>;
   acceptDisclaimer: () => void;
   scanPreview: ScanPreviewPayload | null;
-  setScanPreview: Dispatch<SetStateAction<ScanPreviewPayload | null>>;
+  scanPreviewOpen: boolean;
+  setScanPreviewOpen: Dispatch<SetStateAction<boolean>>;
   applyScanChanges: (operations: ScanChange[]) => Promise<void>;
   openArtist: (id: string) => Promise<void>;
   toastMessage: string;
@@ -47,12 +49,12 @@ export function AppModals({
           onClose={() => setDisclaimer(null)}
         />
       ) : null}
-      {scanPreview ? (
+      {scanPreview && scanPreviewOpen ? (
         <ScanPreviewModal
           language={language}
           preview={scanPreview}
           onApply={applyScanChanges}
-          onCancel={() => setScanPreview(null)}
+          onCancel={() => setScanPreviewOpen(false)}
           openArtist={openArtist}
         />
       ) : null}

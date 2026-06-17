@@ -55,7 +55,8 @@ export default function App() {
         setDisclaimer={s.setDisclaimer}
         acceptDisclaimer={settingsActions.acceptDisclaimer}
         scanPreview={s.scanPreview}
-        setScanPreview={s.setScanPreview}
+        scanPreviewOpen={s.scanPreviewOpen}
+        setScanPreviewOpen={s.setScanPreviewOpen}
         applyScanChanges={artistActions.applyScanChanges}
         openArtist={artistActions.openArtist}
         toastMessage={s.toastMessage}

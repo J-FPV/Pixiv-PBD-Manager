@@ -38,6 +38,8 @@ export function MainContent({
           selectAll={(ids) => s.setSelected((current) => new Set([...current, ...ids]))}
           clearAll={() => s.setSelected(new Set())}
           scan={artistActions.scan}
+          reopenScanPreview={artistActions.reopenScanPreview}
+          hasScanPreview={!!s.scanPreview && !s.scanPreviewOpen}
           checkUpdates={artistActions.checkUpdates}
           checkArtistUpdates={artistActions.checkArtistUpdates}
           refreshArtistNames={artistActions.refreshArtistNames}

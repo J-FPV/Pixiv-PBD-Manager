@@ -40,7 +40,9 @@ export interface ArtistActionsDeps {
   setSettings: Dispatch<SetStateAction<AppSettings>>;
   setUnmatchedFolders: Dispatch<SetStateAction<UnmatchedFolder[]>>;
   setPendingExcludeFolders: Dispatch<SetStateAction<Set<string>>>;
+  scanPreview: ScanPreviewPayload | null;
   setScanPreview: Dispatch<SetStateAction<ScanPreviewPayload | null>>;
+  setScanPreviewOpen: Dispatch<SetStateAction<boolean>>;
   setProjectRootState: Dispatch<SetStateAction<string>>;
   setPrompt: Dispatch<SetStateAction<PromptState | null>>;
   setConfirm: Dispatch<SetStateAction<ConfirmState | null>>;
@@ -53,6 +55,7 @@ export interface ArtistActionsDeps {
 export interface ArtistActions {
   loadArtists: () => Promise<void>;
   scan: () => void;
+  reopenScanPreview: () => void;
   applyScanChanges: (operations: ScanChange[]) => Promise<void>;
   excludeFolder: (path: string) => Promise<void>;
   assignUnmatchedFolder: (path: string) => void;
@@ -90,9 +93,21 @@ async function loadArtists(deps: ArtistActionsDeps): Promise<void> {
 }
 
 function scan(deps: ArtistActionsDeps): void {
-  const { language: languageValue, settings, handleEvent, appendLog, setUnmatchedFolders, setScanPreview, runTask } =
-    deps;
+  const {
+    language: languageValue,
+    settings,
+    handleEvent,
+    appendLog,
+    setUnmatchedFolders,
+    setScanPreview,
+    setScanPreviewOpen,
+    runTask
+  } = deps;
   void runTask("library", t(languageValue, "scan"), async (signal, registerControls) => {
+    // Drop any earlier result so a scan that finds nothing doesn't leave a
+    // stale "scan results" button pointing at the previous run.
+    setScanPreview(null);
+    setScanPreviewOpen(false);
     const result = await runGuiApi<ScanPreviewPayload>("scan.preview", settings, handleEvent, {
       signal,
       onStart: registerControls,
@@ -126,12 +141,21 @@ function scan(deps: ArtistActionsDeps): void {
       return;
     }
     setScanPreview(result);
+    setScanPreviewOpen(true);
   });
 }
 
+function reopenScanPreview(deps: ArtistActionsDeps): void {
+  if (deps.scanPreview) {
+    deps.setScanPreviewOpen(true);
+  }
+}
+
 async function applyScanChanges(deps: ArtistActionsDeps, operations: ScanChange[]): Promise<void> {
-  const { language: languageValue, settings, handleEvent, appendLog, setArtists, setScanPreview } = deps;
+  const { language: languageValue, settings, handleEvent, appendLog, setArtists, setScanPreview, setScanPreviewOpen } =
+    deps;
   setScanPreview(null);
+  setScanPreviewOpen(false);
   if (!operations.length) {
     return;
   }
@@ -622,6 +646,7 @@ export function useArtistActions(deps: ArtistActionsDeps): ArtistActions {
   return {
     loadArtists: () => loadArtists(deps),
     scan: () => scan(deps),
+    reopenScanPreview: () => reopenScanPreview(deps),
     applyScanChanges: (operations) => applyScanChanges(deps, operations),
     excludeFolder: (path) => excludeFolder(deps, path),
     assignUnmatchedFolder: (path) => assignUnmatchedFolder(deps, path),

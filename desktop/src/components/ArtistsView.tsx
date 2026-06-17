@@ -19,6 +19,8 @@ type ArtistsViewProps = {
   selectAll: (ids: string[]) => void;
   clearAll: () => void;
   scan: () => void;
+  reopenScanPreview: () => void;
+  hasScanPreview: boolean;
   checkUpdates: () => void;
   checkArtistUpdates: (id: string) => void;
   refreshArtistNames: () => void;
@@ -53,6 +55,8 @@ export function ArtistsView({
   selectAll,
   clearAll,
   scan,
+  reopenScanPreview,
+  hasScanPreview,
   checkUpdates,
   checkArtistUpdates,
   refreshArtistNames,
@@ -101,6 +105,8 @@ export function ArtistsView({
         clearAll={clearAll}
         addArtist={addArtist}
         scan={scan}
+        reopenScanPreview={reopenScanPreview}
+        hasScanPreview={hasScanPreview}
         checkUpdates={checkUpdates}
         downloadUpdated={downloadUpdated}
         openSelected={openSelected}

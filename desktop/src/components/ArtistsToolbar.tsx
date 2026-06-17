@@ -1,4 +1,4 @@
-import { CheckSquare, Download, Play, Plus, RefreshCw, Search, Square, Star, Trash2, XCircle } from "lucide-react";
+import { CheckSquare, ClipboardList, Download, Play, Plus, RefreshCw, Search, Square, Star, Trash2, XCircle } from "lucide-react";
 import { t } from "../i18n";
 import type { Artist, Language } from "../types";
 import { Button } from "./Button";
@@ -18,6 +18,8 @@ export function ArtistsToolbar({
   clearAll,
   addArtist,
   scan,
+  reopenScanPreview,
+  hasScanPreview,
   checkUpdates,
   downloadUpdated,
   openSelected,
@@ -39,6 +41,8 @@ export function ArtistsToolbar({
   clearAll: () => void;
   addArtist: () => void;
   scan: () => void;
+  reopenScanPreview: () => void;
+  hasScanPreview: boolean;
   checkUpdates: () => void;
   downloadUpdated: () => void;
   openSelected: () => void;
@@ -87,6 +91,11 @@ export function ArtistsToolbar({
       <Button icon={<Play size={16} />} disabled={busy} onClick={scan} variant="primary">
         {t(language, "scan")}
       </Button>
+      {hasScanPreview ? (
+        <Button icon={<ClipboardList size={16} />} onClick={reopenScanPreview} title={t(language, "scanResults")}>
+          {t(language, "scanResults")}
+        </Button>
+      ) : null}
       <Button icon={<RefreshCw size={16} />} disabled={busy} onClick={checkUpdates}>
         {t(language, "checkUpdatesShort")}
       </Button>

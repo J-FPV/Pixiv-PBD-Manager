@@ -73,6 +73,10 @@ export function useAppState() {
   const [confirm, setConfirm] = useState<ConfirmState | null>(null);
   const [disclaimer, setDisclaimer] = useState<"accept" | "view" | null>(null);
   const [scanPreview, setScanPreview] = useState<ScanPreviewPayload | null>(null);
+  // Modal visibility is tracked separately from the data so dismissing the
+  // preview (backdrop click / Cancel) keeps the last result around to reopen
+  // without rescanning.
+  const [scanPreviewOpen, setScanPreviewOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState("");
   const toastTimerRef = useRef<number | null>(null);
 
@@ -161,7 +165,7 @@ export function useAppState() {
     similarRootBoxHeight, setSimilarRootBoxHeight, similarExcludeBoxHeight, setSimilarExcludeBoxHeight,
     unmatchedFolders, setUnmatchedFolders, pendingExcludeFolders, setPendingExcludeFolders,
     prompt, setPrompt, confirm, setConfirm, disclaimer, setDisclaimer,
-    scanPreview, setScanPreview, toastMessage
+    scanPreview, setScanPreview, scanPreviewOpen, setScanPreviewOpen, toastMessage
   };
 }
 
