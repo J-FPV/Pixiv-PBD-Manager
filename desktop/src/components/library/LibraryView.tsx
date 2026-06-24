@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { EMPTY_LIBRARY_FILTERS, LIBRARY_SIDEBAR_WIDTH_KEY } from "../../constants";
 import { t } from "../../i18n";
 import type { Language, LibraryFilters, LibraryImage } from "../../types";
@@ -67,7 +67,8 @@ export function LibraryView(props: LibraryViewProps) {
       filters.dates
     ]
   );
-  const { visibleImages, facets } = useLibraryFilter(images, effectiveFilters, language);
+  const deferredFilters = useDeferredValue(effectiveFilters);
+  const { visibleImages, facets } = useLibraryFilter(images, deferredFilters, language);
 
   useEffect(() => {
     if (loaded || requested.current) {

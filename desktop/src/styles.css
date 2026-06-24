@@ -2219,6 +2219,20 @@ body.col-resizing .colHandle::after {
   color: #ffffff;
 }
 
+.filterMoreButton {
+  width: 100%;
+  padding: 5px 8px;
+  border: 0;
+  background: transparent;
+  color: var(--accent-strong);
+  font-size: 12px;
+  text-align: left;
+}
+
+.filterMoreButton:hover {
+  text-decoration: underline;
+}
+
 .filterChipName {
   overflow: hidden;
   max-width: 150px;

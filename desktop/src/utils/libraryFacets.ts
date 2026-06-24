@@ -12,6 +12,14 @@ export const FILTER_DIMENSIONS = [
 
 export type FacetDimension = (typeof FILTER_DIMENSIONS)[number];
 
+type DimensionValueMap = Record<FacetDimension, string[]>;
+
+export interface LibraryFilterIndexEntry {
+  image: LibraryImage;
+  values: DimensionValueMap;
+  keywordText: string;
+}
+
 export function imageTagSet(image: LibraryImage): string[] {
   const pixiv = (image.pixiv_tags || []).map((entry) => entry.tag);
   return Array.from(new Set([...(image.tags || []), ...(image.artist_tags || []), ...pixiv]));
@@ -51,54 +59,73 @@ export function dimensionValues(image: LibraryImage, dim: FacetDimension): strin
   }
 }
 
-export function matchesKeyword(image: LibraryImage, keyword: string): boolean {
-  const needle = keyword.trim().toLowerCase();
-  if (!needle) return true;
-  const pixivMatch = (image.pixiv_tags || []).some(
-    (entry) => entry.tag.toLowerCase().includes(needle) || entry.translation.toLowerCase().includes(needle)
-  );
-  return (
-    image.filename.toLowerCase().includes(needle) ||
-    image.folder.toLowerCase().includes(needle) ||
-    image.pid.includes(needle) ||
-    image.artist_name.toLowerCase().includes(needle) ||
-    image.path.toLowerCase().includes(needle) ||
-    pixivMatch
-  );
-}
-
-function matchesDimension(image: LibraryImage, dim: FacetDimension, selected: string[]): boolean {
-  if (!selected.length) return true;
-  return dimensionValues(image, dim).some((value) => selected.includes(value));
-}
-
-// `except` skips one chip dimension so a facet's own selection doesn't zero out
-// its sibling options (standard faceted-search behavior). The keyword always applies.
-export function matchesFilters(image: LibraryImage, filters: LibraryFilters, except?: FacetDimension): boolean {
+function indexImage(image: LibraryImage): LibraryFilterIndexEntry {
+  const values = {} as DimensionValueMap;
   for (const dim of FILTER_DIMENSIONS) {
-    if (dim === except) continue;
-    if (!matchesDimension(image, dim, filters[dim])) return false;
+    values[dim] = dimensionValues(image, dim);
   }
-  return matchesKeyword(image, filters.keyword);
+  const pixivTags = (image.pixiv_tags || []).flatMap((entry) => [entry.tag, entry.translation]);
+  return {
+    image,
+    values,
+    keywordText: [image.filename, image.folder, image.pid, image.artist_name, image.path, ...pixivTags]
+      .join("\n")
+      .toLowerCase()
+  };
 }
 
-export function computeFacets(
-  images: LibraryImage[],
+export function buildLibraryFilterIndex(images: LibraryImage[]): LibraryFilterIndexEntry[] {
+  return images.map(indexImage);
+}
+
+export function filterAndComputeFacets(
+  index: LibraryFilterIndexEntry[],
   filters: LibraryFilters,
   labelFor: (dim: FacetDimension, value: string) => string
-): LibraryFacets {
-  const result = {} as LibraryFacets;
+): { visibleImages: LibraryImage[]; facets: LibraryFacets } {
+  const selected = {} as Record<FacetDimension, Set<string>>;
+  const counts = {} as Record<FacetDimension, Map<string, number>>;
   for (const dim of FILTER_DIMENSIONS) {
-    const counts = new Map<string, number>();
-    for (const image of images) {
-      if (!matchesFilters(image, filters, dim)) continue;
-      for (const value of dimensionValues(image, dim)) {
-        counts.set(value, (counts.get(value) ?? 0) + 1);
+    selected[dim] = new Set(filters[dim]);
+    counts[dim] = new Map();
+  }
+  const keyword = filters.keyword.trim().toLowerCase();
+  const visibleImages: LibraryImage[] = [];
+
+  for (const entry of index) {
+    if (keyword && !entry.keywordText.includes(keyword)) {
+      continue;
+    }
+    const matches = {} as Record<FacetDimension, boolean>;
+    let failedDimensions = 0;
+    for (const dim of FILTER_DIMENSIONS) {
+      const selectedValues = selected[dim];
+      const matched = !selectedValues.size || entry.values[dim].some((value) => selectedValues.has(value));
+      matches[dim] = matched;
+      if (!matched) {
+        failedDimensions += 1;
       }
     }
-    result[dim] = Array.from(counts.entries())
+
+    if (failedDimensions === 0) {
+      visibleImages.push(entry.image);
+    }
+    for (const dim of FILTER_DIMENSIONS) {
+      if (failedDimensions > 1 || (failedDimensions === 1 && matches[dim])) {
+        continue;
+      }
+      const dimensionCounts = counts[dim];
+      for (const value of entry.values[dim]) {
+        dimensionCounts.set(value, (dimensionCounts.get(value) ?? 0) + 1);
+      }
+    }
+  }
+
+  const facets = {} as LibraryFacets;
+  for (const dim of FILTER_DIMENSIONS) {
+    facets[dim] = Array.from(counts[dim].entries())
       .map(([value, count]) => ({ value, count, label: labelFor(dim, value) }))
       .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label, undefined, { numeric: true }));
   }
-  return result;
+  return { visibleImages, facets };
 }

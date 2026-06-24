@@ -2,8 +2,8 @@ import { useCallback, useMemo } from "react";
 import { t } from "../i18n";
 import type { Language, LibraryFilters, LibraryImage } from "../types";
 import {
-  computeFacets,
-  matchesFilters,
+  buildLibraryFilterIndex,
+  filterAndComputeFacets,
   type FacetDimension
 } from "../utils/libraryFacets";
 
@@ -24,6 +24,7 @@ function basename(path: string): string {
 // `visibleImages` applies every active filter; `facets` counts each dimension
 // over the set matching all *other* filters so sibling options stay visible.
 export function useLibraryFilter(images: LibraryImage[], filters: LibraryFilters, language: Language) {
+  const index = useMemo(() => buildLibraryFilterIndex(images), [images]);
   const artistNames = useMemo(() => {
     const map = new Map<string, string>();
     for (const image of images) {
@@ -56,12 +57,5 @@ export function useLibraryFilter(images: LibraryImage[], filters: LibraryFilters
     [artistNames, language]
   );
 
-  const visibleImages = useMemo(
-    () => images.filter((image) => matchesFilters(image, filters)),
-    [images, filters]
-  );
-
-  const facets = useMemo(() => computeFacets(images, filters, labelFor), [images, filters, labelFor]);
-
-  return { visibleImages, facets };
+  return useMemo(() => filterAndComputeFacets(index, filters, labelFor), [filters, index, labelFor]);
 }

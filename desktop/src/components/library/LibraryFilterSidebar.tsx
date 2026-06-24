@@ -47,6 +47,7 @@ export function LibraryFilterSidebar({
           selected={filters[section.dim]}
           onToggle={(value) => onToggle(section.dim, value)}
           defaultOpen={index < 3}
+          moreLabel={t(language, "moreActions")}
         />
       ))}
     </aside>
