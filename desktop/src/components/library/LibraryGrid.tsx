@@ -13,11 +13,13 @@ export function LibraryGrid({
   language,
   images,
   selectedPath,
+  loading,
   onOpen
 }: {
   language: Language;
   images: LibraryImage[];
   selectedPath: string | null;
+  loading: boolean;
   onOpen: (path: string) => void;
 }) {
   const parentRef = useRef<HTMLDivElement>(null);
@@ -75,7 +77,7 @@ export function LibraryGrid({
           })}
         </div>
       ) : (
-        <div className="emptyState">{t(language, "noMatches")}</div>
+        <div className="emptyState">{t(language, loading ? "loadingLibrary" : "noMatches")}</div>
       )}
     </div>
   );

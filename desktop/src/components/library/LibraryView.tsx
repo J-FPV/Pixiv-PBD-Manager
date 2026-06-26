@@ -145,7 +145,13 @@ export function LibraryView(props: LibraryViewProps) {
             />
           </>
         ) : null}
-        <LibraryGrid language={language} images={visibleImages} selectedPath={selectedPath} onOpen={setSelectedPath} />
+        <LibraryGrid
+          language={language}
+          images={visibleImages}
+          selectedPath={selectedPath}
+          loading={!loaded}
+          onOpen={setSelectedPath}
+        />
       </div>
       {sidebar.resizing ? <div className="panelResizeOverlay" /> : null}
       {selectedImage ? (

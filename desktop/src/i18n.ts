@@ -126,6 +126,7 @@ const zh = {
   noLibraryYet: "图库还是空的",
   noLibraryHint: "点击「扫描图库」，从下载目录建立图片目录。",
   noMatches: "没有匹配的图片",
+  loadingLibrary: "加载中",
   libraryCount: "{count} 张",
   artist: "作者",
   folder: "文件夹",

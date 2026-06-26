@@ -121,6 +121,7 @@ export const ja: Dictionary = {
   noLibraryYet: "ライブラリは空です",
   noLibraryHint: "「ライブラリをスキャン」を押して、ダウンロードフォルダーからカタログを作成します。",
   noMatches: "一致する画像がありません",
+  loadingLibrary: "読み込み中...",
   libraryCount: "{count} 枚",
   artist: "アーティスト",
   folder: "フォルダー",

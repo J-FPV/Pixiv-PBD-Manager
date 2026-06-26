@@ -121,6 +121,7 @@ export const es: Dictionary = {
   noLibraryYet: "Tu biblioteca está vacía",
   noLibraryHint: "Haz clic en «Analizar biblioteca» para crear el catálogo desde tus carpetas de descargas.",
   noMatches: "No hay imágenes coincidentes",
+  loadingLibrary: "Cargando...",
   libraryCount: "{count} imágenes",
   artist: "Artista",
   folder: "Carpeta",

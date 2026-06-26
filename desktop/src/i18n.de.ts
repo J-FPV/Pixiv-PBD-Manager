@@ -121,6 +121,7 @@ export const de: Dictionary = {
   noLibraryYet: "Deine Bibliothek ist leer",
   noLibraryHint: "Klicke auf „Bibliothek scannen“, um den Katalog aus deinen Download-Ordnern zu erstellen.",
   noMatches: "Keine passenden Bilder",
+  loadingLibrary: "Wird geladen...",
   libraryCount: "{count} Bilder",
   artist: "Künstler",
   folder: "Ordner",

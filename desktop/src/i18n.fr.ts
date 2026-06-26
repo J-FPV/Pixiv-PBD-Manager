@@ -121,6 +121,7 @@ export const fr: Dictionary = {
   noLibraryYet: "Votre bibliothèque est vide",
   noLibraryHint: "Cliquez sur « Analyser la bibliothèque » pour créer le catalogue à partir de vos dossiers de téléchargement.",
   noMatches: "Aucune image correspondante",
+  loadingLibrary: "Chargement...",
   libraryCount: "{count} images",
   artist: "Artiste",
   folder: "Dossier",
