@@ -60,6 +60,133 @@ function orientationLabel(language: Language, value: LibraryImage["orientation"]
   return t(language, "unknownOrientation");
 }
 
+function LibraryStageNav({
+  language,
+  onPrevious,
+  onNext
+}: {
+  language: Language;
+  onPrevious: () => void;
+  onNext: () => void;
+}) {
+  return (
+    <>
+      <button
+        type="button"
+        className="libraryStageNavButton previous"
+        title={t(language, "previousImage")}
+        aria-label={t(language, "previousImage")}
+        onPointerDown={(event) => event.stopPropagation()}
+        onClick={(event) => {
+          event.stopPropagation();
+          onPrevious();
+        }}
+      >
+        <ChevronLeft size={22} />
+      </button>
+      <button
+        type="button"
+        className="libraryStageNavButton next"
+        title={t(language, "nextImage")}
+        aria-label={t(language, "nextImage")}
+        onPointerDown={(event) => event.stopPropagation()}
+        onClick={(event) => {
+          event.stopPropagation();
+          onNext();
+        }}
+      >
+        <ChevronRight size={22} />
+      </button>
+    </>
+  );
+}
+
+function LibraryDetailMetaPanel({
+  language,
+  image,
+  busy,
+  revealFile,
+  setImageTags,
+  onFetchTags,
+  onClose
+}: {
+  language: Language;
+  image: LibraryImage;
+  busy: boolean;
+  revealFile: (path: string) => void;
+  setImageTags: (path: string, tags: string[]) => void | Promise<void>;
+  onFetchTags: () => void;
+  onClose: () => void;
+}) {
+  const [draft, setDraft] = useState("");
+  const modified = image.mtime_ns ? new Date(image.mtime_ns / 1_000_000).toLocaleString() : "";
+  const addTag = () => {
+    const value = draft.trim();
+    if (value) {
+      void setImageTags(image.path, [...image.tags, value]);
+    }
+    setDraft("");
+  };
+
+  return (
+    <div className="libraryDetailMeta">
+      <MetaRow label={t(language, "pixivId")} value={image.pid} />
+      <MetaRow label={t(language, "artist")} value={image.artist_name || image.artist_id} />
+      <MetaRow label={t(language, "dimensions")} value={image.resolution} />
+      <MetaRow label={t(language, "orientation")} value={orientationLabel(language, image.orientation)} />
+      <MetaRow label={t(language, "format")} value={image.format.toUpperCase()} />
+      <MetaRow label={t(language, "fileSize")} value={formatBytes(image.size_bytes)} />
+      <MetaRow label={t(language, "modified")} value={modified} />
+      <MetaRow label={t(language, "pageLabel")} value={image.page !== null ? String(image.page) : ""} />
+      <MetaRow label={t(language, "artistTags")} value={image.artist_tags.join(", ")} />
+      <div className="libraryPixivSection">
+        <div className="libraryPixivHeader">
+          <span className="libraryMetaKey">{t(language, "pixivTags")}</span>
+          <Button icon={<Tags size={14} />} iconOnly onClick={onFetchTags} disabled={busy} title={t(language, "fetchPixivTags")}>
+            {t(language, "fetchPixivTags")}
+          </Button>
+        </div>
+        <PixivTagChips tags={image.pixiv_tags} />
+      </div>
+      <MetaRow label={t(language, "folder")} value={image.folder} />
+      <MetaRow label={t(language, "path")} value={image.path} />
+      <div className="libraryTagEditor">
+        <span className="libraryMetaKey">{t(language, "imageTags")}</span>
+        <div className="libraryTagChips">
+          {image.tags.map((tag) => (
+            <span key={tag} className="libraryTagChip">
+              {tag}
+              <button type="button" onClick={() => void setImageTags(image.path, image.tags.filter((item) => item !== tag))}>
+                <X size={12} />
+              </button>
+            </span>
+          ))}
+          <input
+            value={draft}
+            placeholder="+"
+            onChange={(event) => setDraft(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.preventDefault();
+                addTag();
+              }
+            }}
+          />
+        </div>
+      </div>
+      <div className="libraryDetailActions">
+        <Button icon={<FolderOpen size={15} />} onClick={() => revealFile(image.path)}>{t(language, "openFolder")}</Button>
+        {image.artwork_url ? (
+          <Button icon={<ExternalLink size={15} />} onClick={() => void runGuiApi("browser.open", { urls: [image.artwork_url] })}>
+            {t(language, "openSource")}
+          </Button>
+        ) : null}
+        <Button variant="primary" onClick={onClose}>{t(language, "close")}</Button>
+      </div>
+    </div>
+  );
+}
+
 export function LibraryDetailModal({
   language,
   image,
@@ -71,7 +198,6 @@ export function LibraryDetailModal({
   onFetchTags,
   busy
 }: LibraryDetailModalProps) {
-  const [draft, setDraft] = useState("");
   const isTallImage = image.width > 0 && image.height / image.width >= 2.2;
   const { image: preview, error } = useImagePreview(
     image.path,
@@ -93,6 +219,7 @@ export function LibraryDetailModal({
     [image.height, image.width, preview?.height, preview?.width, stageSize]
   );
   const index = Math.max(0, images.findIndex((item) => item.path === image.path));
+  const hasMultipleImages = images.length > 1;
 
   useEffect(() => {
     const node = zoom.containerRef.current;
@@ -114,25 +241,13 @@ export function LibraryDetailModal({
       onPathChange(images[(index + offset + images.length) % images.length].path);
     }
   };
-  const addTag = () => {
-    const value = draft.trim();
-    if (value) {
-      void setImageTags(image.path, [...image.tags, value]);
-    }
-    setDraft("");
-  };
-  const modified = image.mtime_ns ? new Date(image.mtime_ns / 1_000_000).toLocaleString() : "";
 
   return (
     <ModalOverlay onClose={onClose}>
       <div className="modal libraryDetailModal" onClick={(event) => event.stopPropagation()}>
         <div className="previewTitleRow">
           <h3 title={image.filename}>{image.filename}</h3>
-          <div className="previewStepper">
-            <Button icon={<ChevronLeft size={16} />} onClick={() => step(-1)}>{t(language, "previousImage")}</Button>
-            <span>{index + 1} / {images.length}</span>
-            <Button icon={<ChevronRight size={16} />} onClick={() => step(1)}>{t(language, "nextImage")}</Button>
-          </div>
+          <span className="libraryDetailCounter">{index + 1} / {images.length}</span>
         </div>
         <div className="libraryDetailBody">
           <div
@@ -149,62 +264,19 @@ export function LibraryDetailModal({
               <span className="previewPlaceholder">{t(language, "loadingPreview")}</span>
             )}
             {error ? <span className="previewError">{error}</span> : null}
+            {hasMultipleImages ? (
+              <LibraryStageNav language={language} onPrevious={() => step(-1)} onNext={() => step(1)} />
+            ) : null}
           </div>
-          <div className="libraryDetailMeta">
-            <MetaRow label={t(language, "pixivId")} value={image.pid} />
-            <MetaRow label={t(language, "artist")} value={image.artist_name || image.artist_id} />
-            <MetaRow label={t(language, "dimensions")} value={image.resolution} />
-            <MetaRow label={t(language, "orientation")} value={orientationLabel(language, image.orientation)} />
-            <MetaRow label={t(language, "format")} value={image.format.toUpperCase()} />
-            <MetaRow label={t(language, "fileSize")} value={formatBytes(image.size_bytes)} />
-            <MetaRow label={t(language, "modified")} value={modified} />
-            <MetaRow label={t(language, "pageLabel")} value={image.page !== null ? String(image.page) : ""} />
-            <MetaRow label={t(language, "artistTags")} value={image.artist_tags.join(", ")} />
-            <div className="libraryPixivSection">
-              <div className="libraryPixivHeader">
-                <span className="libraryMetaKey">{t(language, "pixivTags")}</span>
-                <Button icon={<Tags size={14} />} iconOnly onClick={onFetchTags} disabled={busy} title={t(language, "fetchPixivTags")}>
-                  {t(language, "fetchPixivTags")}
-                </Button>
-              </div>
-              <PixivTagChips tags={image.pixiv_tags} />
-            </div>
-            <MetaRow label={t(language, "folder")} value={image.folder} />
-            <MetaRow label={t(language, "path")} value={image.path} />
-            <div className="libraryTagEditor">
-              <span className="libraryMetaKey">{t(language, "imageTags")}</span>
-              <div className="libraryTagChips">
-                {image.tags.map((tag) => (
-                  <span key={tag} className="libraryTagChip">
-                    {tag}
-                    <button type="button" onClick={() => void setImageTags(image.path, image.tags.filter((item) => item !== tag))}>
-                      <X size={12} />
-                    </button>
-                  </span>
-                ))}
-                <input
-                  value={draft}
-                  placeholder="+"
-                  onChange={(event) => setDraft(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter") {
-                      event.preventDefault();
-                      addTag();
-                    }
-                  }}
-                />
-              </div>
-            </div>
-            <div className="libraryDetailActions">
-              <Button icon={<FolderOpen size={15} />} onClick={() => revealFile(image.path)}>{t(language, "openFolder")}</Button>
-              {image.artwork_url ? (
-                <Button icon={<ExternalLink size={15} />} onClick={() => void runGuiApi("browser.open", { urls: [image.artwork_url] })}>
-                  {t(language, "openSource")}
-                </Button>
-              ) : null}
-              <Button variant="primary" onClick={onClose}>{t(language, "close")}</Button>
-            </div>
-          </div>
+          <LibraryDetailMetaPanel
+            language={language}
+            image={image}
+            busy={busy}
+            revealFile={revealFile}
+            setImageTags={setImageTags}
+            onFetchTags={onFetchTags}
+            onClose={onClose}
+          />
         </div>
       </div>
     </ModalOverlay>

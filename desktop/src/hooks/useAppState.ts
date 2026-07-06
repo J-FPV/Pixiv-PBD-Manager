@@ -24,6 +24,11 @@ import { useTaskRunner } from "./useTaskRunner";
 import { useTheme } from "./useTheme";
 
 const INITIAL_UI_STATE = normalizedUiState();
+const EMPTY_CLEANUP_SUMMARY: CleanupSummary = {
+  state_path: "",
+  operations: [],
+  ignored_groups: []
+};
 
 // Owns all of App's React state plus the cross-cutting primitives (logging,
 // toasts, the IPC event handler, the task runner). It returns a single "bag"
@@ -45,11 +50,7 @@ export function useAppState() {
   const [similarResult, setSimilarResult] = useState<SimilarResult | null>(() =>
     loadJson<SimilarResult | null>(SIMILAR_RESULT_CACHE_KEY, null)
   );
-  const [cleanupSummary, setCleanupSummary] = useState<CleanupSummary>({
-    state_path: "",
-    operations: [],
-    ignored_groups: []
-  });
+  const [cleanupSummary, setCleanupSummary] = useState<CleanupSummary>(EMPTY_CLEANUP_SUMMARY);
   const [expandedGroups, setExpandedGroups] = useState<Set<number>>(
     () => new Set(INITIAL_UI_STATE.expandedGroups || [])
   );

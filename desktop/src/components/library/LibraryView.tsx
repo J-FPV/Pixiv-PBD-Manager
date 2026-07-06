@@ -27,6 +27,67 @@ export interface LibraryViewProps {
   revealFile: (path: string) => void;
 }
 
+function LibraryEmptyState({
+  language,
+  busy,
+  onScan
+}: {
+  language: Language;
+  busy: boolean;
+  onScan: () => void;
+}) {
+  return (
+    <section className="panel libraryPanel">
+      <div className="emptyState libraryEmpty">
+        <p>{t(language, "noLibraryYet")}</p>
+        <p className="muted">{t(language, "noLibraryHint")}</p>
+        <Button variant="primary" onClick={onScan} disabled={busy}>{t(language, "scanLibrary")}</Button>
+      </div>
+    </section>
+  );
+}
+
+function LibraryFilterPane({
+  language,
+  facets,
+  filters,
+  sidebar,
+  onToggle,
+  onClear
+}: {
+  language: Language;
+  facets: ReturnType<typeof useLibraryFilter>["facets"];
+  filters: LibraryFilters;
+  sidebar: ReturnType<typeof useResizablePanel>;
+  onToggle: (dim: FacetDimension, value: string) => void;
+  onClear: () => void;
+}) {
+  return (
+    <>
+      <LibraryFilterSidebar
+        language={language}
+        facets={facets}
+        filters={filters}
+        width={sidebar.width}
+        onToggle={onToggle}
+        onClear={onClear}
+      />
+      <div
+        className="librarySidebarResizeHandle"
+        role="separator"
+        aria-orientation="vertical"
+        aria-label={t(language, "resizeLibrarySidebar")}
+        aria-valuemin={180}
+        aria-valuemax={520}
+        aria-valuenow={sidebar.width}
+        tabIndex={0}
+        title={t(language, "resizeLibrarySidebar")}
+        {...sidebar.handleProps}
+      />
+    </>
+  );
+}
+
 export function LibraryView(props: LibraryViewProps) {
   const { language, images, loaded, needsScan, busy, selectedPath, setSelectedPath, loadLibrary } = props;
   const [filters, setFilters] = useState<LibraryFilters>(EMPTY_LIBRARY_FILTERS);
@@ -95,15 +156,7 @@ export function LibraryView(props: LibraryViewProps) {
     null;
 
   if (loaded && needsScan && !images.length) {
-    return (
-      <section className="panel libraryPanel">
-        <div className="emptyState libraryEmpty">
-          <p>{t(language, "noLibraryYet")}</p>
-          <p className="muted">{t(language, "noLibraryHint")}</p>
-          <Button variant="primary" onClick={props.scanLibrary} disabled={busy}>{t(language, "scanLibrary")}</Button>
-        </div>
-      </section>
-    );
+    return <LibraryEmptyState language={language} busy={busy} onScan={props.scanLibrary} />;
   }
 
   return (
@@ -122,28 +175,14 @@ export function LibraryView(props: LibraryViewProps) {
       />
       <div className="libraryBody" ref={libraryBodyRef}>
         {sidebarOpen ? (
-          <>
-            <LibraryFilterSidebar
-              language={language}
-              facets={facets}
-              filters={filters}
-              width={sidebar.width}
-              onToggle={toggleFilter}
-              onClear={() => setFilters((current) => ({ ...EMPTY_LIBRARY_FILTERS, keyword: current.keyword }))}
-            />
-            <div
-              className="librarySidebarResizeHandle"
-              role="separator"
-              aria-orientation="vertical"
-              aria-label={t(language, "resizeLibrarySidebar")}
-              aria-valuemin={180}
-              aria-valuemax={520}
-              aria-valuenow={sidebar.width}
-              tabIndex={0}
-              title={t(language, "resizeLibrarySidebar")}
-              {...sidebar.handleProps}
-            />
-          </>
+          <LibraryFilterPane
+            language={language}
+            facets={facets}
+            filters={filters}
+            sidebar={sidebar}
+            onToggle={toggleFilter}
+            onClear={() => setFilters((current) => ({ ...EMPTY_LIBRARY_FILTERS, keyword: current.keyword }))}
+          />
         ) : null}
         <LibraryGrid
           language={language}

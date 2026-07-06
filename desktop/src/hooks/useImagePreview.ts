@@ -23,6 +23,15 @@ function describeError(reason: unknown): string {
   return reason instanceof Error ? reason.message : String(reason);
 }
 
+function thumbnailRequest(targetPath: string, maxSize: number, targetWidth: number, maxPixels: number) {
+  return {
+    path: targetPath,
+    max_size: maxSize,
+    ...(targetWidth ? { target_width: targetWidth } : {}),
+    ...(maxPixels ? { max_pixels: maxPixels } : {})
+  };
+}
+
 export interface ImagePreviewState {
   image: ImageThumbnailPayload | null;
   compareImage: ImageThumbnailPayload | null;
@@ -45,12 +54,6 @@ export function useImagePreview(
   const cacheVariant = options.cacheVariant || `preview-${maxSize}-${targetWidth}-${maxPixels}`;
   const imageCacheKey = thumbnailCacheKey(path, cacheVariant);
   const compareCacheKey = thumbnailCacheKey(comparePath, cacheVariant);
-  const requestPayload = (targetPath: string) => ({
-    path: targetPath,
-    max_size: maxSize,
-    ...(targetWidth ? { target_width: targetWidth } : {}),
-    ...(maxPixels ? { max_pixels: maxPixels } : {})
-  });
   const [image, setImage] = useState<ImageThumbnailPayload | null>(() => thumbnailCache.get(imageCacheKey) || null);
   const [compareImage, setCompareImage] = useState<ImageThumbnailPayload | null>(null);
   const [difference, setDifference] = useState<ImageDifferencePayload | null>(null);
@@ -60,7 +63,7 @@ export function useImagePreview(
     let cancelled = false;
     setError("");
     setImage(thumbnailCache.get(imageCacheKey) || null);
-    void runGuiApi<ImageThumbnailPayload>("image.thumbnail", requestPayload(path))
+    void runGuiApi<ImageThumbnailPayload>("image.thumbnail", thumbnailRequest(path, maxSize, targetWidth, maxPixels))
       .then((payload) => {
         if (!cancelled) {
           thumbnailCache.set(imageCacheKey, payload);
@@ -86,7 +89,10 @@ export function useImagePreview(
       };
     }
     setCompareImage(thumbnailCache.get(compareCacheKey) || null);
-    void runGuiApi<ImageThumbnailPayload>("image.thumbnail", requestPayload(comparePath))
+    void runGuiApi<ImageThumbnailPayload>(
+      "image.thumbnail",
+      thumbnailRequest(comparePath, maxSize, targetWidth, maxPixels)
+    )
       .then((payload) => {
         if (!cancelled) {
           thumbnailCache.set(compareCacheKey, payload);

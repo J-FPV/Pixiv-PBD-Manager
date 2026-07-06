@@ -4,6 +4,31 @@ import type { Artist, Language } from "../types";
 import { Button } from "./Button";
 import { ArtistsMoreMenu } from "./ArtistsMoreMenu";
 
+interface ArtistsToolbarProps {
+  language: Language;
+  filter: string;
+  setFilter: (value: string) => void;
+  favoriteOnly: boolean;
+  setFavoriteOnly: (value: boolean) => void;
+  busy: boolean;
+  selected: Set<string>;
+  artistsCount: number;
+  visibleArtists: Artist[];
+  selectAll: (ids: string[]) => void;
+  clearAll: () => void;
+  addArtist: () => void;
+  scan: () => void;
+  reopenScanPreview: () => void;
+  hasScanPreview: boolean;
+  checkUpdates: () => void;
+  downloadUpdated: () => void;
+  openSelected: () => void;
+  refreshArtistNames: () => void;
+  rebuildWorkIndex: () => void;
+  copyUrls: () => void;
+  removeSelectedArtists: () => void;
+}
+
 export function ArtistsToolbar({
   language,
   filter,
@@ -27,30 +52,7 @@ export function ArtistsToolbar({
   rebuildWorkIndex,
   copyUrls,
   removeSelectedArtists
-}: {
-  language: Language;
-  filter: string;
-  setFilter: (value: string) => void;
-  favoriteOnly: boolean;
-  setFavoriteOnly: (value: boolean) => void;
-  busy: boolean;
-  selected: Set<string>;
-  artistsCount: number;
-  visibleArtists: Artist[];
-  selectAll: (ids: string[]) => void;
-  clearAll: () => void;
-  addArtist: () => void;
-  scan: () => void;
-  reopenScanPreview: () => void;
-  hasScanPreview: boolean;
-  checkUpdates: () => void;
-  downloadUpdated: () => void;
-  openSelected: () => void;
-  refreshArtistNames: () => void;
-  rebuildWorkIndex: () => void;
-  copyUrls: () => void;
-  removeSelectedArtists: () => void;
-}) {
+}: ArtistsToolbarProps) {
   const visibleIds = visibleArtists.map((artist) => artist.id);
   const hasVisibleArtists = visibleIds.length > 0;
   const allVisibleSelected = hasVisibleArtists && visibleIds.every((id) => selected.has(id));

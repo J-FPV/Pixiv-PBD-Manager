@@ -1,7 +1,10 @@
 import type { Dispatch, SetStateAction } from "react";
 import { runGuiApi, setProjectRoot } from "../api";
 import { t } from "../i18n";
+import { addArtist } from "./artistEntryActions";
 import { parseTags, setFavorite } from "./artistFavoriteActions";
+import { copyArtistUrl, copyUrls, openArtist, openSelected } from "./artistOpenActions";
+import { removeArtist, removeSelectedArtists } from "./artistRemovalActions";
 import { addTag, assignTag, deleteTag, renameTag } from "./artistTagActions";
 import type {
   ApiEvent,
@@ -427,132 +430,6 @@ function downloadArtistUpdated(deps: ArtistActionsDeps, artistId: string): void 
   downloadUpdatedForIds(deps, [artistId]);
 }
 
-async function openSelected(deps: ArtistActionsDeps): Promise<void> {
-  const { language: languageValue, settings, selected, handleEvent, appendLog } = deps;
-  const selectedIds = Array.from(selected);
-  if (!selectedIds.length) {
-    appendLog("warn", t(languageValue, "noSelection"));
-    return;
-  }
-  try {
-    const result = await runGuiApi<{ opened: number }>(
-      "browser.open",
-      { ...settings, artist_ids: selectedIds },
-      handleEvent
-    );
-    appendLog("info", `Opened ${result.opened} page(s)`);
-  } catch (error) {
-    appendLog("error", error instanceof Error ? error.message : String(error));
-  }
-}
-
-async function copyUrls(deps: ArtistActionsDeps): Promise<void> {
-  const { artists, selected } = deps;
-  const chosen = selected.size ? artists.filter((artist) => selected.has(artist.id)) : artists;
-  await copyArtistUrls(deps, chosen);
-}
-
-async function copyArtistUrls(deps: ArtistActionsDeps, chosen: Artist[]): Promise<void> {
-  const { language: languageValue, appendLog, showToast } = deps;
-  const text = chosen.map((artist) => artist.pixiv_url).join("\n");
-  if (!text) {
-    return;
-  }
-  try {
-    await navigator.clipboard.writeText(text);
-    const message = `${t(languageValue, "copiedUrls")}: ${chosen.length}`;
-    appendLog("info", message);
-    showToast(message);
-  } catch (error) {
-    appendLog("error", error instanceof Error ? error.message : String(error));
-  }
-}
-
-async function copyArtistUrl(deps: ArtistActionsDeps, artistId: string): Promise<void> {
-  const { artists, appendLog } = deps;
-  const artist = artists.find((item) => item.id === artistId);
-  if (!artist) {
-    appendLog("warn", t(deps.language, "noSelection"));
-    return;
-  }
-  await copyArtistUrls(deps, [artist]);
-}
-
-// Shared confirm+remove for both the multi-select toolbar action and the
-// single-artist context-menu delete. ``ids`` is whichever set to remove;
-// ``title`` labels the dialog (both currently resolve to "删除").
-function confirmRemoveArtists(deps: ArtistActionsDeps, ids: string[], title: string): void {
-  const { language: languageValue, settings, artists, handleEvent, appendLog, showToast, setArtists, setSelected, setConfirm } =
-    deps;
-  if (!ids.length) {
-    appendLog("warn", t(languageValue, "noSelection"));
-    return;
-  }
-  const idSet = new Set(ids);
-  const names = artists
-    .filter((artist) => idSet.has(artist.id))
-    .slice(0, 8)
-    .map((artist) => `${artist.name || artist.id} (${artist.id})`);
-  const more = ids.length > names.length ? `\n... +${ids.length - names.length}` : "";
-  setConfirm({
-    title,
-    body: `${t(languageValue, "confirmRemoveArtists")}\n\n${names.join("\n")}${more}`,
-    confirmLabel: title,
-    onConfirm: async () => {
-      try {
-        const result = await runGuiApi<{ removed: number; artist_ids: string[] }>(
-          "artists.remove",
-          { artist_ids: ids, database: settings.database },
-          handleEvent
-        );
-        const removed = new Set(result.artist_ids);
-        // Update state directly from the IPC result instead of a follow-up
-        // artists.list call — the cold sidecar startup makes that second
-        // round-trip the dominant source of the "deleted but still showing"
-        // delay users see.
-        setArtists((list) => list.filter((artist) => !removed.has(artist.id)));
-        setSelected((current) => new Set([...current].filter((id) => !removed.has(id))));
-        const message = `${t(languageValue, "removedArtists")}: ${result.removed}`;
-        appendLog("info", message);
-        showToast(message);
-      } catch (error) {
-        appendLog("error", error instanceof Error ? error.message : String(error));
-      }
-    }
-  });
-}
-
-function removeSelectedArtists(deps: ArtistActionsDeps): void {
-  confirmRemoveArtists(deps, Array.from(deps.selected), t(deps.language, "removeSelectedArtists"));
-}
-
-function removeArtist(deps: ArtistActionsDeps, artistId: string): void {
-  confirmRemoveArtists(deps, artistId ? [artistId] : [], t(deps.language, "removeSelectedArtists"));
-}
-
-function addArtist(deps: ArtistActionsDeps): void {
-  const { language: languageValue, settings, handleEvent, appendLog, setPrompt, runTask } = deps;
-  setPrompt({
-    title: t(languageValue, "addArtist"),
-    fields: [
-      { key: "artist_id", label: t(languageValue, "artistId"), value: "" },
-      { key: "name", label: t(languageValue, "artistName"), value: "" },
-      { key: "save_path", label: t(languageValue, "savePath"), value: "", browse: "folder" }
-    ],
-    onSubmit: (values) =>
-      void runTask("library", t(languageValue, "addArtist"), async (signal) => {
-        await runGuiApi(
-          "artists.add",
-          { artist_id: values.artist_id, name: values.name, save_path: values.save_path, database: settings.database },
-          handleEvent,
-          { signal }
-        );
-        appendLog("info", `Added artist ${values.artist_id}`);
-        await loadArtists(deps);
-      })
-  });
-}
-
 function editArtist(deps: ArtistActionsDeps, artistId: string): void {
   const { language: languageValue, settings, artists, handleEvent, appendLog, setSelected, setPrompt, runTask } = deps;
   const artist = artists.find((item) => item.id === artistId);
@@ -597,7 +474,7 @@ function editArtist(deps: ArtistActionsDeps, artistId: string): void {
           );
           appendLog("info", `Save path set for ${currentId}: ${newPath}`);
         }
-        if (newTags.join(" ") !== originalTags.join(" ")) {
+        if (newTags.join("\u0000") !== originalTags.join("\u0000")) {
           await runGuiApi(
             "artists.set_tags",
             { artist_id: currentId, tags: newTags, database: settings.database },
@@ -610,24 +487,6 @@ function editArtist(deps: ArtistActionsDeps, artistId: string): void {
         await loadArtists(deps);
       })
   });
-}
-
-async function openArtist(deps: ArtistActionsDeps, id: string): Promise<void> {
-  const { settings, handleEvent, appendLog } = deps;
-  const artistId = id.trim();
-  if (!artistId) {
-    return;
-  }
-  try {
-    const result = await runGuiApi<{ opened: number }>(
-      "browser.open",
-      { ...settings, urls: [`https://www.pixiv.net/users/${encodeURIComponent(artistId)}/artworks`] },
-      handleEvent
-    );
-    appendLog("info", `Opened ${result.opened} page(s)`);
-  } catch (error) {
-    appendLog("error", error instanceof Error ? error.message : String(error));
-  }
 }
 
 function toggleArtist(deps: ArtistActionsDeps, id: string): void {
@@ -661,7 +520,7 @@ export function useArtistActions(deps: ArtistActionsDeps): ArtistActions {
     copyArtistUrl: (id) => copyArtistUrl(deps, id),
     removeSelectedArtists: () => removeSelectedArtists(deps),
     removeArtist: (id) => removeArtist(deps, id),
-    addArtist: () => addArtist(deps),
+    addArtist: () => addArtist(deps, () => loadArtists(deps)),
     editArtist: (id) => editArtist(deps, id),
     setFavorite: (id, favorite) => setFavorite(deps, id, favorite),
     addTag: () => addTag(deps),

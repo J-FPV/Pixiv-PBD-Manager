@@ -24,6 +24,7 @@
   --preview-bg: #111820;
   --preview-text: #d9e2ec;
   --preview-error: #ffd6d6;
+  --stage-nav-bg: rgba(255, 255, 255, 0.86);
   --modal-overlay: rgba(15, 23, 32, 0.4);
   --toast-bg: #e9f7f1;
   --toast-border: #b8dfcf;
@@ -62,6 +63,7 @@
   --preview-bg: #05080c;
   --preview-text: #dbe7ef;
   --preview-error: #ffc7c7;
+  --stage-nav-bg: rgba(23, 29, 36, 0.88);
   --modal-overlay: rgba(0, 0, 0, 0.58);
   --toast-bg: #123c2d;
   --toast-border: #1f7a58;
@@ -2330,6 +2332,53 @@ body.col-resizing .colHandle::after {
   border-radius: 8px;
   background: var(--preview-bg);
   touch-action: none;
+}
+
+.libraryDetailCounter {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.libraryStageNavButton {
+  position: absolute;
+  top: 50%;
+  z-index: 4;
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 66px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--stage-nav-bg);
+  color: var(--text);
+  box-shadow: var(--shadow-popover);
+  transform: translateY(-50%);
+  transition:
+    background 120ms ease,
+    border-color 120ms ease,
+    color 120ms ease,
+    transform 120ms ease;
+}
+
+.libraryStageNavButton.previous {
+  left: 12px;
+}
+
+.libraryStageNavButton.next {
+  right: 12px;
+}
+
+.libraryStageNavButton:hover {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #fff;
+  transform: translateY(-50%) scale(1.03);
+}
+
+.libraryStageNavButton:active {
+  transform: translateY(-50%) scale(0.98);
 }
 
 .libraryDetailStage.zoomed {
