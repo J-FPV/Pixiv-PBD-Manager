@@ -2005,6 +2005,32 @@ body.col-resizing .colHandle::after {
   color: var(--warn);
 }
 
+.scanRecognitionReasons {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  min-width: 0;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.scanRecognitionLabel {
+  margin-right: 2px;
+}
+
+.scanRecognitionChip {
+  max-width: 100%;
+  padding: 1px 6px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface-muted);
+  color: var(--text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .scanOpenArtistButton {
   min-height: 30px;
   padding: 0 8px;
@@ -2320,6 +2346,16 @@ body.col-resizing .colHandle::after {
   min-height: 0;
   height: 100%;
   overflow: hidden;
+}
+
+.libraryDetailBody.detailsCollapsed {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.libraryDetailHeaderActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .libraryDetailStage {

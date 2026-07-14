@@ -5,6 +5,9 @@ import type { ApiEvent } from "./types";
 export type PathPickKind = "folder" | "file" | "save";
 
 export async function browsePath(kind: PathPickKind): Promise<string | null> {
+  if (import.meta.env.DEV && import.meta.env.VITE_GUI_API_MODE === "mock") {
+    return null;
+  }
   if (kind === "save") {
     const result = await save({});
     return result ?? null;
@@ -62,6 +65,10 @@ export async function runGuiApi<T>(
 ): Promise<T> {
   if (options.signal?.aborted) {
     throw new GuiApiCancelledError(commandName);
+  }
+  if (import.meta.env.DEV && import.meta.env.VITE_GUI_API_MODE === "mock") {
+    const { runMockGuiApi } = await import("./mockApi");
+    return runMockGuiApi(commandName, payload, onEvent, options);
   }
   const projectRoot = getProjectRoot();
   const payloadJson = toAsciiJson({ ...payload, project_root: projectRoot });

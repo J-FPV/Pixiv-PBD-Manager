@@ -51,6 +51,10 @@ jobs:
         working-directory: desktop
         run: npm run build
 
+      - name: Mock GUI smoke
+        working-directory: desktop
+        run: npm run test:e2e
+
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
 

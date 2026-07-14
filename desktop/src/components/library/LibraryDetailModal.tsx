@@ -1,10 +1,20 @@
-import { ChevronLeft, ChevronRight, ExternalLink, FolderOpen, Tags, X } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  ExternalLink,
+  FolderOpen,
+  PanelRightClose,
+  PanelRightOpen,
+  Tags,
+  X
+} from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { runGuiApi } from "../../api";
 import { t } from "../../i18n";
 import type { Language, LibraryImage, PixivTag } from "../../types";
 import { formatBytes } from "../../utils/format";
-import { useImagePreview } from "../../hooks/useImagePreview";
+import { prefetchImagePreview, useImagePreview } from "../../hooks/useImagePreview";
+import type { ImagePreviewOptions } from "../../hooks/useImagePreview";
 import { useZoomPan } from "../../hooks/useZoomPan";
 import { Button } from "../Button";
 import { ModalOverlay } from "../ModalOverlay";
@@ -60,6 +70,18 @@ function orientationLabel(language: Language, value: LibraryImage["orientation"]
   return t(language, "unknownOrientation");
 }
 
+function previewOptions(image: LibraryImage): ImagePreviewOptions {
+  const isTallImage = image.width > 0 && image.height / image.width >= 2.2;
+  return isTallImage
+    ? {
+        maxSize: 10000,
+        targetWidth: 1000,
+        maxPixels: 8_000_000,
+        cacheVariant: `library-long-${image.mtime_ns}`
+      }
+    : { cacheVariant: `library-detail-${image.mtime_ns}` };
+}
+
 function LibraryStageNav({
   language,
   onPrevious,
@@ -77,6 +99,7 @@ function LibraryStageNav({
         title={t(language, "previousImage")}
         aria-label={t(language, "previousImage")}
         onPointerDown={(event) => event.stopPropagation()}
+        onDoubleClick={(event) => event.stopPropagation()}
         onClick={(event) => {
           event.stopPropagation();
           onPrevious();
@@ -90,6 +113,7 @@ function LibraryStageNav({
         title={t(language, "nextImage")}
         aria-label={t(language, "nextImage")}
         onPointerDown={(event) => event.stopPropagation()}
+        onDoubleClick={(event) => event.stopPropagation()}
         onClick={(event) => {
           event.stopPropagation();
           onNext();
@@ -198,22 +222,11 @@ export function LibraryDetailModal({
   onFetchTags,
   busy
 }: LibraryDetailModalProps) {
-  const isTallImage = image.width > 0 && image.height / image.width >= 2.2;
-  const { image: preview, error } = useImagePreview(
-    image.path,
-    "",
-    "single",
-    isTallImage
-      ? {
-          maxSize: 10000,
-          targetWidth: 1000,
-          maxPixels: 8_000_000,
-          cacheVariant: `library-long-${image.mtime_ns}`
-        }
-      : { cacheVariant: `library-detail-${image.mtime_ns}` }
-  );
-  const zoom = useZoomPan(`${image.path}:${isTallImage ? "long" : "fit"}`);
+  const options = previewOptions(image);
+  const { image: preview, error } = useImagePreview(image.path, "", "single", options);
+  const zoom = useZoomPan(`${image.path}:${options.targetWidth ? "long" : "fit"}`);
   const [stageSize, setStageSize] = useState({ width: 0, height: 0 });
+  const [detailsOpen, setDetailsOpen] = useState(true);
   const fitSize = useMemo(
     () => containSize(stageSize, { width: preview?.width || image.width || 0, height: preview?.height || image.height || 0 }),
     [image.height, image.width, preview?.height, preview?.width, stageSize]
@@ -236,27 +249,64 @@ export function LibraryDetailModal({
     return () => observer.disconnect();
   }, [zoom.containerRef]);
 
-  const step = (offset: number) => {
+  const step = useCallback((offset: number) => {
     if (images.length > 1) {
       onPathChange(images[(index + offset + images.length) % images.length].path);
     }
-  };
+  }, [images, index, onPathChange]);
+
+  useEffect(() => {
+    if (!hasMultipleImages) {
+      return;
+    }
+    const adjacent = [images[(index - 1 + images.length) % images.length], images[(index + 1) % images.length]];
+    for (const item of adjacent) {
+      prefetchImagePreview(item.path, previewOptions(item));
+    }
+  }, [hasMultipleImages, images, index]);
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (target?.matches("input, textarea, select") || target?.isContentEditable) {
+        return;
+      }
+      if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+        event.preventDefault();
+        step(event.key === "ArrowLeft" ? -1 : 1);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [step]);
 
   return (
     <ModalOverlay onClose={onClose}>
       <div className="modal libraryDetailModal" onClick={(event) => event.stopPropagation()}>
         <div className="previewTitleRow">
           <h3 title={image.filename}>{image.filename}</h3>
-          <span className="libraryDetailCounter">{index + 1} / {images.length}</span>
+          <div className="libraryDetailHeaderActions">
+            <span className="libraryDetailCounter">{index + 1} / {images.length}</span>
+            <Button
+              icon={detailsOpen ? <PanelRightClose size={16} /> : <PanelRightOpen size={16} />}
+              iconOnly
+              title={t(language, detailsOpen ? "hideDetails" : "showDetails")}
+              onClick={() => setDetailsOpen((value) => !value)}
+            >
+              {t(language, detailsOpen ? "hideDetails" : "showDetails")}
+            </Button>
+          </div>
         </div>
-        <div className="libraryDetailBody">
+        <div className={`libraryDetailBody${detailsOpen ? "" : " detailsCollapsed"}`}>
           <div
             className={`libraryDetailStage${zoom.isZoomed ? " zoomed" : ""}`}
             ref={zoom.containerRef}
+            title={t(language, "zoomHint")}
             onPointerDown={zoom.panHandlers.onPointerDown}
             onPointerMove={zoom.panHandlers.onPointerMove}
             onPointerUp={zoom.panHandlers.onPointerUp}
             onPointerCancel={zoom.panHandlers.onPointerCancel}
+            onDoubleClick={zoom.reset}
           >
             {preview?.data_url ? (
               <ZoomLayer dataUrl={preview.data_url} alt={image.filename} transform={zoom.transform} fitSize={fitSize} />
@@ -268,15 +318,17 @@ export function LibraryDetailModal({
               <LibraryStageNav language={language} onPrevious={() => step(-1)} onNext={() => step(1)} />
             ) : null}
           </div>
-          <LibraryDetailMetaPanel
-            language={language}
-            image={image}
-            busy={busy}
-            revealFile={revealFile}
-            setImageTags={setImageTags}
-            onFetchTags={onFetchTags}
-            onClose={onClose}
-          />
+          {detailsOpen ? (
+            <LibraryDetailMetaPanel
+              language={language}
+              image={image}
+              busy={busy}
+              revealFile={revealFile}
+              setImageTags={setImageTags}
+              onFetchTags={onFetchTags}
+              onClose={onClose}
+            />
+          ) : null}
         </div>
       </div>
     </ModalOverlay>

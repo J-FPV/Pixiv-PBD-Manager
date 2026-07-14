@@ -14,5 +14,7 @@ build/
 .claude/
 desktop/node_modules/
 desktop/dist/
+desktop/playwright-report/
+desktop/test-results/
 desktop/src-tauri/target/
 desktop/src-tauri/binaries/

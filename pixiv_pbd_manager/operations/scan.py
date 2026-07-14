@@ -165,6 +165,7 @@ def _build_diff_changes(proposed: dict[str, dict], db: ArtistDatabase) -> list[d
                     "artist_id": artist_id,
                     "name": prop["name"],
                     "sources": list(prop["sources"]),
+                    "match_sources": list(prop["sources"]),
                     "roots": list(prop["roots"]),
                     "save_paths": list(prop["save_paths"]),
                     "work_ids": sorted(prop["work_ids"], key=lambda v: (len(v), v)),
@@ -180,6 +181,7 @@ def _build_diff_changes(proposed: dict[str, dict], db: ArtistDatabase) -> list[d
                     "artist_id": artist_id,
                     "old_name": existing.name or "",
                     "new_name": prop["name"],
+                    "match_sources": list(prop["sources"]),
                 }
             )
         existing_paths = set(existing.save_paths)
@@ -195,6 +197,7 @@ def _build_diff_changes(proposed: dict[str, dict], db: ArtistDatabase) -> list[d
                     "name": existing.name or "",
                     "existing": list(existing.save_paths),
                     "paths": added_paths,
+                    "match_sources": list(prop["sources"]),
                 }
             )
         existing_works = set(existing.work_ids)
@@ -208,6 +211,7 @@ def _build_diff_changes(proposed: dict[str, dict], db: ArtistDatabase) -> list[d
                     "name": existing.name or "",
                     "existing_count": len(existing.work_ids),
                     "work_ids": added_works,
+                    "match_sources": list(prop["sources"]),
                 }
             )
     return changes

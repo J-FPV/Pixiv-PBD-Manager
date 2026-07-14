@@ -41,7 +41,7 @@ Frontend/backend IPC uses JSON Lines. To avoid Windows console encoding issues, 
 Install:
 
 - Python 3.9 or newer
-- Node.js and npm
+- Node.js 20.19+ or 22.12+, plus npm
 - Rust and Cargo
 
 Initialize:
@@ -107,8 +107,18 @@ python -m pytest               # equivalent; pyproject sets -p no:cacheprovider
 python -m ruff check .         # ruff lint
 cd desktop; npm run lint       # frontend lint
 cd desktop; npm run build      # frontend type check + production build
+cd desktop; npm run test:e2e   # mock-backend GUI smoke (uses installed Chrome)
 cd desktop\src-tauri; cargo check
 ```
+
+To run the frontend without Pixiv, the Python sidecar, or a real library:
+
+```powershell
+cd desktop
+npm run dev:mock
+```
+
+Mock mode provides fixed artists, library images, scan preview, and similar-image data. It is enabled only in Vite development mode and is excluded from production installers.
 
 If you change GUI API commands, Tauri shell permissions, or frontend `runGuiApi(...)` calls, run at least:
 
@@ -192,12 +202,17 @@ desktop/src-tauri/target/release/bundle/
 
 If local WiX or NSIS packaging hangs, it does not necessarily mean Rust or frontend compilation failed. The CI Windows runner is the final source of truth for release installers.
 
+## CI Packaging Dry Run
+
+When you need test installers without publishing a version, manually run the `Package` workflow in GitHub Actions. It has read-only repository permission and uploads NSIS/MSI artifacts for 14 days; artifact names include the app version, short commit SHA, and run number.
+
 ## Cutting A Release
 
 `.github/workflows/release.yml` triggers on:
 
 - pushing a `v*` tag
-- manually running workflow_dispatch from the GitHub Actions UI for dry runs
+
+Use the `Package` workflow for installer dry runs. `Release` has no manual trigger, keeping test packages separate from published versions.
 
 Before releasing, keep versions in sync:
 

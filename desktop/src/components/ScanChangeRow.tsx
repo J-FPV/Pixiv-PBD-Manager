@@ -2,6 +2,43 @@ import { ExternalLink } from "lucide-react";
 import { t } from "../i18n";
 import type { Language, ScanChange } from "../types";
 
+type RecognitionReasonKey =
+  | "scanReasonFolderId"
+  | "scanReasonFilenameId"
+  | "scanReasonFolderName"
+  | "scanReasonKnownPath"
+  | "scanReasonExactName"
+  | "scanReasonKnownWork"
+  | "scanReasonOnlineWork"
+  | "scanReasonFuzzyName"
+  | "scanReasonPidFilename";
+
+const RECOGNITION_RULES: [RecognitionReasonKey, (source: string) => boolean][] = [
+  ["scanReasonFolderId", (source) => source.startsWith("folder:")],
+  ["scanReasonFilenameId", (source) => source.startsWith("filename:")],
+  ["scanReasonFolderName", (source) => source.includes("folder_name_only:")],
+  ["scanReasonPidFilename", (source) => source.includes("folder_pid")],
+  ["scanReasonKnownPath", (source) => source.includes("local_save_path")],
+  ["scanReasonExactName", (source) => source.includes("local_exact_name")],
+  ["scanReasonKnownWork", (source) => source.includes("local_work_id")],
+  ["scanReasonOnlineWork", (source) => source.includes("resolved_by_work:")],
+  ["scanReasonFuzzyName", (source) => source.includes("fuzzy_search:")]
+];
+
+function RecognitionReasons({ language, sources }: { language: Language; sources: string[] }) {
+  const normalized = sources.map((source) => source.toLowerCase());
+  const reasons = RECOGNITION_RULES.filter(([, matches]) => normalized.some(matches)).map(([key]) => key);
+  if (!reasons.length) {
+    return null;
+  }
+  return (
+    <div className="scanRecognitionReasons" title={sources.join("\n")}>
+      <span className="scanRecognitionLabel">{t(language, "scanRecognitionBasis")}</span>
+      {reasons.map((key) => <span key={key} className="scanRecognitionChip">{t(language, key)}</span>)}
+    </div>
+  );
+}
+
 // The kind-specific body of a scan-change row (name, paths, work counts).
 function ScanChangeDetail({ language, change }: { language: Language; change: ScanChange }) {
   if (change.kind === "new_artist") {
@@ -80,6 +117,7 @@ export function ScanChangeRow({
       <span className="scanChangeId">{change.artist_id}</span>
       <div className="scanChangeMain">
         <ScanChangeDetail language={language} change={change} />
+        <RecognitionReasons language={language} sources={change.match_sources || []} />
       </div>
       <button
         type="button"

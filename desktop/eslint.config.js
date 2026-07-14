@@ -11,6 +11,13 @@ export default tseslint.config(
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
+    files: ["playwright.config.ts", "e2e/**/*.ts"],
+    languageOptions: {
+      ecmaVersion: 2020,
+      globals: globals.node
+    }
+  },
+  {
     files: ["src/**/*.{ts,tsx}"],
     languageOptions: {
       ecmaVersion: 2020,

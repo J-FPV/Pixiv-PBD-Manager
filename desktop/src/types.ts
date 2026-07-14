@@ -26,6 +26,7 @@ export interface ScanChangeNewArtist {
   artist_id: string;
   name: string;
   sources: string[];
+  match_sources: string[];
   roots: string[];
   save_paths: string[];
   work_ids: string[];
@@ -37,6 +38,7 @@ export interface ScanChangeNameChange {
   artist_id: string;
   old_name: string;
   new_name: string;
+  match_sources: string[];
 }
 
 export interface ScanChangeAddSavePaths {
@@ -46,6 +48,7 @@ export interface ScanChangeAddSavePaths {
   name: string;
   existing: string[];
   paths: string[];
+  match_sources: string[];
 }
 
 export interface ScanChangeAddWorkIds {
@@ -55,6 +58,7 @@ export interface ScanChangeAddWorkIds {
   name: string;
   existing_count: number;
   work_ids: string[];
+  match_sources: string[];
 }
 
 export type ScanChange =

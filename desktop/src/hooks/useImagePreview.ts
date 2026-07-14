@@ -6,6 +6,7 @@ import { thumbnailCache, thumbnailCacheKey } from "../components/thumbnailCache"
 export type PreviewMode = "single" | "side" | "slider" | "difference";
 
 const PREVIEW_MAX = 1200;
+const previewRequests = new Map<string, Promise<ImageThumbnailPayload>>();
 
 export interface ImagePreviewOptions {
   maxSize?: number;
@@ -30,6 +31,41 @@ function thumbnailRequest(targetPath: string, maxSize: number, targetWidth: numb
     ...(targetWidth ? { target_width: targetWidth } : {}),
     ...(maxPixels ? { max_pixels: maxPixels } : {})
   };
+}
+
+function loadThumbnail(
+  path: string,
+  cacheKey: string,
+  maxSize: number,
+  targetWidth: number,
+  maxPixels: number
+): Promise<ImageThumbnailPayload> {
+  const cached = thumbnailCache.get(cacheKey);
+  if (cached) {
+    return Promise.resolve(cached);
+  }
+  const pending = previewRequests.get(cacheKey);
+  if (pending) {
+    return pending;
+  }
+  const request = runGuiApi<ImageThumbnailPayload>(
+    "image.thumbnail",
+    thumbnailRequest(path, maxSize, targetWidth, maxPixels)
+  ).then((payload) => {
+    thumbnailCache.set(cacheKey, payload);
+    return payload;
+  }).finally(() => previewRequests.delete(cacheKey));
+  previewRequests.set(cacheKey, request);
+  return request;
+}
+
+export function prefetchImagePreview(path: string, options: ImagePreviewOptions = {}): void {
+  const maxSize = options.maxSize ?? PREVIEW_MAX;
+  const targetWidth = options.targetWidth ?? 0;
+  const maxPixels = options.maxPixels ?? 0;
+  const cacheVariant = options.cacheVariant || `preview-${maxSize}-${targetWidth}-${maxPixels}`;
+  const cacheKey = thumbnailCacheKey(path, cacheVariant);
+  void loadThumbnail(path, cacheKey, maxSize, targetWidth, maxPixels).catch(() => undefined);
 }
 
 export interface ImagePreviewState {
@@ -63,10 +99,9 @@ export function useImagePreview(
     let cancelled = false;
     setError("");
     setImage(thumbnailCache.get(imageCacheKey) || null);
-    void runGuiApi<ImageThumbnailPayload>("image.thumbnail", thumbnailRequest(path, maxSize, targetWidth, maxPixels))
+    void loadThumbnail(path, imageCacheKey, maxSize, targetWidth, maxPixels)
       .then((payload) => {
         if (!cancelled) {
-          thumbnailCache.set(imageCacheKey, payload);
           setImage(payload);
         }
       })
@@ -89,13 +124,9 @@ export function useImagePreview(
       };
     }
     setCompareImage(thumbnailCache.get(compareCacheKey) || null);
-    void runGuiApi<ImageThumbnailPayload>(
-      "image.thumbnail",
-      thumbnailRequest(comparePath, maxSize, targetWidth, maxPixels)
-    )
+    void loadThumbnail(comparePath, compareCacheKey, maxSize, targetWidth, maxPixels)
       .then((payload) => {
         if (!cancelled) {
-          thumbnailCache.set(compareCacheKey, payload);
           setCompareImage(payload);
         }
       })

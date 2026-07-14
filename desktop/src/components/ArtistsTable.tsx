@@ -175,13 +175,21 @@ export function ArtistsTable({
             const artist = visibleArtists[row.index];
             const checked = selected.has(artist.id);
             return (
-              <button
+              <div
                 className={`tableRow artistRow ${checked ? "checked" : ""}`}
                 key={artist.id}
                 style={{ transform: `translateY(${row.start}px)` }}
+                role="button"
+                tabIndex={0}
                 draggable
                 onDragStart={(event) => startArtistDrag(event, artist.id, selected)}
                 onClick={() => toggleArtist(artist.id)}
+                onKeyDown={(event) => {
+                  if (event.target === event.currentTarget && (event.key === "Enter" || event.key === " ")) {
+                    event.preventDefault();
+                    toggleArtist(artist.id);
+                  }
+                }}
                 onDoubleClick={() => openArtist(artist.id)}
                 onContextMenu={(event) => openMenu(event, artist.id)}
               >
@@ -207,7 +215,7 @@ export function ArtistsTable({
                 <span className="centerNumeric" title={artist.last_checked ?? ""}>
                   {formatRelativeTime(language, artist.last_checked, now)}
                 </span>
-              </button>
+              </div>
             );
           })}
         </div>

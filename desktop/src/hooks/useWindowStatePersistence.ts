@@ -16,6 +16,9 @@ import { finiteNumber } from "../utils/format";
 // rather than restoring an off-screen position.
 export function useWindowStatePersistence(): void {
   useEffect(() => {
+    if (import.meta.env.DEV && import.meta.env.VITE_GUI_API_MODE === "mock") {
+      return undefined;
+    }
     const appWindow = getCurrentWindow();
     const saved = loadJson<SavedWindowState | null>(WINDOW_STATE_KEY, null);
     let disposed = false;

@@ -26,6 +26,22 @@ from pixiv_pbd_manager.resolver import (
 
 
 class GuiBackendTests(unittest.TestCase):
+    def test_scan_preview_includes_human_explainable_match_sources(self):
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp) / "downloads"
+            image = root / "Preview Artist-555666" / "12345678-title.jpg"
+            image.parent.mkdir(parents=True)
+            image.write_bytes(b"")
+            db_path = Path(tmp) / "artists.json"
+
+            result = preview_scan_changes([root], db_path)
+
+            self.assertEqual(len(result.changes), 1)
+            change = result.changes[0]
+            self.assertEqual(change["kind"], "new_artist")
+            self.assertEqual(change["match_sources"], change["sources"])
+            self.assertTrue(change["match_sources"][0].startswith("folder:"))
+
     def test_scan_into_database_persists_artist(self):
         with TemporaryDirectory() as tmp:
             root = Path(tmp) / "downloads"
