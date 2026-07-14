@@ -1,29 +1,37 @@
 import { useEffect, useState } from "react";
-import { ExternalLink, RotateCcw } from "lucide-react";
+import { ExternalLink, GitCommitHorizontal, History, RefreshCw, RotateCcw } from "lucide-react";
 import { getVersion } from "@tauri-apps/api/app";
 import { t } from "../../i18n";
-import type { AppSettings, Language, ThemeMode } from "../../types";
+import type { AppSettings, Language, ReleaseInfo, ThemeMode } from "../../types";
 import { BrowseButton, LocationButton } from "./controls";
 import type { SettingsUpdate } from "./types";
 
 const RELEASES_URL = "https://github.com/J-FPV/Pixiv-PBD-Manager/releases";
+const BUILDS_URL = "https://github.com/J-FPV/Pixiv-PBD-Manager/actions/workflows/package.yml";
 
 // Version card plus the two reset actions that sit at the bottom of the General
 // tab. Owns its own version fetch since nothing above it needs the value.
 function GeneralAbout({
   language,
   openReleasePage,
+  openExternalPage,
+  checkLatestRelease,
   resetWindowLayout,
   resetSettings,
   busy
 }: {
   language: Language;
   openReleasePage: () => void;
+  openExternalPage: (url: string) => void;
+  checkLatestRelease: (currentVersion: string) => Promise<ReleaseInfo | null>;
   resetWindowLayout: () => void;
   resetSettings: () => void;
   busy: boolean;
 }) {
   const [appVersion, setAppVersion] = useState("");
+  const [release, setRelease] = useState<ReleaseInfo | null>(null);
+  const [checking, setChecking] = useState(false);
+  const commit = (import.meta.env.VITE_BUILD_COMMIT || "").slice(0, 8);
 
   useEffect(() => {
     let mounted = true;
@@ -43,18 +51,53 @@ function GeneralAbout({
     };
   }, []);
 
+  const checkUpdates = async () => {
+    if (!appVersion || checking) return;
+    setChecking(true);
+    try {
+      setRelease(await checkLatestRelease(appVersion));
+    } finally {
+      setChecking(false);
+    }
+  };
+
   return (
     <>
       <div className="versionCard">
         <div className="versionCardText">
           <span className="versionLabel">{t(language, "softwareVersion")}</span>
           <strong>{appVersion ? `v${appVersion}` : "..."}</strong>
+          <span className="buildCommit">
+            <GitCommitHorizontal size={14} />
+            {t(language, "buildCommit")}: {commit || t(language, "developmentBuild")}
+          </span>
           <p>{t(language, "releasePageHint")}</p>
+          {release ? (
+            <p className={release.update_available ? "updateAvailable" : "upToDate"}>
+              {release.update_available ? t(language, "updateAvailable") : t(language, "upToDate")}: {release.tag}
+            </p>
+          ) : null}
         </div>
-        <button type="button" className="button" onClick={openReleasePage} title={RELEASES_URL}>
-          <ExternalLink size={16} />
-          {t(language, "releasePage")}
-        </button>
+        <div className="versionCardActions">
+          <button type="button" className="button" onClick={() => void checkUpdates()} disabled={checking || !appVersion}>
+            <RefreshCw size={16} className={checking ? "spin" : undefined} />
+            {t(language, checking ? "checkingUpdates" : "checkForUpdates")}
+          </button>
+          <button type="button" className="button" onClick={openReleasePage} title={RELEASES_URL}>
+            <ExternalLink size={16} />
+            {t(language, "releasePage")}
+          </button>
+          {release ? (
+            <button type="button" className="button" onClick={() => openExternalPage(release.url)}>
+              <History size={16} />
+              {t(language, "changelog")}
+            </button>
+          ) : null}
+          <button type="button" className="button" onClick={() => openExternalPage(BUILDS_URL)} title={BUILDS_URL}>
+            <ExternalLink size={16} />
+            {t(language, "buildsPage")}
+          </button>
+        </div>
       </div>
       <div className="settingsActions resetSettingsAction">
         <div>
@@ -90,6 +133,8 @@ export function GeneralSection({
   setProjectRootValue,
   setPythonCommandValue,
   openReleasePage,
+  openExternalPage,
+  checkLatestRelease,
   openPath,
   resetWindowLayout,
   resetSettings,
@@ -104,6 +149,8 @@ export function GeneralSection({
   setProjectRootValue: (value: string) => void;
   setPythonCommandValue: (value: string) => void;
   openReleasePage: () => void;
+  openExternalPage: (url: string) => void;
+  checkLatestRelease: (currentVersion: string) => Promise<ReleaseInfo | null>;
   openPath: (path: string) => void;
   resetWindowLayout: () => void;
   resetSettings: () => void;
@@ -185,6 +232,8 @@ export function GeneralSection({
       <GeneralAbout
         language={language}
         openReleasePage={openReleasePage}
+        openExternalPage={openExternalPage}
+        checkLatestRelease={checkLatestRelease}
         resetWindowLayout={resetWindowLayout}
         resetSettings={resetSettings}
         busy={busy}

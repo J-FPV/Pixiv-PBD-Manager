@@ -11,11 +11,15 @@ export function LibraryTab({ state: s, actions }: { state: AppState; actions: Li
       images={s.libraryImages}
       loaded={s.libraryLoaded}
       needsScan={s.libraryNeedsScan}
-      busy={s.libraryBusy}
+      indexStatus={s.libraryIndexStatus}
+      busy={s.libraryBusy || s.indexBusy}
+      doctor={s.libraryDoctor}
+      doctorBusy={s.libraryDoctorBusy}
       selectedPath={s.librarySelectedPath}
       setSelectedPath={s.setLibrarySelectedPath}
       loadLibrary={actions.loadLibrary}
       scanLibrary={actions.scanLibrary}
+      runDoctor={() => void actions.runDoctor()}
       setImageTags={actions.setImageTags}
       fetchTags={actions.fetchTags}
       revealFile={s.revealFile}

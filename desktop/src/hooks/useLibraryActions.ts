@@ -1,7 +1,10 @@
 import { runGuiApi } from "../api";
 import { t } from "../i18n";
 import type {
+  AppSettings,
+  DoctorReport,
   LibraryFetchTagsResult,
+  LibraryIndexStatus,
   LibraryListPayload,
   LibraryScanSummary,
   LibrarySetTagsPayload
@@ -11,6 +14,8 @@ import type { AppState } from "./useAppState";
 export interface LibraryActions {
   loadLibrary: () => Promise<void>;
   scanLibrary: () => void;
+  refreshIndexIfStale: (settings: AppSettings) => Promise<void>;
+  runDoctor: () => Promise<void>;
   setImageTags: (path: string, tags: string[]) => Promise<void>;
   fetchTags: (paths: string[]) => void;
 }
@@ -22,20 +27,52 @@ export function useLibraryActions(s: AppState): LibraryActions {
     const payload = await runGuiApi<LibraryListPayload>("library.list", {}, s.handleEvent);
     s.setLibraryImages(payload.images);
     s.setLibraryNeedsScan(payload.needs_scan);
+    s.setLibraryIndexStatus(payload.index_status);
     s.setLibraryLoaded(true);
   };
 
-  const scanLibrary = () =>
-    s.runTask("library", t(s.language, "scanLibrary"), async (signal, registerControls) => {
+  const scanCatalog = (settings: AppSettings, label: string, reload: boolean) =>
+    s.runTask("index", label, async (signal, registerControls) => {
       const summary = await runGuiApi<LibraryScanSummary>(
         "library.scan",
-        {},
+        settings,
         s.handleEvent,
         { signal, onStart: registerControls }
       );
       s.appendLog("info", `Library: ${summary.indexed} image(s), ${summary.reused} reused, ${summary.errors} errors`);
-      await loadLibrary();
+      s.setLibraryNeedsScan(summary.needs_scan);
+      s.setLibraryIndexStatus(summary.index_status);
+      if (reload || s.libraryLoadedRef.current) {
+        await loadLibrary();
+      }
     });
+
+  const scanLibrary = () => void scanCatalog(s.settings, t(s.language, "scanLibrary"), true);
+
+  const refreshIndexIfStale = async (settings: AppSettings) => {
+    try {
+      const status = await runGuiApi<LibraryIndexStatus>("library.status", settings, s.handleEvent);
+      s.setLibraryIndexStatus(status);
+      if (!status.stale || !settings.download_roots?.length) {
+        return;
+      }
+      await scanCatalog(settings, t(s.language, "updateLibraryIndex"), false);
+    } catch (reason) {
+      s.appendLog("error", reason instanceof Error ? reason.message : String(reason));
+    }
+  };
+
+  const runDoctor = async () => {
+    s.setLibraryDoctorBusy(true);
+    try {
+      const report = await runGuiApi<DoctorReport>("doctor.run", s.settings, s.handleEvent);
+      s.setLibraryDoctor(report);
+    } catch (reason) {
+      s.appendLog("error", reason instanceof Error ? reason.message : String(reason));
+    } finally {
+      s.setLibraryDoctorBusy(false);
+    }
+  };
 
   const setImageTags = async (path: string, tags: string[]) => {
     const cleaned = Array.from(new Set(tags.map((tag) => tag.trim()).filter(Boolean))).sort();
@@ -74,5 +111,5 @@ export function useLibraryActions(s: AppState): LibraryActions {
       }
     });
 
-  return { loadLibrary, scanLibrary, setImageTags, fetchTags };
+  return { loadLibrary, scanLibrary, refreshIndexIfStale, runDoctor, setImageTags, fetchTags };
 }

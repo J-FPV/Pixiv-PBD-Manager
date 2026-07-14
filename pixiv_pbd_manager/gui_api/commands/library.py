@@ -18,9 +18,11 @@ from ...library import (
     build_catalog,
     build_pid_to_artist,
     build_save_path_index,
+    library_index_status,
     load_library_index,
     resolve_folder_artist,
     save_library_index,
+    save_library_index_metadata,
 )
 from ...paths import DEFAULT_LIBRARY_INDEX
 from ..payload import as_bool, as_float, base_dir, db_path, paths, resolve_path
@@ -33,10 +35,24 @@ def _index_path(payload: JsonDict) -> Path:
     return resolve_path(payload.get("library_index") or DEFAULT_LIBRARY_INDEX, base_dir(payload))
 
 
+def _scan_paths(payload: JsonDict, settings: JsonDict) -> tuple[list[Path], list[Path]]:
+    base = base_dir(payload)
+    roots = paths(payload.get("roots") or payload.get("download_roots") or settings.get("download_roots"), base)
+    excludes = paths(payload.get("exclude_roots") or settings.get("exclude_roots"), base)
+    return roots, excludes
+
+
+def index_status(payload: JsonDict, _emit_event: Emitter) -> JsonDict:
+    settings = load_settings_for_payload(payload)
+    roots, exclude_roots = _scan_paths(payload, settings)
+    return library_index_status(_index_path(payload), roots, exclude_roots)
+
+
 def list_images(payload: JsonDict, _emit_event: Emitter) -> JsonDict:
     settings = load_settings_for_payload(payload)
     db = ArtistDatabase.load(db_path(payload, settings))
-    catalog = load_library_index(_index_path(payload))
+    index_path = _index_path(payload)
+    catalog = load_library_index(index_path)
     images = sorted(catalog.values(), key=lambda image: image.mtime_ns, reverse=True)
 
     # Attribute each image to an artist live: the folder it lives under wins (so
@@ -57,14 +73,18 @@ def list_images(payload: JsonDict, _emit_event: Emitter) -> JsonDict:
         return db.artists.get(artist_id) if artist_id else None
 
     rows = [library_image_to_json(image, artist_for(image)) for image in images]
-    return {"images": rows, "needs_scan": not catalog, "db_path": str(db.path)}
+    roots, exclude_roots = _scan_paths(payload, settings)
+    return {
+        "images": rows,
+        "needs_scan": not catalog,
+        "index_status": library_index_status(index_path, roots, exclude_roots),
+        "db_path": str(db.path),
+    }
 
 
 def scan(payload: JsonDict, emit_event: Emitter) -> JsonDict:
     settings = load_settings_for_payload(payload)
-    base = base_dir(payload)
-    roots = paths(payload.get("roots") or settings.get("download_roots"), base)
-    exclude_roots = paths(payload.get("exclude_roots") or settings.get("exclude_roots"), base)
+    roots, exclude_roots = _scan_paths(payload, settings)
     index_path = _index_path(payload)
     db = ArtistDatabase.load(db_path(payload, settings))
     images, summary = build_catalog(
@@ -76,6 +96,7 @@ def scan(payload: JsonDict, emit_event: Emitter) -> JsonDict:
         progress_callback=make_progress_callback(emit_event),
     )
     save_library_index(images, index_path)
+    save_library_index_metadata(index_path, roots, exclude_roots, entry_count=len(images))
     return {
         "files_seen": summary.files_seen,
         "indexed": summary.indexed,
@@ -84,6 +105,7 @@ def scan(payload: JsonDict, emit_event: Emitter) -> JsonDict:
         "errors": summary.error_count,
         "error_examples": list(summary.errors[:20]),
         "needs_scan": not images,
+        "index_status": library_index_status(index_path, roots, exclude_roots),
     }
 
 

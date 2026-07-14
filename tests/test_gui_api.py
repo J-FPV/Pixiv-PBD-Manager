@@ -874,6 +874,30 @@ class GuiApiTests(unittest.TestCase):
             finally:
                 os.chdir(old_cwd)
 
+    def test_library_status_and_doctor_commands_return_results(self):
+        with TemporaryDirectory() as tmp:
+            root = _isolate(tmp)
+            library = root / "library"
+            library.mkdir()
+            old_cwd = Path.cwd()
+            try:
+                os.chdir(root)
+                status_code, status_events = invoke(
+                    "library.status",
+                    {"download_roots": [str(library)]},
+                )
+                doctor_code, doctor_events = invoke(
+                    "doctor.run",
+                    {"download_roots": [str(library)]},
+                )
+            finally:
+                os.chdir(old_cwd)
+
+        self.assertEqual(status_code, 0)
+        self.assertTrue(status_events[-1]["payload"]["stale"])
+        self.assertEqual(doctor_code, 0)
+        self.assertEqual(len(doctor_events[-1]["payload"]["checks"]), 6)
+
     def test_updates_download_passes_download_concurrency(self):
         with TemporaryDirectory() as tmp:
             root = _isolate(tmp)

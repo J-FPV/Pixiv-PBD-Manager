@@ -2,7 +2,7 @@ import { useState } from "react";
 import type { ReactNode } from "react";
 import { Folder, Globe, Key, Search, SlidersHorizontal } from "lucide-react";
 import { t } from "../i18n";
-import type { AppSettings, Language } from "../types";
+import type { AppSettings, Language, ReleaseInfo } from "../types";
 import { BrowserSection } from "./settings/BrowserSection";
 import { CookieSection } from "./settings/CookieSection";
 import { FoldersSection } from "./settings/FoldersSection";
@@ -26,6 +26,8 @@ export function SettingsView({
   setProjectRootValue,
   setPythonCommandValue,
   openReleasePage,
+  openExternalPage,
+  checkLatestRelease,
   openPath,
   resetWindowLayout,
   resetSettings,
@@ -46,6 +48,8 @@ export function SettingsView({
   setProjectRootValue: (value: string) => void;
   setPythonCommandValue: (value: string) => void;
   openReleasePage: () => void;
+  openExternalPage: (url: string) => void;
+  checkLatestRelease: (currentVersion: string) => Promise<ReleaseInfo | null>;
   openPath: (path: string) => void;
   resetWindowLayout: () => void;
   resetSettings: () => void;
@@ -93,6 +97,8 @@ export function SettingsView({
               setProjectRootValue={setProjectRootValue}
               setPythonCommandValue={setPythonCommandValue}
               openReleasePage={openReleasePage}
+              openExternalPage={openExternalPage}
+              checkLatestRelease={checkLatestRelease}
               openPath={openPath}
               resetWindowLayout={resetWindowLayout}
               resetSettings={resetSettings}

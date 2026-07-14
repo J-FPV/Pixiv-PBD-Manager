@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 import os
+import time
 import warnings
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -23,6 +24,9 @@ from ..paths import DEFAULT_LIBRARY_INDEX, write_json_atomic
 from ..scanner import parse_pixiv_work_reference
 from ..similar._shared import ProgressCallback, emit
 from ..similar.filewalk import iter_image_files
+
+
+LIBRARY_INDEX_MAX_AGE_SECONDS = 6 * 60 * 60
 
 
 def _pillow():
@@ -299,3 +303,112 @@ def save_library_index(images: Any, path: Path = DEFAULT_LIBRARY_INDEX) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     ordered = sorted(images, key=lambda image: image.path.lower())
     write_json_atomic(path, {"version": 1, "entries": {image.path: image.to_json() for image in ordered}})
+
+
+def library_index_metadata_path(path: Path = DEFAULT_LIBRARY_INDEX) -> Path:
+    return path.with_name(f"{path.stem}.meta{path.suffix}")
+
+
+def _normalized_roots(values: list[Path]) -> list[str]:
+    normalized: list[str] = []
+    for value in values:
+        try:
+            normalized.append(os.path.normcase(str(value.expanduser().resolve())))
+        except OSError:
+            normalized.append(os.path.normcase(str(value.expanduser())))
+    return sorted(set(normalized))
+
+
+def _root_mtimes(values: list[Path], *, metadata_path: Path | None = None) -> dict[str, int]:
+    mtimes: dict[str, int] = {}
+    for value in values:
+        try:
+            resolved = value.expanduser().resolve()
+            if metadata_path is not None and metadata_path.expanduser().resolve().is_relative_to(resolved):
+                # Writing the metadata would change this root's mtime and make
+                # the index immediately stale forever. Age still refreshes it.
+                continue
+            mtimes[os.path.normcase(str(resolved))] = resolved.stat().st_mtime_ns
+        except OSError:
+            continue
+    return mtimes
+
+
+def save_library_index_metadata(
+    index_path: Path,
+    roots: list[Path],
+    exclude_roots: list[Path],
+    *,
+    entry_count: int,
+    timestamp: float | None = None,
+) -> None:
+    built_at = time.time() if timestamp is None else timestamp
+    write_json_atomic(
+        library_index_metadata_path(index_path),
+        {
+            "version": 1,
+            "built_at": built_at,
+            "roots": _normalized_roots(roots),
+            "exclude_roots": _normalized_roots(exclude_roots),
+            "root_mtimes": _root_mtimes(roots, metadata_path=library_index_metadata_path(index_path)),
+            "entry_count": int(entry_count),
+        },
+    )
+
+
+def library_index_status(
+    index_path: Path,
+    roots: list[Path],
+    exclude_roots: list[Path],
+    *,
+    max_age_seconds: int = LIBRARY_INDEX_MAX_AGE_SECONDS,
+    now: float | None = None,
+) -> dict[str, Any]:
+    """Return a cheap freshness check without loading the full image catalog."""
+    metadata_path = library_index_metadata_path(index_path)
+    current_time = time.time() if now is None else now
+    reasons: list[str] = []
+    metadata: dict[str, Any] = {}
+    if metadata_path.exists():
+        try:
+            loaded = json.loads(metadata_path.read_text(encoding="utf-8"))
+            if isinstance(loaded, dict):
+                metadata = loaded
+        except (OSError, json.JSONDecodeError):
+            reasons.append("metadata_invalid")
+
+    if not roots:
+        return {
+            "index_exists": index_path.exists(),
+            "metadata_path": str(metadata_path),
+            "stale": False,
+            "reasons": ["no_roots"],
+            "updated_at": None,
+            "age_seconds": 0,
+            "entry_count": int(metadata.get("entry_count") or 0),
+        }
+    if not index_path.exists():
+        reasons.append("index_missing")
+    if not metadata:
+        reasons.append("metadata_missing")
+
+    built_at = float(metadata.get("built_at") or 0)
+    age_seconds = max(0, int(current_time - built_at)) if built_at else 0
+    if built_at and age_seconds > max_age_seconds:
+        reasons.append("age")
+    if metadata and metadata.get("roots") != _normalized_roots(roots):
+        reasons.append("roots_changed")
+    if metadata and metadata.get("exclude_roots") != _normalized_roots(exclude_roots):
+        reasons.append("excludes_changed")
+    if metadata and metadata.get("root_mtimes") != _root_mtimes(roots, metadata_path=metadata_path):
+        reasons.append("root_changed")
+
+    return {
+        "index_exists": index_path.exists(),
+        "metadata_path": str(metadata_path),
+        "stale": bool(reasons),
+        "reasons": sorted(set(reasons)),
+        "updated_at": built_at or None,
+        "age_seconds": age_seconds,
+        "entry_count": int(metadata.get("entry_count") or 0),
+    }

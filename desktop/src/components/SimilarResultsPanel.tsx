@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { Archive } from "lucide-react";
 import { t } from "../i18n";
 import { useCleanupSelection } from "../hooks/useCleanupSelection";
@@ -12,6 +13,74 @@ import { formatBytes } from "../utils/format";
 import { Button } from "./Button";
 import { SimilarTable } from "./SimilarTable";
 import { SimilarToolbar } from "./SimilarToolbar";
+
+function SimilarKindStats({ language, result }: { language: Language; result: SimilarResult }) {
+  const stats = useMemo(
+    () =>
+      (["exact", "likely", "possible"] as const).map((kind) => {
+        const groups = result.groups.filter((group) => group.kind === kind);
+        return {
+          kind,
+          groups: groups.length,
+          bytes: groups.reduce((total, group) => total + (group.estimated_reclaim_bytes || 0), 0)
+        };
+      }),
+    [result]
+  );
+  return (
+    <div className="similarKindStats">
+      {stats.map((stat) => (
+        <span className={stat.kind} key={stat.kind}>
+          <strong>{t(language, stat.kind === "exact" ? "exact" : stat.kind)}</strong>
+          {stat.groups} {t(language, "groupsLabel")} · {formatBytes(stat.bytes)}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function CleanupActionBar({
+  language,
+  busy,
+  ignoredSize,
+  selection,
+  quarantineEntries
+}: {
+  language: Language;
+  busy: boolean;
+  ignoredSize: number;
+  selection: ReturnType<typeof useCleanupSelection>;
+  quarantineEntries: (entries: SimilarEntry[]) => void;
+}) {
+  const hasSelection = selection.selectedEntries.length > 0;
+  return (
+    <div className="cleanupActionBar">
+      <label className="checkLine compactCheck">
+        <input type="checkbox" checked={selection.showIgnored} onChange={(event) => selection.setShowIgnored(event.target.checked)} />
+        <span>{t(language, "showIgnored")} ({ignoredSize})</span>
+      </label>
+      <Button
+        className={hasSelection ? "favToggle active" : "favToggle"}
+        disabled={busy || (!hasSelection && !selection.recommendedCount)}
+        onClick={() => hasSelection ? selection.clearSelection() : selection.selectAllRecommended()}
+      >
+        {t(language, hasSelection ? "clearSelection" : "selectRecommended")}
+      </Button>
+      <span className="summary">
+        {t(language, "selectedFiles")}: {selection.selectedEntries.length} / {t(language, "estimatedSpace")}: {" "}
+        {formatBytes(selection.selectedBytes)}
+      </span>
+      <Button
+        icon={<Archive size={16} />}
+        variant="primary"
+        disabled={busy || !hasSelection}
+        onClick={() => quarantineEntries(selection.selectedEntries)}
+      >
+        {t(language, "cleanupSelected")}
+      </Button>
+    </div>
+  );
+}
 
 export function SimilarResultsPanel({
   language,
@@ -84,37 +153,14 @@ export function SimilarResultsPanel({
         findSimilar={findSimilar}
         result={result}
       />
-      <div className="cleanupActionBar">
-        <label className="checkLine compactCheck">
-          <input
-            type="checkbox"
-            checked={selection.showIgnored}
-            onChange={(event) => selection.setShowIgnored(event.target.checked)}
-          />
-          <span>{t(language, "showIgnored")} ({ignored.size})</span>
-        </label>
-        <Button
-          className={selection.selectedEntries.length ? "favToggle active" : "favToggle"}
-          disabled={busy || (!selection.selectedEntries.length && !selection.recommendedCount)}
-          onClick={() =>
-            selection.selectedEntries.length ? selection.clearSelection() : selection.selectAllRecommended()
-          }
-        >
-          {t(language, selection.selectedEntries.length ? "clearSelection" : "selectRecommended")}
-        </Button>
-        <span className="summary">
-          {t(language, "selectedFiles")}: {selection.selectedEntries.length} / {t(language, "estimatedSpace")}:{" "}
-          {formatBytes(selection.selectedBytes)}
-        </span>
-        <Button
-          icon={<Archive size={16} />}
-          variant="primary"
-          disabled={busy || !selection.selectedEntries.length}
-          onClick={() => quarantineEntries(selection.selectedEntries)}
-        >
-          {t(language, "cleanupSelected")}
-        </Button>
-      </div>
+      {result ? <SimilarKindStats language={language} result={result} /> : null}
+      <CleanupActionBar
+        language={language}
+        busy={busy}
+        ignoredSize={ignored.size}
+        selection={selection}
+        quarantineEntries={quarantineEntries}
+      />
       <SimilarTable
         language={language}
         result={selection.visibleResult}

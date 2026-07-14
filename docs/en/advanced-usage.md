@@ -151,6 +151,14 @@ The app never moves or deletes images automatically. After you click Clean selec
 
 Ignored groups and cleanup history are stored in `.pixiv-pbd-manager/cleanup_state.json`, separate from `artists.json`, and Reset all settings does not remove them. Every quarantine operation also creates its own task folder with a UTF-8 `manifest.json`. Quarantined files never expire automatically; permanent deletion is only available manually in Quarantine and requires a second confirmation.
 
+Cleanup confirmation lists the keep set separately from the quarantine set. Results summarize group counts and reclaimable space for Exact / Highly similar / Possibly similar matches, and each group explains its recommendation rule. Quarantine records can open their task folder directly, while failed items keep their error reason for troubleshooting.
+
+## Library Index And Doctor
+
+The catalog is stored in `.pixiv-pbd-manager/library_index.json`; `library_index.meta.json` stores scan time, scan/exclude folders, and root-folder timestamps. If the index is older than six hours, folder settings change, or a root changes, the desktop app starts an independent incremental refresh. Unchanged dimensions and tags are reused. Its task lane does not block artist update checks or similar-image scans.
+
+Library Doctor is a read-only diagnostic for database readability, missing or overlapping artist save paths, browser profiles placed inside the library, quarantine safety/writability, and index freshness. It never creates, moves, or deletes images.
+
 ## Pixiv Cookie And Privacy Risks
 
 Restricted or login-only artworks may require a Pixiv session cookie, usually `PHPSESSID`. The account must also allow R-18 viewing in Pixiv settings.

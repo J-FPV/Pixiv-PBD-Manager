@@ -1,6 +1,6 @@
-import { PanelLeft, RefreshCw, Search, Tags, XCircle } from "lucide-react";
+import { PanelLeft, RefreshCw, Search, Stethoscope, Tags, XCircle } from "lucide-react";
 import { t } from "../../i18n";
-import type { Language } from "../../types";
+import type { Language, LibraryIndexStatus } from "../../types";
 import { Button } from "../Button";
 
 export function LibraryToolbar({
@@ -10,10 +10,12 @@ export function LibraryToolbar({
   count,
   busy,
   needsScan,
+  indexStatus,
   onScan,
   onFetchTags,
   fetchDisabled,
-  toggleSidebar
+  toggleSidebar,
+  onDoctor
 }: {
   language: Language;
   keyword: string;
@@ -21,10 +23,12 @@ export function LibraryToolbar({
   count: number;
   busy: boolean;
   needsScan: boolean;
+  indexStatus: LibraryIndexStatus | null;
   onScan: () => void;
   onFetchTags: () => void;
   fetchDisabled: boolean;
   toggleSidebar: () => void;
+  onDoctor: () => void;
 }) {
   return (
     <div className="toolbar libraryToolbar">
@@ -41,7 +45,15 @@ export function LibraryToolbar({
         ) : null}
       </div>
       <span className="libraryCount">{t(language, "libraryCount").replace("{count}", String(count))}</span>
+      {indexStatus ? (
+        <span className={`libraryIndexBadge ${indexStatus.stale ? "stale" : "fresh"}`}>
+          {t(language, indexStatus.stale ? "libraryIndexOutdated" : "libraryIndexCurrent")}
+        </span>
+      ) : null}
       <div className="toolbarSpacer" />
+      <Button icon={<Stethoscope size={15} />} onClick={onDoctor}>
+        {t(language, "libraryDoctor")}
+      </Button>
       <Button icon={<Tags size={15} />} onClick={onFetchTags} disabled={busy || fetchDisabled}>
         {t(language, "fetchPixivTags")}
       </Button>

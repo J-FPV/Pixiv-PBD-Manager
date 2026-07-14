@@ -10,7 +10,8 @@ import { settingsAutosaveSignature } from "./useSettingsAutosave";
 export function useAppBootstrap(
   s: AppState,
   applySettingsPayload: (payload: SettingsPayload) => AppSettings,
-  markAutosaveReady: (signature: string) => void
+  markAutosaveReady: (signature: string) => void,
+  refreshLibraryIndex: (settings: AppSettings) => Promise<void>
 ): void {
   const {
     handleEvent,
@@ -52,6 +53,7 @@ export function useAppBootstrap(
             pythonCommandValue
           )
         );
+        void refreshLibraryIndex(mergedSettings);
         appendLog("info", "Desktop GUI ready");
         setStatus(t(payload.settings.language || "zh", "ready"));
       } catch (error) {

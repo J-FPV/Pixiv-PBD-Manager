@@ -13,10 +13,12 @@ from pixiv_pbd_manager.library import (
     build_catalog,
     build_pid_to_artist,
     build_save_path_index,
+    library_index_status,
     load_library_index,
     parse_pixiv_name,
     read_image_size,
     save_library_index,
+    save_library_index_metadata,
 )
 
 
@@ -122,6 +124,34 @@ class CatalogBuildTests(unittest.TestCase):
         self.assertEqual(set(loaded), {images[0].path})
         self.assertEqual(loaded[images[0].path].tags, ["keep"])
         self.assertEqual(loaded[images[0].path].pid, "100949474")
+
+    def test_index_status_tracks_age_and_root_changes(self):
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            index_path = root / "library_index.json"
+            save_library_index([], index_path)
+            save_library_index_metadata(index_path, [root], [], entry_count=12, timestamp=1_000)
+
+            fresh = library_index_status(index_path, [root], [], now=1_100)
+            stale = library_index_status(index_path, [root], [], now=30_000)
+            changed = library_index_status(index_path, [root], [root / "excluded"], now=1_100)
+
+        self.assertFalse(fresh["stale"])
+        self.assertEqual(fresh["entry_count"], 12)
+        self.assertTrue(stale["stale"])
+        self.assertIn("age", stale["reasons"])
+        self.assertTrue(changed["stale"])
+        self.assertIn("excludes_changed", changed["reasons"])
+
+    def test_legacy_index_without_metadata_is_stale(self):
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            index_path = root / "library_index.json"
+            save_library_index([], index_path)
+            status = library_index_status(index_path, [root], [])
+
+        self.assertTrue(status["stale"])
+        self.assertIn("metadata_missing", status["reasons"])
 
 
 class PidToArtistTests(unittest.TestCase):

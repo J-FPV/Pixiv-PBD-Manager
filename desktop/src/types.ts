@@ -7,8 +7,8 @@ export type ThemeMode = "system" | "light" | "dark";
 // name-refresh …) mutates the artist DB and/or hits Pixiv, so its tasks stay
 // serialized among themselves; the similar lane is local image hashing writing
 // a separate index, so it can run in parallel with the library lane.
-export type TaskLane = "library" | "similar";
-export const TASK_LANES: TaskLane[] = ["library", "similar"];
+export type TaskLane = "library" | "similar" | "index";
+export const TASK_LANES: TaskLane[] = ["library", "similar", "index"];
 
 export const TAB_KEYS = ["artists", "unmatched", "similar", "library", "settings", "logs"] as const;
 export type TabKey = typeof TAB_KEYS[number];
@@ -484,7 +484,18 @@ export interface LibraryFacets {
 export interface LibraryListPayload {
   images: LibraryImage[];
   needs_scan: boolean;
+  index_status: LibraryIndexStatus;
   db_path: string;
+}
+
+export interface LibraryIndexStatus {
+  index_exists: boolean;
+  metadata_path: string;
+  stale: boolean;
+  reasons: string[];
+  updated_at: number | null;
+  age_seconds: number;
+  entry_count: number;
 }
 
 export interface LibraryScanSummary {
@@ -495,6 +506,36 @@ export interface LibraryScanSummary {
   errors: number;
   error_examples: string[];
   needs_scan: boolean;
+  index_status: LibraryIndexStatus;
+}
+
+export type DoctorStatus = "ok" | "warning" | "error";
+
+export interface DoctorCheck {
+  id: "database" | "save_paths" | "path_overlap" | "browser_data" | "quarantine" | "library_index";
+  status: DoctorStatus;
+  code: string;
+  path?: string;
+  paths?: string[];
+  detail?: string;
+  count?: number;
+  age_seconds?: number;
+  reasons?: string[];
+}
+
+export interface DoctorReport {
+  generated_at: string;
+  summary: { ok: number; warnings: number; errors: number };
+  checks: DoctorCheck[];
+}
+
+export interface ReleaseInfo {
+  tag: string;
+  name: string;
+  url: string;
+  published_at: string;
+  notes: string;
+  update_available: boolean;
 }
 
 export interface LibrarySetTagsPayload {

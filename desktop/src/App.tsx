@@ -20,7 +20,7 @@ export default function App() {
   const libraryActions = useLibraryActions(s);
   const { markAutosaveReady } = useSettingsAutosave(s);
 
-  useAppBootstrap(s, settingsActions.applySettingsPayload, markAutosaveReady);
+  useAppBootstrap(s, settingsActions.applySettingsPayload, markAutosaveReady, libraryActions.refreshIndexIfStale);
   useWindowStatePersistence();
   useUiStatePersistence(s);
 

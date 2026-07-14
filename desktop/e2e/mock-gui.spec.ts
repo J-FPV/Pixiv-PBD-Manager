@@ -26,6 +26,10 @@ test("mock backend covers the primary desktop flows", async ({ page }) => {
   await expect(page.locator(".libraryDetailMeta")).toHaveCount(0);
   await page.getByRole("button", { name: "显示详情" }).click();
   await page.getByRole("button", { name: "关闭" }).click();
+  await page.getByRole("button", { name: "图库体检", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "图库体检" })).toBeVisible();
+  await expect(page.getByText("数据库可读取，共 2 位艺术家。")).toBeVisible();
+  await page.getByRole("button", { name: "返回图库" }).click();
 
   await page.getByRole("button", { name: "艺术家" }).click();
   await page.getByRole("button", { name: "扫描", exact: true }).click();

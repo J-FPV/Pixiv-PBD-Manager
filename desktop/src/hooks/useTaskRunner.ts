@@ -50,9 +50,17 @@ export function useTaskRunner(
   language: Language,
   appendLog: (level: LogEntry["level"], message: string) => void
 ): TaskRunner {
-  const [lanes, setLanes] = useState<Record<TaskLane, LaneState>>({ library: IDLE_LANE, similar: IDLE_LANE });
+  const [lanes, setLanes] = useState<Record<TaskLane, LaneState>>({
+    library: IDLE_LANE,
+    similar: IDLE_LANE,
+    index: IDLE_LANE
+  });
   const [status, setStatus] = useState("Ready");
-  const controlsRef = useRef<Record<TaskLane, LaneControls | null>>({ library: null, similar: null });
+  const controlsRef = useRef<Record<TaskLane, LaneControls | null>>({
+    library: null,
+    similar: null,
+    index: null
+  });
   const runningCountRef = useRef(0);
 
   const patchLane = (lane: TaskLane, patch: Partial<LaneState>) =>

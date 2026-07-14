@@ -17,7 +17,17 @@ import {
   MOCK_SIMILAR_RESULT,
   mockImageDataUrl
 } from "./mockData";
-import type { ApiEvent, ImageThumbnailPayload, LibraryImage, SettingsPayload } from "./types";
+import type { ApiEvent, ImageThumbnailPayload, LibraryImage, LibraryIndexStatus, SettingsPayload } from "./types";
+
+const MOCK_INDEX_STATUS: LibraryIndexStatus = {
+  index_exists: true,
+  metadata_path: "C:\\Mock\\library_index.meta.json",
+  stale: false,
+  reasons: [],
+  updated_at: Date.now() / 1000,
+  age_seconds: 60,
+  entry_count: MOCK_LIBRARY_IMAGES.length
+};
 
 interface MockOptions {
   signal?: AbortSignal;
@@ -48,12 +58,29 @@ function mockCommand(commandName: string, payload: object, onEvent?: (event: Api
       return { artists: MOCK_ARTISTS, tags: ["reference", "background"], db_path: "C:\\Mock\\artists.json", project_root: "C:\\PixivPbdManager" };
     case "cleanup.list":
       return MOCK_CLEANUP;
+    case "library.status":
+      return MOCK_INDEX_STATUS;
     case "library.list":
-      return { images: MOCK_LIBRARY_IMAGES, needs_scan: false, db_path: "C:\\Mock\\library_index.json" };
+      return { images: MOCK_LIBRARY_IMAGES, needs_scan: false, index_status: MOCK_INDEX_STATUS, db_path: "C:\\Mock\\library_index.json" };
     case "library.scan":
       emitProgress(onEvent, PROGRESS_LIBRARY_START, { total_files: MOCK_LIBRARY_IMAGES.length });
       emitProgress(onEvent, PROGRESS_LIBRARY_DONE, { indexed: MOCK_LIBRARY_IMAGES.length });
-      return { files_seen: 4, indexed: 4, reused: 4, changed: 0, errors: 0, error_examples: [], needs_scan: false };
+      return { files_seen: 4, indexed: 4, reused: 4, changed: 0, errors: 0, error_examples: [], needs_scan: false, index_status: MOCK_INDEX_STATUS };
+    case "doctor.run":
+      return {
+        generated_at: new Date().toISOString(),
+        summary: { ok: 6, warnings: 0, errors: 0 },
+        checks: [
+          { id: "database", status: "ok", code: "database_ok", count: MOCK_ARTISTS.length, path: "C:\\Mock\\artists.json" },
+          { id: "save_paths", status: "ok", code: "save_paths_ok", count: 2, paths: [] },
+          { id: "path_overlap", status: "ok", code: "path_overlap_ok", count: 0, paths: [] },
+          { id: "browser_data", status: "ok", code: "browser_data_default" },
+          { id: "quarantine", status: "ok", code: "quarantine_ok", path: "C:\\Quarantine" },
+          { id: "library_index", status: "ok", code: "index_ok", count: 4, age_seconds: 60 }
+        ]
+      };
+    case "app.latest_release":
+      return { tag: "v0.1.8", name: "v0.1.8", url: "https://example.invalid/release", published_at: "", notes: "", update_available: false };
     case "library.set_tags":
       return { image: { ...imageForPath(String(values.path || "")), tags: (values.tags as string[]) || [] } };
     case "library.fetch_tags":

@@ -49,6 +49,8 @@ jobs:
 
       - name: Build Tauri installer
         working-directory: desktop
+        env:
+          VITE_BUILD_COMMIT: ${{ github.sha }}
         run: npm run tauri:build
 
       - name: Determine version and prerelease flag

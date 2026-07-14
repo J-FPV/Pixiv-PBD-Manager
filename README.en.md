@@ -101,8 +101,10 @@ The Image Library page browses every image in your download folders as a thumbna
 - **Filter**: a left collapsible sidebar filters by artist, folder, tag, format, orientation (portrait/landscape/square), resolution, and year, with a count on each option and multi-select. The top search box filters by filename/path/PID/artist.
 - **Tags**: tags come from both the artist's tags (inherited automatically) and per-image tags you add in the detail view.
 - **Detail**: click any thumbnail for the full image plus metadata (PID, source link, artist, dimensions, format, size, modified time, path); edit that image's tags, open its folder, or open the Pixiv source page.
+- **Background incremental index**: when the index is older than six hours, scan folders change, or a root folder changes, it refreshes in the background and reuses unchanged dimensions without blocking artist or similar-image work.
+- **Library Doctor**: use the toolbar action to check the database, missing save paths, overlapping ownership, unsafe browser profiles, quarantine writability, and index freshness. Checks are read-only.
 
-The catalog lives in `library_index.json` and never touches your local image files.
+The catalog lives in `library_index.json`; scan metadata is stored beside it in `library_index.meta.json`. Neither changes local image files.
 
 ## Similar Images
 
@@ -113,6 +115,7 @@ Notes:
 - Cleanup never runs automatically. Confirmed files are moved to your chosen quarantine folder.
 - Possibly similar groups are not preselected, and every group must keep at least one image.
 - The Quarantine view can restore files or permanently delete them. Permanent deletion requires another confirmation and never happens automatically.
+- Cleanup confirmation lists both the files kept and the files quarantined. Results summarize reclaimable space by match type, and each quarantine record can open its task folder.
 - You can ignore groups that are not duplicates. They reappear if a file in the group changes.
 - Different resolutions, light compression, and different image formats can still match.
 - You can skip comparisons between Pixiv split pages such as `{pid}_p0` and `{pid}_p1`.

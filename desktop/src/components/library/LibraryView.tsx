@@ -1,13 +1,14 @@
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { EMPTY_LIBRARY_FILTERS, LIBRARY_SIDEBAR_WIDTH_KEY } from "../../constants";
 import { t } from "../../i18n";
-import type { Language, LibraryFilters, LibraryImage } from "../../types";
+import type { DoctorReport, Language, LibraryFilters, LibraryImage, LibraryIndexStatus } from "../../types";
 import type { FacetDimension } from "../../utils/libraryFacets";
 import { useDebouncedValue } from "../../hooks/useDebouncedValue";
 import { useLibraryFilter } from "../../hooks/useLibraryFilter";
 import { useResizablePanel } from "../../hooks/useResizablePanel";
 import { Button } from "../Button";
 import { LibraryDetailModal } from "./LibraryDetailModal";
+import { LibraryDoctorView } from "./LibraryDoctorView";
 import { LibraryFilterSidebar } from "./LibraryFilterSidebar";
 import { LibraryGrid } from "./LibraryGrid";
 import { LibraryToolbar } from "./LibraryToolbar";
@@ -17,24 +18,57 @@ export interface LibraryViewProps {
   images: LibraryImage[];
   loaded: boolean;
   needsScan: boolean;
+  indexStatus: LibraryIndexStatus | null;
   busy: boolean;
+  doctor: DoctorReport | null;
+  doctorBusy: boolean;
   selectedPath: string | null;
   setSelectedPath: (path: string | null) => void;
   loadLibrary: () => Promise<void>;
   scanLibrary: () => void;
+  runDoctor: () => void;
   setImageTags: (path: string, tags: string[]) => void | Promise<void>;
   fetchTags: (paths: string[]) => void;
   revealFile: (path: string) => void;
 }
 
+function useDeferredLibraryFilters(filters: LibraryFilters): LibraryFilters {
+  const debouncedKeyword = useDebouncedValue(filters.keyword, 200);
+  const effectiveFilters = useMemo<LibraryFilters>(
+    () => ({
+      keyword: debouncedKeyword,
+      artists: filters.artists,
+      folders: filters.folders,
+      tags: filters.tags,
+      formats: filters.formats,
+      orientations: filters.orientations,
+      resolutions: filters.resolutions,
+      dates: filters.dates
+    }),
+    [
+      debouncedKeyword,
+      filters.artists,
+      filters.folders,
+      filters.tags,
+      filters.formats,
+      filters.orientations,
+      filters.resolutions,
+      filters.dates
+    ]
+  );
+  return useDeferredValue(effectiveFilters);
+}
+
 function LibraryEmptyState({
   language,
   busy,
-  onScan
+  onScan,
+  onDoctor
 }: {
   language: Language;
   busy: boolean;
   onScan: () => void;
+  onDoctor: () => void;
 }) {
   return (
     <section className="panel libraryPanel">
@@ -42,6 +76,7 @@ function LibraryEmptyState({
         <p>{t(language, "noLibraryYet")}</p>
         <p className="muted">{t(language, "noLibraryHint")}</p>
         <Button variant="primary" onClick={onScan} disabled={busy}>{t(language, "scanLibrary")}</Button>
+        <Button onClick={onDoctor}>{t(language, "libraryDoctor")}</Button>
       </div>
     </section>
   );
@@ -92,6 +127,7 @@ export function LibraryView(props: LibraryViewProps) {
   const { language, images, loaded, needsScan, busy, selectedPath, setSelectedPath, loadLibrary } = props;
   const [filters, setFilters] = useState<LibraryFilters>(EMPTY_LIBRARY_FILTERS);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [view, setView] = useState<"gallery" | "doctor">("gallery");
   const requested = useRef(false);
   const libraryBodyRef = useRef<HTMLDivElement>(null);
   const sidebar = useResizablePanel({
@@ -102,33 +138,8 @@ export function LibraryView(props: LibraryViewProps) {
     maxWidth: 520,
     reservedWidth: 300
   });
-  // Debounce only the keyword so typing doesn't refilter/facet 36k rows on every
-  // keystroke; the chip dimensions apply immediately. Identity stays stable while
-  // typing (deps are the individual array fields), so the heavy recompute waits.
-  const debouncedKeyword = useDebouncedValue(filters.keyword, 200);
-  const effectiveFilters = useMemo<LibraryFilters>(
-    () => ({
-      keyword: debouncedKeyword,
-      artists: filters.artists,
-      folders: filters.folders,
-      tags: filters.tags,
-      formats: filters.formats,
-      orientations: filters.orientations,
-      resolutions: filters.resolutions,
-      dates: filters.dates
-    }),
-    [
-      debouncedKeyword,
-      filters.artists,
-      filters.folders,
-      filters.tags,
-      filters.formats,
-      filters.orientations,
-      filters.resolutions,
-      filters.dates
-    ]
-  );
-  const deferredFilters = useDeferredValue(effectiveFilters);
+  // Keyword changes are deferred so large catalogs do not refilter per keypress.
+  const deferredFilters = useDeferredLibraryFilters(filters);
   const { visibleImages, facets } = useLibraryFilter(images, deferredFilters, language);
 
   useEffect(() => {
@@ -155,8 +166,26 @@ export function LibraryView(props: LibraryViewProps) {
     images.find((image) => image.path === selectedPath) ||
     null;
 
+  const openDoctor = () => {
+    setView("doctor");
+    if (!props.doctor) void props.runDoctor();
+  };
+
+  if (view === "doctor") {
+    return (
+      <LibraryDoctorView
+        language={language}
+        report={props.doctor}
+        busy={props.doctorBusy}
+        onBack={() => setView("gallery")}
+        onRun={props.runDoctor}
+        revealFile={props.revealFile}
+      />
+    );
+  }
+
   if (loaded && needsScan && !images.length) {
-    return <LibraryEmptyState language={language} busy={busy} onScan={props.scanLibrary} />;
+    return <LibraryEmptyState language={language} busy={busy} onScan={props.scanLibrary} onDoctor={openDoctor} />;
   }
 
   return (
@@ -168,10 +197,12 @@ export function LibraryView(props: LibraryViewProps) {
         count={visibleImages.length}
         busy={busy}
         needsScan={needsScan}
+        indexStatus={props.indexStatus}
         onScan={props.scanLibrary}
         onFetchTags={() => props.fetchTags(visibleImages.map((image) => image.path))}
         fetchDisabled={!visibleImages.length}
         toggleSidebar={() => setSidebarOpen((value) => !value)}
+        onDoctor={openDoctor}
       />
       <div className="libraryBody" ref={libraryBodyRef}>
         {sidebarOpen ? (

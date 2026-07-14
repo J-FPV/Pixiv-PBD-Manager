@@ -42,6 +42,14 @@ const zh = {
   cleanupError: "错误",
   cleanupCancelled: "已取消",
   cleanupOperation: "操作记录",
+  cleanupWillKeep: "本次保留",
+  cleanupWillQuarantine: "本次隔离",
+  cleanupFailed: "失败",
+  openTaskFolder: "打开任务目录",
+  groupsLabel: "组",
+  recommendationExact: "完全相同，建议保留分辨率/体积更优的一张",
+  recommendationLikely: "宽高比接近时，建议保留像素面积更大的一张",
+  recommendationPossible: "不自动推荐，需手动比较",
   previousPage: "上一页",
   nextPage: "下一页",
   itemsPerPage: "每页",
@@ -54,6 +62,15 @@ const zh = {
   softwareVersion: "软件版本",
   releasePage: "Release 页面",
   releasePageHint: "查看安装包、更新记录与历史版本。",
+  checkForUpdates: "检查更新",
+  checkingUpdates: "正在检查",
+  updateAvailable: "发现新版本",
+  upToDate: "已是最新版本",
+  buildCommit: "构建 commit",
+  developmentBuild: "本地开发",
+  buildsPage: "构建产物",
+  changelog: "更新日志",
+  releaseCheckFailed: "检查版本失败，请查看日志。",
   resetSettings: "重置所有设置",
   resetSettingsHint: "恢复默认配置并清除保存的 Cookie。艺术家数据库及其位置会保留。",
   confirmResetSettings: "将把目录、扫描与解析、浏览器、Cookie、相似图片选项及输入框尺寸恢复为默认值，并清除已保存的 Cookie。\n\n艺术家数据库及其所在位置不会删除或更改。确定继续吗？",
@@ -120,6 +137,43 @@ const zh = {
   library: "图库",
   scanLibrary: "扫描图库",
   rescanLibrary: "重新扫描",
+  updateLibraryIndex: "后台更新图库索引",
+  libraryIndexOutdated: "索引待更新",
+  libraryIndexCurrent: "索引已是最新",
+  libraryDoctor: "图库体检",
+  libraryDoctorHint: "检查数据库、作者路径、浏览器目录、隔离区和图库索引，不会修改文件。",
+  runDoctor: "开始体检",
+  rerunDoctor: "重新体检",
+  backToLibrary: "返回图库",
+  doctorPassed: "正常",
+  doctorWarnings: "提醒",
+  doctorErrors: "问题",
+  doctorNotRun: "尚未运行体检。",
+  doctorDatabase: "艺术家数据库",
+  doctorSavePaths: "作者保存路径",
+  doctorPathOverlap: "路径归属冲突",
+  doctorBrowserData: "浏览器用户数据目录",
+  doctorQuarantine: "隔离目录",
+  doctorLibraryIndex: "图库索引",
+  doctorDatabaseMissing: "数据库尚未创建，首次扫描后会自动生成。",
+  doctorDatabaseInvalid: "数据库无法正常读取。",
+  doctorDatabaseOk: "数据库可读取，共 {count} 位艺术家。",
+  doctorSavePathsMissing: "有 {count} 个保存路径不存在或无法访问。",
+  doctorSavePathsOk: "已检查 {count} 个保存路径。",
+  doctorPathOverlapFound: "发现 {count} 组不同艺术家的路径重叠，可能导致归属混淆。",
+  doctorPathOverlapOk: "未发现不同艺术家之间的保存路径重叠。",
+  doctorBrowserDefault: "未指定独立目录，将使用浏览器默认配置。",
+  doctorBrowserInvalid: "浏览器用户数据目录无效。",
+  doctorBrowserUnsafe: "该目录位于下载目录内，可能把浏览器文件写进图库。",
+  doctorBrowserOk: "目录位置安全。",
+  doctorQuarantineMissing: "尚未设置隔离目录；首次清理时可选择。",
+  doctorQuarantineInvalid: "隔离目录无效。",
+  doctorQuarantineUnsafe: "隔离目录位于图库内，必须移到图库之外。",
+  doctorQuarantineNotWritable: "隔离目录或其上级目录不可写。",
+  doctorQuarantineOk: "隔离目录位置安全且可写。",
+  doctorIndexMissing: "尚未建立图库索引。",
+  doctorIndexStale: "索引含 {count} 张图片，已过期约 {hours} 小时，将在后台更新。",
+  doctorIndexOk: "索引状态正常，共 {count} 张图片。",
   fetchPixivTags: "抓取 Pixiv 标签",
   pixivTags: "Pixiv 标签",
   libraryFilters: "筛选",
@@ -309,10 +363,13 @@ const zh = {
     '点击"我同意"即表示你已阅读并理解上述风险，自愿在自己的设备上使用 Cookie 功能，并对账号安全承担全部责任。'
 };
 
-export type Dictionary = typeof zh;
+// Locale files may adopt newly added strings incrementally. Missing non-Chinese
+// strings fall back to English, then Chinese, while `keyof typeof zh` remains
+// the canonical compile-time key set used by callers.
+export type Dictionary = Partial<typeof zh>;
 
-const dictionaries = { zh, en, ja, es, fr, de };
+const dictionaries: Record<Language, Dictionary> = { zh, en, ja, es, fr, de };
 
 export function t(language: Language, key: keyof typeof zh): string {
-  return dictionaries[language]?.[key] ?? zh[key] ?? key;
+  return dictionaries[language]?.[key] ?? en[key] ?? zh[key] ?? key;
 }

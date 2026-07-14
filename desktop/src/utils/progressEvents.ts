@@ -462,7 +462,7 @@ const PIPELINES: { lane: TaskLane; describe: (language: Language, event: Progres
   { lane: "library", describe: describeRefreshNames },
   { lane: "library", describe: describeRebuildIndex },
   { lane: "library", describe: describeDownload },
-  { lane: "library", describe: describeLibrary },
+  { lane: "index", describe: describeLibrary },
   { lane: "library", describe: describeFetchTags },
   { lane: "similar", describe: describeSimilar },
   { lane: "similar", describe: describeCleanup }

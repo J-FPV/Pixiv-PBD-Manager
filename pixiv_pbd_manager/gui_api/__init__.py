@@ -19,7 +19,7 @@ import traceback
 from pathlib import Path
 from typing import Callable
 
-from .commands import artists, cleanup, files, library, scan, settings, similar, updates
+from .commands import app_info, artists, cleanup, doctor, files, library, scan, settings, similar, updates
 from .payload import resolve_base_dir
 from .runtime import CONTROL, Emitter, JsonDict, emit_event, start_control_reader
 
@@ -50,6 +50,7 @@ COMMANDS: dict[str, Callable[[JsonDict, Emitter], JsonDict]] = {
     "updates.download": updates.download,
     "similar.run": similar.run,
     "library.list": library.list_images,
+    "library.status": library.index_status,
     "library.scan": library.scan,
     "library.set_tags": library.set_tags,
     "library.fetch_tags": library.fetch_tags,
@@ -59,6 +60,8 @@ COMMANDS: dict[str, Callable[[JsonDict, Emitter], JsonDict]] = {
     "cleanup.delete": cleanup.delete,
     "cleanup.ignore": cleanup.ignore,
     "cleanup.unignore": cleanup.unignore,
+    "doctor.run": doctor.run,
+    "app.latest_release": app_info.latest_release,
     "browser.open": files.open_browser,
     "file.reveal": files.reveal_file,
     "image.thumbnail": files.image_thumbnail,

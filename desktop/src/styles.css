@@ -1387,6 +1387,41 @@ body.col-resizing .colHandle::after {
   min-height: 38px;
 }
 
+.similarKindStats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  padding: 0 12px 10px;
+}
+
+.similarKindStats > span {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface-muted);
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.similarKindStats strong {
+  color: var(--text);
+  font-size: 13px;
+}
+
+.recommendationRule {
+  display: block;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 400;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .cleanupActionBar .summary {
   margin-left: auto;
 }
@@ -1573,6 +1608,150 @@ body.col-resizing .colHandle::after {
   color: var(--danger);
 }
 
+.libraryIndexBadge {
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.libraryIndexBadge.fresh {
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+}
+
+.libraryIndexBadge.stale {
+  background: var(--surface-muted);
+  color: var(--warn);
+}
+
+.libraryDoctorPanel {
+  padding: 20px;
+  overflow: auto;
+}
+
+.libraryDoctorHeader {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 18px;
+  align-items: start;
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--line);
+}
+
+.libraryDoctorHeader h2 {
+  display: flex;
+  gap: 9px;
+  align-items: center;
+  margin: 0 0 6px;
+  font-size: 20px;
+}
+
+.libraryDoctorHeader p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.doctorSummary {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 16px 0;
+}
+
+.doctorSummary > span {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: var(--surface-muted);
+}
+
+.doctorSummary .ok {
+  color: var(--accent-strong);
+}
+
+.doctorSummary .warning {
+  color: var(--warn);
+}
+
+.doctorSummary .error {
+  color: var(--danger);
+}
+
+.doctorSummary time {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.doctorChecks {
+  display: grid;
+  gap: 8px;
+}
+
+.doctorCheck {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  gap: 10px;
+  padding: 13px 14px;
+  border: 1px solid var(--line);
+  border-left-width: 4px;
+  border-radius: 6px;
+  background: var(--surface);
+}
+
+.doctorCheck.ok {
+  border-left-color: var(--accent);
+}
+
+.doctorCheck.warning {
+  border-left-color: var(--warn);
+}
+
+.doctorCheck.error {
+  border-left-color: var(--danger);
+}
+
+.doctorCheckIcon {
+  color: var(--muted);
+}
+
+.doctorCheck.ok .doctorCheckIcon {
+  color: var(--accent-strong);
+}
+
+.doctorCheck.warning .doctorCheckIcon {
+  color: var(--warn);
+}
+
+.doctorCheck.error .doctorCheckIcon {
+  color: var(--danger);
+}
+
+.doctorCheckBody p,
+.doctorCheckBody small {
+  display: block;
+  margin: 4px 0 0;
+  color: var(--muted);
+}
+
+.doctorPath {
+  display: block;
+  max-width: 100%;
+  margin-top: 6px;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .emptyState {
   display: grid;
   place-items: center;
@@ -1728,6 +1907,33 @@ body.col-resizing .colHandle::after {
   margin: 0;
   color: var(--muted);
   font-size: 13px;
+}
+
+.buildCommit {
+  display: inline-flex;
+  gap: 5px;
+  align-items: center;
+  color: var(--muted);
+  font-family: Consolas, monospace;
+  font-size: 12px;
+}
+
+.versionCardText .updateAvailable {
+  color: var(--warn);
+  font-weight: 600;
+}
+
+.versionCardText .upToDate {
+  color: var(--accent-strong);
+  font-weight: 600;
+}
+
+.versionCardActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+  max-width: 460px;
 }
 
 .checkColumn {

@@ -30,6 +30,7 @@ export interface SimilarCleanupDeps {
   settings: AppSettings;
   setSettings: Dispatch<SetStateAction<AppSettings>>;
   similarRoots: string;
+  similarResult: SimilarResult | null;
   setSimilarResult: Dispatch<SetStateAction<SimilarResult | null>>;
   setCleanupSummary: Dispatch<SetStateAction<CleanupSummary>>;
   setConfirm: Dispatch<SetStateAction<ConfirmState | null>>;
@@ -58,14 +59,22 @@ async function prepareQuarantine(deps: SimilarCleanupDeps, entries: SimilarEntry
     deps.setSettings((current) => ({ ...current, quarantine_dir: quarantineDir }));
   }
   const reclaim = entries.reduce((total, entry) => total + entry.size_bytes, 0);
-  const previewPaths = entries.slice(0, 8).map((entry) => entry.path).join("\n");
-  const remainder = entries.length > 8 ? `\n... +${entries.length - 8}` : "";
+  const selectedPaths = new Set(entries.map((entry) => entry.path));
+  const keptPaths = (deps.similarResult?.groups || [])
+    .filter((group) => group.entries.some((entry) => selectedPaths.has(entry.path)))
+    .flatMap((group) => group.entries.filter((entry) => !selectedPaths.has(entry.path)).map((entry) => entry.path));
+  const preview = (paths: string[]) => {
+    const shown = paths.slice(0, 6).join("\n");
+    return paths.length > 6 ? `${shown}\n... +${paths.length - 6}` : shown;
+  };
   deps.setConfirm({
     title: t(deps.language, "confirmCleanupTitle"),
     body:
       `${t(deps.language, "selectedFiles")}: ${entries.length}\n` +
       `${t(deps.language, "estimatedSpace")}: ${formatBytes(reclaim)}\n` +
-      `${t(deps.language, "quarantineFolder")}: ${quarantineDir}\n\n${previewPaths}${remainder}`,
+      `${t(deps.language, "quarantineFolder")}: ${quarantineDir}\n\n` +
+      (keptPaths.length ? `${t(deps.language, "cleanupWillKeep")} (${keptPaths.length})\n${preview(keptPaths)}\n\n` : "") +
+      `${t(deps.language, "cleanupWillQuarantine")} (${entries.length})\n${preview(entries.map((entry) => entry.path))}`,
     confirmLabel: t(deps.language, "moveToQuarantine"),
     onConfirm: async () => {
       await deps.runTask("similar", t(deps.language, "moveToQuarantine"), async (signal, registerControls) => {

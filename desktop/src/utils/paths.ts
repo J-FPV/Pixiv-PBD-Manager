@@ -22,3 +22,7 @@ export function isUnsafeUserDataDir(value: string, roots: string[]): boolean {
   }
   return roots.some((root) => root.trim() && isPathInside(value, root));
 }
+
+export function parentPath(value: string): string {
+  return value.replace(/[\\/][^\\/]+$/, "");
+}

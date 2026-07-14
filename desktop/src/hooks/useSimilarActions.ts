@@ -23,6 +23,7 @@ export interface SimilarActionsDeps {
   settings: AppSettings;
   setSettings: Dispatch<SetStateAction<AppSettings>>;
   similarRoots: string;
+  similarResult: SimilarResult | null;
   similarExcludes: string;
   setActiveTab: Dispatch<SetStateAction<TabKey>>;
   setSimilarResult: Dispatch<SetStateAction<SimilarResult | null>>;

@@ -1,7 +1,7 @@
 import type { Dispatch, SetStateAction } from "react";
 import { runGuiApi, setProjectRoot, setPythonCommand } from "../api";
 import { t } from "../i18n";
-import type { ApiEvent, AppSettings, ConfirmState, Language, LogEntry, SettingsPayload } from "../types";
+import type { ApiEvent, AppSettings, ConfirmState, Language, LogEntry, ReleaseInfo, SettingsPayload } from "../types";
 import { DEFAULT_SETTINGS } from "../constants";
 import { joinLines } from "../utils/paths";
 import { resetCurrentWindowLayout } from "../utils/window";
@@ -40,6 +40,8 @@ export interface SettingsActions {
   resetSettings: () => void;
   resetWindowLayout: () => Promise<void>;
   openReleasePage: () => Promise<void>;
+  openExternalPage: (url: string) => Promise<void>;
+  checkLatestRelease: (currentVersion: string) => Promise<ReleaseInfo | null>;
 }
 
 function applySettingsPayload(deps: SettingsActionsDeps, payload: SettingsPayload): AppSettings {
@@ -161,14 +163,27 @@ async function resetWindowLayout(deps: SettingsActionsDeps): Promise<void> {
   }
 }
 
-async function openReleasePage(deps: SettingsActionsDeps): Promise<void> {
+async function openExternalPage(deps: SettingsActionsDeps, url: string): Promise<void> {
   const { settings, handleEvent, appendLog } = deps;
   try {
-    const releaseUrl = "https://github.com/J-FPV/Pixiv-PBD-Manager/releases";
-    const result = await runGuiApi<{ opened: number }>("browser.open", { ...settings, urls: [releaseUrl] }, handleEvent);
+    const result = await runGuiApi<{ opened: number }>("browser.open", { ...settings, urls: [url] }, handleEvent);
     appendLog("info", `Opened ${result.opened} page(s)`);
   } catch (error) {
     appendLog("error", error instanceof Error ? error.message : String(error));
+  }
+}
+
+async function checkLatestRelease(deps: SettingsActionsDeps, currentVersion: string): Promise<ReleaseInfo | null> {
+  try {
+    return await runGuiApi<ReleaseInfo>(
+      "app.latest_release",
+      { current_version: currentVersion },
+      deps.handleEvent
+    );
+  } catch (error) {
+    deps.appendLog("error", error instanceof Error ? error.message : String(error));
+    deps.showToast(t(deps.language, "releaseCheckFailed"));
+    return null;
   }
 }
 
@@ -180,6 +195,8 @@ export function useSettingsActions(deps: SettingsActionsDeps): SettingsActions {
     acceptDisclaimer: () => acceptDisclaimer(deps),
     resetSettings: () => resetSettings(deps),
     resetWindowLayout: () => resetWindowLayout(deps),
-    openReleasePage: () => openReleasePage(deps)
+    openReleasePage: () => openExternalPage(deps, "https://github.com/J-FPV/Pixiv-PBD-Manager/releases"),
+    openExternalPage: (url) => openExternalPage(deps, url),
+    checkLatestRelease: (currentVersion) => checkLatestRelease(deps, currentVersion)
   };
 }

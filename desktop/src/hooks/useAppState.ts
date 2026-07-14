@@ -108,7 +108,8 @@ export function useAppState() {
   // similar lane gates Find Similar, so the two can run at the same time.
   const libraryBusy = taskRunner.lanes.library.runningTask !== null;
   const similarBusy = taskRunner.lanes.similar.runningTask !== null;
-  const anyBusy = libraryBusy || similarBusy;
+  const indexBusy = taskRunner.lanes.index.runningTask !== null;
+  const anyBusy = libraryBusy || similarBusy || indexBusy;
 
   const showToast = (message: string) => {
     setToastMessage(message);
@@ -152,7 +153,7 @@ export function useAppState() {
 
   return {
     ...taskRunner,
-    libraryBusy, similarBusy, anyBusy,
+    libraryBusy, similarBusy, indexBusy, anyBusy,
     language: languageValue,
     initialSimilarSkipPixivPages: INITIAL_UI_STATE.similarSkipPixivPages,
     appendLog, showToast, handleEvent, handleEventRef, appendLogRef, revealFile,

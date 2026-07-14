@@ -117,7 +117,8 @@ export function MainContent({
           setPixivCookie={s.setPixivCookie}
           setProjectRootValue={s.setProjectRootState}
           setPythonCommandValue={s.setPythonCommandState}
-          openReleasePage={settingsActions.openReleasePage}
+          openReleasePage={settingsActions.openReleasePage} openExternalPage={settingsActions.openExternalPage}
+          checkLatestRelease={settingsActions.checkLatestRelease}
           openPath={s.revealFile}
           resetWindowLayout={() => void settingsActions.resetWindowLayout()}
           resetSettings={settingsActions.resetSettings}

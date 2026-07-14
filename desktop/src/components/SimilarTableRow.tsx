@@ -111,6 +111,12 @@ export function SimilarTableRow({
 }) {
   if (item.type === "group") {
     const isExpanded = expanded.has(item.group.id);
+    const ruleKey =
+      item.group.kind === "exact"
+        ? "recommendationExact"
+        : item.group.kind === "likely"
+          ? "recommendationLikely"
+          : "recommendationPossible";
     return (
       <div
         className={`tableRow similarGroupRow${isExpanded ? " expanded" : ""}`}
@@ -133,6 +139,7 @@ export function SimilarTableRow({
         <span />
         <span>
           {item.group.entries.length} files, pHash {item.group.best_phash_distance}, dHash {item.group.best_dhash_distance}
+          <small className="recommendationRule">{t(language, ruleKey)}</small>
         </span>
         <span />
         <span className="centerNumeric">{formatBytes(item.group.estimated_reclaim_bytes || 0)}</span>
