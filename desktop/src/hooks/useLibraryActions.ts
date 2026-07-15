@@ -1,11 +1,14 @@
-import { runGuiApi } from "../api";
+import { browsePath, runGuiApi } from "../api";
 import { t } from "../i18n";
 import type {
   AppSettings,
   DoctorReport,
   LibraryFetchTagsResult,
+  LibraryExportResult,
   LibraryIndexStatus,
   LibraryListPayload,
+  LibraryMetadataPatch,
+  LibraryMetadataResult,
   LibraryScanSummary,
   LibrarySetTagsPayload
 } from "../types";
@@ -17,6 +20,8 @@ export interface LibraryActions {
   refreshIndexIfStale: (settings: AppSettings) => Promise<void>;
   runDoctor: () => Promise<void>;
   setImageTags: (path: string, tags: string[]) => Promise<void>;
+  updateImageMetadata: (paths: string[], patch: LibraryMetadataPatch) => Promise<number>;
+  exportLibrary: (paths: string[]) => Promise<void>;
   fetchTags: (paths: string[]) => void;
 }
 
@@ -91,6 +96,30 @@ export function useLibraryActions(s: AppState): LibraryActions {
     }
   };
 
+  const updateImageMetadata = async (paths: string[], patch: LibraryMetadataPatch) => {
+    const result = await runGuiApi<LibraryMetadataResult>(
+      "library.update_metadata",
+      { paths, ...patch },
+      s.handleEvent
+    );
+    const updates = new Map(result.images.map((image) => [image.path, image]));
+    s.setLibraryImages((current) => current.map((image) => updates.get(image.path) ?? image));
+    s.showToast(t(s.language, "libraryUpdated").replace("{count}", String(result.updated)));
+    return result.updated;
+  };
+
+  const exportLibrary = async (paths: string[]) => {
+    const output = await browsePath("save");
+    if (!output) return;
+    const result = await runGuiApi<LibraryExportResult>(
+      "library.export",
+      { paths, output },
+      s.handleEvent
+    );
+    s.showToast(t(s.language, "libraryExported").replace("{count}", String(result.exported)));
+    s.appendLog("info", `Library export: ${result.exported} image(s) -> ${result.output}`);
+  };
+
   // Fetch each artwork's Pixiv tags (original + English translation) and apply
   // them to every image sharing the PID. Cancellable + rate-limited backend.
   const fetchTags = (paths: string[]) =>
@@ -111,5 +140,14 @@ export function useLibraryActions(s: AppState): LibraryActions {
       }
     });
 
-  return { loadLibrary, scanLibrary, refreshIndexIfStale, runDoctor, setImageTags, fetchTags };
+  return {
+    loadLibrary,
+    scanLibrary,
+    refreshIndexIfStale,
+    runDoctor,
+    setImageTags,
+    updateImageMetadata,
+    exportLibrary,
+    fetchTags
+  };
 }

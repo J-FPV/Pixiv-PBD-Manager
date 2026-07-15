@@ -13,6 +13,10 @@
   --danger-strong: #9f2d2d;
   --danger-soft: #fff0f0;
   --warn: #95680b;
+  --favorite: #b7791f;
+  --marker-high: #7c3aed;
+  --marker-used: #0f766e;
+  --marker-sort: #2563b8;
   --input-bg: #ffffff;
   --button-active: #e7ecf1;
   --row-border: #eef1f4;
@@ -52,6 +56,10 @@
   --danger-strong: #8f3035;
   --danger-soft: #3a2023;
   --warn: #f1b85b;
+  --favorite: #f2c14e;
+  --marker-high: #c4a7ff;
+  --marker-used: #6ee7c2;
+  --marker-sort: #7db9ff;
   --input-bg: #12171d;
   --button-active: #27313c;
   --row-border: #242c35;
@@ -2312,10 +2320,36 @@ body.col-resizing .colHandle::after {
 }
 
 /* Image Library */
+.libraryManagerPanel {
+  grid-template-rows: auto auto 1fr;
+}
+
 .libraryCount {
   color: var(--muted);
   font-size: 13px;
   white-space: nowrap;
+}
+
+.librarySelectionBar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 42px;
+  padding: 5px 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.selectionCount {
+  color: var(--muted);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.selectionCount.active {
+  color: var(--accent-strong);
+  font-weight: 600;
 }
 
 .libraryBody {
@@ -2492,6 +2526,7 @@ body.col-resizing .colHandle::after {
 }
 
 .libraryTile {
+  position: relative;
   display: flex;
   flex-direction: column;
   height: 188px;
@@ -2501,12 +2536,79 @@ body.col-resizing .colHandle::after {
   border-radius: 8px;
   background: var(--surface);
   text-align: left;
-  cursor: pointer;
 }
 
 .libraryTile.selected {
   border-color: var(--accent);
   box-shadow: 0 0 0 1px var(--accent);
+}
+
+.libraryTile.checked {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.libraryTileOpen {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  width: 100%;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+}
+
+.libraryTileSelect {
+  position: absolute;
+  top: 7px;
+  left: 7px;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.58);
+  border-radius: 6px;
+  background: rgba(12, 18, 24, 0.7);
+  color: #ffffff;
+  backdrop-filter: blur(4px);
+}
+
+.libraryTileSelect:hover,
+.libraryTileSelect[aria-pressed="true"] {
+  border-color: var(--accent);
+  background: var(--accent);
+}
+
+.libraryTileBadges {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 26px;
+  padding: 4px 7px;
+  border-radius: 6px;
+  background: rgba(12, 18, 24, 0.72);
+  color: #ffffff;
+  font-size: 11px;
+  backdrop-filter: blur(4px);
+}
+
+.libraryTileBadges .favoriteBadge,
+.libraryTileBadges .ratingBadge {
+  color: #ffd166;
+}
+
+.libraryTileBadges > span {
+  display: inline-flex;
+  align-items: center;
 }
 
 .libraryTileImage {
@@ -2677,6 +2779,92 @@ body.col-resizing .colHandle::after {
   gap: 8px;
 }
 
+.libraryPixivActions {
+  display: flex;
+  gap: 5px;
+}
+
+.libraryMetadataControls {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 9px 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+
+.libraryFavoriteRatingRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.libraryFavoriteButton,
+.libraryMarkerButtons button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 31px;
+  padding: 4px 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--muted);
+}
+
+.libraryFavoriteButton.active {
+  border-color: var(--favorite);
+  color: var(--favorite);
+}
+
+.libraryRating {
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+}
+
+.libraryRating button {
+  display: grid;
+  place-items: center;
+  width: 27px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+}
+
+.libraryRating button:hover,
+.libraryRating button.active {
+  color: var(--favorite);
+}
+
+.libraryRating button.clear {
+  width: 23px;
+}
+
+.libraryMarkerButtons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.libraryMarkerButtons button.active.high_value {
+  border-color: var(--marker-high);
+  color: var(--marker-high);
+}
+
+.libraryMarkerButtons button.active.used {
+  border-color: var(--marker-used);
+  color: var(--marker-used);
+}
+
+.libraryMarkerButtons button.active.to_sort {
+  border-color: var(--marker-sort);
+  color: var(--marker-sort);
+}
+
 .pixivTagChips {
   display: flex;
   flex-wrap: wrap;
@@ -2749,4 +2937,81 @@ body.col-resizing .colHandle::after {
   gap: 8px;
   margin-top: auto;
   padding-top: 10px;
+}
+
+.modal.libraryBatchModal {
+  width: min(720px, 92vw);
+  max-height: min(760px, 90vh);
+  overflow-y: auto;
+}
+
+.batchModalHeader p {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.batchEditGrid {
+  display: grid;
+  grid-template-columns: 130px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px 16px;
+  margin-top: 16px;
+}
+
+.batchEditGrid > label,
+.batchSectionLabel {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.batchEditGrid select {
+  min-height: 36px;
+  padding: 5px 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--input-bg);
+  color: var(--text);
+}
+
+.batchMarkerRows,
+.batchTagEditor {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+
+.batchMarkerRow,
+.batchTagHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.batchMarkerRow > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 150px;
+}
+
+.compactSegmented {
+  flex: 0 1 auto;
+}
+
+.compactSegmented button {
+  min-height: 30px;
+  padding: 4px 10px;
+  font-size: 12px;
+}
+
+.batchTagEditor textarea {
+  width: 100%;
+  min-height: 64px;
+  resize: vertical;
 }

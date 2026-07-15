@@ -53,6 +53,8 @@ COMMANDS: dict[str, Callable[[JsonDict, Emitter], JsonDict]] = {
     "library.status": library.index_status,
     "library.scan": library.scan,
     "library.set_tags": library.set_tags,
+    "library.update_metadata": library.update_metadata,
+    "library.export": library.export_list,
     "library.fetch_tags": library.fetch_tags,
     "cleanup.list": cleanup.list_cleanup,
     "cleanup.quarantine": cleanup.quarantine,

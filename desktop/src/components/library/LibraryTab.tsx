@@ -21,6 +21,8 @@ export function LibraryTab({ state: s, actions }: { state: AppState; actions: Li
       scanLibrary={actions.scanLibrary}
       runDoctor={() => void actions.runDoctor()}
       setImageTags={actions.setImageTags}
+      updateImageMetadata={actions.updateImageMetadata}
+      exportLibrary={actions.exportLibrary}
       fetchTags={actions.fetchTags}
       revealFile={s.revealFile}
     />

@@ -44,6 +44,21 @@ export function useLibraryFilter(images: LibraryImage[], filters: LibraryFilters
           return basename(value);
         case "formats":
           return value ? value.toUpperCase() : "?";
+        case "favorites":
+          return t(language, value === "favorite" ? "favoriteImages" : "notFavorite");
+        case "ratings":
+          return value === "0" ? t(language, "unrated") : `${value} ★`;
+        case "markers":
+          return t(
+            language,
+            value === "high_value"
+              ? "markerHighValue"
+              : value === "used"
+                ? "markerUsed"
+                : value === "to_sort"
+                  ? "markerToSort"
+                  : "markerNone"
+          );
         case "orientations":
           return t(language, value === "portrait" || value === "landscape" || value === "square" ? value : "unknownOrientation");
         case "resolutions":

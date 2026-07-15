@@ -429,6 +429,8 @@ export interface PixivTag {
   translation: string;
 }
 
+export type LibraryMarker = "high_value" | "used" | "to_sort";
+
 // One row of the image library catalog (joined with live artist data).
 export interface LibraryImage {
   path: string;
@@ -448,6 +450,9 @@ export interface LibraryImage {
   artist_tags: string[];
   tags: string[];
   pixiv_tags: PixivTag[];
+  favorite: boolean;
+  rating: number;
+  markers: LibraryMarker[];
   artwork_url: string;
   artist_url: string;
 }
@@ -459,6 +464,9 @@ export interface LibraryFilters {
   artists: string[];
   folders: string[];
   tags: string[];
+  favorites: string[];
+  ratings: string[];
+  markers: string[];
   formats: string[];
   orientations: string[];
   resolutions: string[];
@@ -475,6 +483,9 @@ export interface LibraryFacets {
   artists: LibraryFacet[];
   folders: LibraryFacet[];
   tags: LibraryFacet[];
+  favorites: LibraryFacet[];
+  ratings: LibraryFacet[];
+  markers: LibraryFacet[];
   formats: LibraryFacet[];
   orientations: LibraryFacet[];
   resolutions: LibraryFacet[];
@@ -540,6 +551,27 @@ export interface ReleaseInfo {
 
 export interface LibrarySetTagsPayload {
   image: LibraryImage;
+}
+
+export interface LibraryMetadataPatch {
+  favorite?: boolean;
+  rating?: number;
+  markers?: LibraryMarker[];
+  add_markers?: LibraryMarker[];
+  remove_markers?: LibraryMarker[];
+  add_tags?: string[];
+  remove_tags?: string[];
+  copy_pixiv_tags?: boolean;
+}
+
+export interface LibraryMetadataResult {
+  updated: number;
+  images: LibraryImage[];
+}
+
+export interface LibraryExportResult {
+  output: string;
+  exported: number;
 }
 
 export interface LibraryFetchTagsResult {

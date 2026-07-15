@@ -13,14 +13,18 @@ export function LibraryGrid({
   language,
   images,
   selectedPath,
+  selectedPaths,
   loading,
-  onOpen
+  onOpen,
+  onToggleSelected
 }: {
   language: Language;
   images: LibraryImage[];
   selectedPath: string | null;
+  selectedPaths: Set<string>;
   loading: boolean;
   onOpen: (path: string) => void;
+  onToggleSelected: (path: string) => void;
 }) {
   const parentRef = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(0);
@@ -67,9 +71,12 @@ export function LibraryGrid({
                 {images.slice(start, start + cols).map((image) => (
                   <LibraryTile
                     key={image.path}
+                    language={language}
                     image={image}
                     selected={image.path === selectedPath}
+                    checked={selectedPaths.has(image.path)}
                     onOpen={onOpen}
+                    onToggleSelected={onToggleSelected}
                   />
                 ))}
               </div>

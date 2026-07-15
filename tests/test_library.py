@@ -82,19 +82,25 @@ class CatalogBuildTests(unittest.TestCase):
         self.assertEqual(tall.orientation, "portrait")
         self.assertEqual(tall.artist_id, "")  # no mapping for this pid
 
-    def test_rebuild_reuses_dims_and_carries_tags(self):
+    def test_rebuild_reuses_dims_and_carries_user_metadata(self):
         with TemporaryDirectory() as tmp:
             root = Path(tmp)
             image_path = root / "100949474_p0.png"
             Image.new("RGB", (30, 30), "green").save(image_path)
             first, _ = build_catalog([root], [], pid_to_artist={})
             first[0].tags = ["fanart", "wallpaper"]
+            first[0].favorite = True
+            first[0].rating = 4
+            first[0].markers = ["high_value", "to_sort"]
             old = {img.path: img for img in first}
             images, summary = build_catalog([root], [], pid_to_artist={}, old_catalog=old)
 
         self.assertEqual(summary.reused, 1)
         self.assertEqual(summary.changed, 0)
         self.assertEqual(images[0].tags, ["fanart", "wallpaper"])
+        self.assertTrue(images[0].favorite)
+        self.assertEqual(images[0].rating, 4)
+        self.assertEqual(images[0].markers, ["high_value", "to_sort"])
 
     def test_build_prefers_unique_save_path_artist(self):
         with TemporaryDirectory() as tmp:
@@ -117,12 +123,18 @@ class CatalogBuildTests(unittest.TestCase):
             Image.new("RGB", (10, 10), "red").save(root / "100949474_p0.png")
             images, _ = build_catalog([root], [], pid_to_artist={})
             images[0].tags = ["keep"]
+            images[0].favorite = True
+            images[0].rating = 5
+            images[0].markers = ["used"]
             index_path = root / "library_index.json"
             save_library_index(images, index_path)
             loaded = load_library_index(index_path)
 
         self.assertEqual(set(loaded), {images[0].path})
         self.assertEqual(loaded[images[0].path].tags, ["keep"])
+        self.assertTrue(loaded[images[0].path].favorite)
+        self.assertEqual(loaded[images[0].path].rating, 5)
+        self.assertEqual(loaded[images[0].path].markers, ["used"])
         self.assertEqual(loaded[images[0].path].pid, "100949474")
 
     def test_index_status_tracks_age_and_root_changes(self):

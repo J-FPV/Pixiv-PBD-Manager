@@ -26,6 +26,13 @@ test("mock backend covers the primary desktop flows", async ({ page }) => {
   await expect(page.locator(".libraryDetailMeta")).toHaveCount(0);
   await page.getByRole("button", { name: "显示详情" }).click();
   await page.getByRole("button", { name: "关闭" }).click();
+  await page.getByRole("button", { name: "选择图片" }).first().click();
+  await expect(page.getByText("已选 1 张")).toBeVisible();
+  await page.getByRole("button", { name: "批量编辑" }).click();
+  await expect(page.getByRole("heading", { name: "批量编辑" })).toBeVisible();
+  await page.getByRole("combobox").selectOption("5");
+  await page.getByRole("button", { name: "应用", exact: true }).click();
+  await expect(page.getByText("已更新 1 张图片")).toBeVisible();
   await page.getByRole("button", { name: "图库体检", exact: true }).click();
   await expect(page.getByRole("heading", { name: "图库体检" })).toBeVisible();
   await expect(page.getByText("数据库可读取，共 2 位艺术家。")).toBeVisible();

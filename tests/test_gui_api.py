@@ -715,6 +715,65 @@ class GuiApiTests(unittest.TestCase):
         persisted = next(row for row in list_events[-1]["payload"]["images"] if row["path"] == target)
         self.assertEqual(persisted["tags"], ["a", "b"])
 
+    def test_library_bulk_metadata_and_pixiv_tag_promotion(self):
+        with TemporaryDirectory() as tmp:
+            root = _isolate(tmp)
+            old_cwd = Path.cwd()
+            try:
+                os.chdir(root)
+                images_dir = self._setup_library(root)
+                invoke("library.scan")
+                target = str((images_dir / "12345678_p0.jpg").resolve())
+                with patch(
+                    "pixiv_pbd_manager.resolver.fetch_artwork_tags",
+                    return_value=([ArtworkTag(tag="背景", translation="background")], False),
+                ):
+                    invoke("library.fetch_tags", {"paths": [target], "resolve_delay": 0})
+                code, events = invoke(
+                    "library.update_metadata",
+                    {
+                        "paths": [target],
+                        "favorite": True,
+                        "rating": 5,
+                        "markers": ["high_value", "to_sort", "invalid"],
+                        "add_tags": ["reference"],
+                        "copy_pixiv_tags": True,
+                    },
+                )
+                _, list_events = invoke("library.list")
+            finally:
+                os.chdir(old_cwd)
+
+        self.assertEqual(code, 0)
+        self.assertEqual(events[-1]["payload"]["updated"], 1)
+        image = next(row for row in list_events[-1]["payload"]["images"] if row["path"] == target)
+        self.assertTrue(image["favorite"])
+        self.assertEqual(image["rating"], 5)
+        self.assertEqual(image["markers"], ["high_value", "to_sort"])
+        self.assertEqual(image["tags"], ["reference", "背景"])
+
+    def test_library_export_writes_utf8_csv(self):
+        with TemporaryDirectory() as tmp:
+            root = _isolate(tmp)
+            old_cwd = Path.cwd()
+            try:
+                os.chdir(root)
+                images_dir = self._setup_library(root)
+                invoke("library.scan")
+                target = str((images_dir / "12345678_p0.jpg").resolve())
+                output = root / "exports" / "library"
+                code, events = invoke("library.export", {"paths": [target], "output": str(output)})
+                exported_path = Path(events[-1]["payload"]["output"])
+                exported = exported_path.read_text(encoding="utf-8-sig")
+            finally:
+                os.chdir(old_cwd)
+
+        self.assertEqual(code, 0)
+        self.assertEqual(events[-1]["payload"]["exported"], 1)
+        self.assertEqual(exported_path.suffix, ".csv")
+        self.assertIn("artist_name", exported)
+        self.assertIn("Tester", exported)
+
     @unittest.skipUnless(os.name == "nt", "Windows explorer argument regression")
     def test_file_reveal_uses_shell_execute_explorer_select_argument(self):
         with TemporaryDirectory() as tmp:

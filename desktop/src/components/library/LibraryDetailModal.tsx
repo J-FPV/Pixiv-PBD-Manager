@@ -1,6 +1,7 @@
 import {
   ChevronLeft,
   ChevronRight,
+  CopyPlus,
   ExternalLink,
   FolderOpen,
   PanelRightClose,
@@ -11,7 +12,7 @@ import {
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { runGuiApi } from "../../api";
 import { t } from "../../i18n";
-import type { Language, LibraryImage, PixivTag } from "../../types";
+import type { Language, LibraryImage, LibraryMetadataPatch, PixivTag } from "../../types";
 import { formatBytes } from "../../utils/format";
 import { prefetchImagePreview, useImagePreview } from "../../hooks/useImagePreview";
 import type { ImagePreviewOptions } from "../../hooks/useImagePreview";
@@ -20,6 +21,7 @@ import { Button } from "../Button";
 import { ModalOverlay } from "../ModalOverlay";
 import { ZoomLayer } from "../preview/ZoomLayer";
 import { containSize } from "../../utils/imageFit";
+import { LibraryMetadataControls } from "./LibraryMetadataControls";
 
 export interface LibraryDetailModalProps {
   language: Language;
@@ -29,6 +31,7 @@ export interface LibraryDetailModalProps {
   onClose: () => void;
   revealFile: (path: string) => void;
   setImageTags: (path: string, tags: string[]) => void | Promise<void>;
+  updateImageMetadata: (paths: string[], patch: LibraryMetadataPatch) => Promise<number>;
   onFetchTags: () => void;
   busy: boolean;
 }
@@ -131,6 +134,7 @@ function LibraryDetailMetaPanel({
   busy,
   revealFile,
   setImageTags,
+  updateImageMetadata,
   onFetchTags,
   onClose
 }: {
@@ -139,6 +143,7 @@ function LibraryDetailMetaPanel({
   busy: boolean;
   revealFile: (path: string) => void;
   setImageTags: (path: string, tags: string[]) => void | Promise<void>;
+  updateImageMetadata: (paths: string[], patch: LibraryMetadataPatch) => Promise<number>;
   onFetchTags: () => void;
   onClose: () => void;
 }) {
@@ -163,12 +168,29 @@ function LibraryDetailMetaPanel({
       <MetaRow label={t(language, "modified")} value={modified} />
       <MetaRow label={t(language, "pageLabel")} value={image.page !== null ? String(image.page) : ""} />
       <MetaRow label={t(language, "artistTags")} value={image.artist_tags.join(", ")} />
+      <LibraryMetadataControls
+        language={language}
+        image={image}
+        disabled={busy}
+        onUpdate={(patch) => void updateImageMetadata([image.path], patch)}
+      />
       <div className="libraryPixivSection">
         <div className="libraryPixivHeader">
           <span className="libraryMetaKey">{t(language, "pixivTags")}</span>
-          <Button icon={<Tags size={14} />} iconOnly onClick={onFetchTags} disabled={busy} title={t(language, "fetchPixivTags")}>
-            {t(language, "fetchPixivTags")}
-          </Button>
+          <div className="libraryPixivActions">
+            <Button
+              icon={<CopyPlus size={14} />}
+              iconOnly
+              onClick={() => void updateImageMetadata([image.path], { copy_pixiv_tags: true })}
+              disabled={busy || !image.pixiv_tags.length}
+              title={t(language, "copyPixivTagsToLocal")}
+            >
+              {t(language, "copyPixivTagsToLocal")}
+            </Button>
+            <Button icon={<Tags size={14} />} iconOnly onClick={onFetchTags} disabled={busy} title={t(language, "fetchPixivTags")}>
+              {t(language, "fetchPixivTags")}
+            </Button>
+          </div>
         </div>
         <PixivTagChips tags={image.pixiv_tags} />
       </div>
@@ -219,6 +241,7 @@ export function LibraryDetailModal({
   onClose,
   revealFile,
   setImageTags,
+  updateImageMetadata,
   onFetchTags,
   busy
 }: LibraryDetailModalProps) {
@@ -325,6 +348,7 @@ export function LibraryDetailModal({
               busy={busy}
               revealFile={revealFile}
               setImageTags={setImageTags}
+              updateImageMetadata={updateImageMetadata}
               onFetchTags={onFetchTags}
               onClose={onClose}
             />

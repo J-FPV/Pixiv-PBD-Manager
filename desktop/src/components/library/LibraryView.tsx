@@ -1,16 +1,26 @@
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { EMPTY_LIBRARY_FILTERS, LIBRARY_SIDEBAR_WIDTH_KEY } from "../../constants";
 import { t } from "../../i18n";
-import type { DoctorReport, Language, LibraryFilters, LibraryImage, LibraryIndexStatus } from "../../types";
+import type {
+  DoctorReport,
+  Language,
+  LibraryFilters,
+  LibraryImage,
+  LibraryIndexStatus,
+  LibraryMetadataPatch
+} from "../../types";
 import type { FacetDimension } from "../../utils/libraryFacets";
 import { useDebouncedValue } from "../../hooks/useDebouncedValue";
 import { useLibraryFilter } from "../../hooks/useLibraryFilter";
+import { useLibrarySelection } from "../../hooks/useLibrarySelection";
 import { useResizablePanel } from "../../hooks/useResizablePanel";
 import { Button } from "../Button";
 import { LibraryDetailModal } from "./LibraryDetailModal";
+import { LibraryBatchModal } from "./LibraryBatchModal";
 import { LibraryDoctorView } from "./LibraryDoctorView";
 import { LibraryFilterSidebar } from "./LibraryFilterSidebar";
 import { LibraryGrid } from "./LibraryGrid";
+import { LibrarySelectionBar } from "./LibrarySelectionBar";
 import { LibraryToolbar } from "./LibraryToolbar";
 
 export interface LibraryViewProps {
@@ -28,6 +38,8 @@ export interface LibraryViewProps {
   scanLibrary: () => void;
   runDoctor: () => void;
   setImageTags: (path: string, tags: string[]) => void | Promise<void>;
+  updateImageMetadata: (paths: string[], patch: LibraryMetadataPatch) => Promise<number>;
+  exportLibrary: (paths: string[]) => Promise<void>;
   fetchTags: (paths: string[]) => void;
   revealFile: (path: string) => void;
 }
@@ -40,6 +52,9 @@ function useDeferredLibraryFilters(filters: LibraryFilters): LibraryFilters {
       artists: filters.artists,
       folders: filters.folders,
       tags: filters.tags,
+      favorites: filters.favorites,
+      ratings: filters.ratings,
+      markers: filters.markers,
       formats: filters.formats,
       orientations: filters.orientations,
       resolutions: filters.resolutions,
@@ -50,6 +65,9 @@ function useDeferredLibraryFilters(filters: LibraryFilters): LibraryFilters {
       filters.artists,
       filters.folders,
       filters.tags,
+      filters.favorites,
+      filters.ratings,
+      filters.markers,
       filters.formats,
       filters.orientations,
       filters.resolutions,
@@ -123,6 +141,47 @@ function LibraryFilterPane({
   );
 }
 
+function LibraryOverlays({
+  props,
+  selectedImage,
+  detailImages,
+  selection
+}: {
+  props: LibraryViewProps;
+  selectedImage: LibraryImage | null;
+  detailImages: LibraryImage[];
+  selection: ReturnType<typeof useLibrarySelection>;
+}) {
+  return (
+    <>
+      {selectedImage ? (
+        <LibraryDetailModal
+          language={props.language}
+          image={selectedImage}
+          images={detailImages}
+          onPathChange={props.setSelectedPath}
+          onClose={() => props.setSelectedPath(null)}
+          revealFile={props.revealFile}
+          setImageTags={props.setImageTags}
+          updateImageMetadata={props.updateImageMetadata}
+          onFetchTags={() => props.fetchTags([selectedImage.path])}
+          busy={props.busy}
+        />
+      ) : null}
+      {selection.batchOpen ? (
+        <LibraryBatchModal
+          language={props.language}
+          count={selection.selectedImages.length}
+          onClose={() => selection.setBatchOpen(false)}
+          onApply={async (patch) => {
+            await props.updateImageMetadata(selection.selectedImages.map((image) => image.path), patch);
+          }}
+        />
+      ) : null}
+    </>
+  );
+}
+
 export function LibraryView(props: LibraryViewProps) {
   const { language, images, loaded, needsScan, busy, selectedPath, setSelectedPath, loadLibrary } = props;
   const [filters, setFilters] = useState<LibraryFilters>(EMPTY_LIBRARY_FILTERS);
@@ -141,6 +200,7 @@ export function LibraryView(props: LibraryViewProps) {
   // Keyword changes are deferred so large catalogs do not refilter per keypress.
   const deferredFilters = useDeferredLibraryFilters(filters);
   const { visibleImages, facets } = useLibraryFilter(images, deferredFilters, language);
+  const selection = useLibrarySelection(images, visibleImages);
 
   useEffect(() => {
     if (loaded || requested.current) {
@@ -189,7 +249,7 @@ export function LibraryView(props: LibraryViewProps) {
   }
 
   return (
-    <section className="panel libraryPanel">
+    <section className="panel libraryPanel libraryManagerPanel">
       <LibraryToolbar
         language={language}
         keyword={filters.keyword}
@@ -203,6 +263,19 @@ export function LibraryView(props: LibraryViewProps) {
         fetchDisabled={!visibleImages.length}
         toggleSidebar={() => setSidebarOpen((value) => !value)}
         onDoctor={openDoctor}
+      />
+      <LibrarySelectionBar
+        language={language}
+        selectedCount={selection.selectedImages.length}
+        visibleCount={visibleImages.length}
+        allVisibleSelected={selection.allVisibleSelected}
+        busy={busy}
+        onToggleVisible={selection.toggleVisible}
+        onClear={selection.clear}
+        onBatchEdit={() => selection.setBatchOpen(true)}
+        onExport={() => void props.exportLibrary(
+          (selection.selectedImages.length ? selection.selectedImages : visibleImages).map((image) => image.path)
+        )}
       />
       <div className="libraryBody" ref={libraryBodyRef}>
         {sidebarOpen ? (
@@ -219,24 +292,19 @@ export function LibraryView(props: LibraryViewProps) {
           language={language}
           images={visibleImages}
           selectedPath={selectedPath}
+          selectedPaths={selection.selectedPaths}
           loading={!loaded}
           onOpen={setSelectedPath}
+          onToggleSelected={selection.togglePath}
         />
       </div>
       {sidebar.resizing ? <div className="panelResizeOverlay" /> : null}
-      {selectedImage ? (
-        <LibraryDetailModal
-          language={language}
-          image={selectedImage}
-          images={visibleImages.length ? visibleImages : images}
-          onPathChange={setSelectedPath}
-          onClose={() => setSelectedPath(null)}
-          revealFile={props.revealFile}
-          setImageTags={props.setImageTags}
-          onFetchTags={() => props.fetchTags([selectedImage.path])}
-          busy={busy}
-        />
-      ) : null}
+      <LibraryOverlays
+        props={props}
+        selectedImage={selectedImage}
+        detailImages={visibleImages.length ? visibleImages : images}
+        selection={selection}
+      />
     </section>
   );
 }

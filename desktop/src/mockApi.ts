@@ -83,6 +83,18 @@ function mockCommand(commandName: string, payload: object, onEvent?: (event: Api
       return { tag: "v0.1.8", name: "v0.1.8", url: "https://example.invalid/release", published_at: "", notes: "", update_available: false };
     case "library.set_tags":
       return { image: { ...imageForPath(String(values.path || "")), tags: (values.tags as string[]) || [] } };
+    case "library.update_metadata": {
+      const paths = new Set((values.paths as string[]) || []);
+      const images = MOCK_LIBRARY_IMAGES.filter((image) => paths.has(image.path)).map((image) => ({
+        ...image,
+        favorite: "favorite" in values ? Boolean(values.favorite) : image.favorite,
+        rating: "rating" in values ? Number(values.rating) : image.rating,
+        markers: (values.markers as LibraryImage["markers"] | undefined) ?? image.markers
+      }));
+      return { updated: images.length, images };
+    }
+    case "library.export":
+      return { output: String(values.output || "C:\\Mock\\library.csv"), exported: ((values.paths as string[]) || []).length };
     case "library.fetch_tags":
       return { images: MOCK_LIBRARY_IMAGES, errors: [], cancelled: false };
     case "scan.preview":

@@ -159,6 +159,10 @@ The catalog is stored in `.pixiv-pbd-manager/library_index.json`; `library_index
 
 Library Doctor is a read-only diagnostic for database readability, missing or overlapping artist save paths, browser profiles placed inside the library, quarantine safety/writability, and index freshness. It never creates, moves, or deletes images.
 
+Image favorites, 0–5 star ratings, local tags, and the High reference value / Used / To organize workflow markers are stored in `library_index.json` and survive incremental rescans. Use the top-left selector on thumbnails to edit these fields in bulk. “Add Pixiv tags to local tags” copies tags already present in the index and does not make another network request.
+
+“Export list” writes a UTF-8 BOM CSV. It exports selected images when a selection exists and otherwise exports the current filter result, so filter by artist, folder, tag, rating, or workflow status before exporting a focused asset list.
+
 ## Pixiv Cookie And Privacy Risks
 
 Restricted or login-only artworks may require a Pixiv session cookie, usually `PHPSESSID`. The account must also allow R-18 viewing in Pixiv settings.

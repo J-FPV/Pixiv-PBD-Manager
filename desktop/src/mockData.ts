@@ -74,6 +74,9 @@ function libraryImage(
     artist_tags: artist.tags,
     tags: page === 0 ? ["favorite"] : [],
     pixiv_tags: [{ tag: "オリジナル", translation: "original" }],
+    favorite: page === 0,
+    rating: page === 0 ? 4 : 0,
+    markers: page === 0 ? ["high_value"] : [],
     artwork_url: `https://www.pixiv.net/artworks/${pid}`,
     artist_url: artist.pixiv_url
   };

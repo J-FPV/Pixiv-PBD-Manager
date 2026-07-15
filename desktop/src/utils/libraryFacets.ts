@@ -4,6 +4,9 @@ export const FILTER_DIMENSIONS = [
   "artists",
   "folders",
   "tags",
+  "favorites",
+  "ratings",
+  "markers",
   "formats",
   "orientations",
   "resolutions",
@@ -48,6 +51,12 @@ export function dimensionValues(image: LibraryImage, dim: FacetDimension): strin
       return [image.folder];
     case "tags":
       return imageTagSet(image);
+    case "favorites":
+      return [image.favorite ? "favorite" : "not_favorite"];
+    case "ratings":
+      return [String(image.rating || 0)];
+    case "markers":
+      return image.markers.length ? image.markers : ["none"];
     case "formats":
       return [image.format];
     case "orientations":
@@ -68,7 +77,7 @@ function indexImage(image: LibraryImage): LibraryFilterIndexEntry {
   return {
     image,
     values,
-    keywordText: [image.filename, image.folder, image.pid, image.artist_name, image.path, ...pixivTags]
+    keywordText: [image.filename, image.folder, image.pid, image.artist_name, image.path, ...image.tags, ...image.markers, ...pixivTags]
       .join("\n")
       .toLowerCase()
   };

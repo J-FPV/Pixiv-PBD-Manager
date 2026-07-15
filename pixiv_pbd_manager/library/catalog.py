@@ -27,6 +27,7 @@ from ..similar.filewalk import iter_image_files
 
 
 LIBRARY_INDEX_MAX_AGE_SECONDS = 6 * 60 * 60
+LIBRARY_MARKERS = frozenset({"high_value", "used", "to_sort"})
 
 
 def _pillow():
@@ -70,6 +71,17 @@ def _clean_pixiv_tags(tags: Any) -> list[dict[str, str]]:
     return cleaned
 
 
+def _clean_rating(value: Any) -> int:
+    try:
+        return max(0, min(5, int(value or 0)))
+    except (TypeError, ValueError):
+        return 0
+
+
+def _clean_markers(values: Any) -> list[str]:
+    return sorted({str(value) for value in values or [] if str(value) in LIBRARY_MARKERS})
+
+
 @dataclass
 class LibraryImage:
     path: str
@@ -84,6 +96,9 @@ class LibraryImage:
     folder: str = ""
     tags: list[str] = field(default_factory=list)
     pixiv_tags: list[dict[str, str]] = field(default_factory=list)
+    favorite: bool = False
+    rating: int = 0
+    markers: list[str] = field(default_factory=list)
 
     @classmethod
     def from_json(cls, raw: dict[str, Any]) -> "LibraryImage":
@@ -101,6 +116,9 @@ class LibraryImage:
             folder=str(raw.get("folder") or ""),
             tags=_clean_tags(raw.get("tags")),
             pixiv_tags=_clean_pixiv_tags(raw.get("pixiv_tags")),
+            favorite=bool(raw.get("favorite", False)),
+            rating=_clean_rating(raw.get("rating")),
+            markers=_clean_markers(raw.get("markers")),
         )
 
     def to_json(self) -> dict[str, Any]:
@@ -117,6 +135,9 @@ class LibraryImage:
             "folder": self.folder,
             "tags": _clean_tags(self.tags),
             "pixiv_tags": _clean_pixiv_tags(self.pixiv_tags),
+            "favorite": bool(self.favorite),
+            "rating": _clean_rating(self.rating),
+            "markers": _clean_markers(self.markers),
         }
 
     @property
@@ -249,6 +270,9 @@ def build_catalog(
                     folder=folder,
                     tags=list(prev.tags) if prev else [],
                     pixiv_tags=[dict(item) for item in prev.pixiv_tags] if prev else [],
+                    favorite=prev.favorite if prev else False,
+                    rating=prev.rating if prev else 0,
+                    markers=list(prev.markers) if prev else [],
                 )
             )
         except Exception as exc:  # noqa: BLE001 -- per-file error boundary, broad on purpose

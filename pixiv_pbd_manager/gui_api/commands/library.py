@@ -3,7 +3,9 @@
 
 from __future__ import annotations
 
+import csv
 import time
+from datetime import datetime
 from pathlib import Path
 
 from ... import resolver
@@ -48,6 +50,23 @@ def index_status(payload: JsonDict, _emit_event: Emitter) -> JsonDict:
     return library_index_status(_index_path(payload), roots, exclude_roots)
 
 
+def _artist_lookup(db: ArtistDatabase):
+    pid_map = build_pid_to_artist(db)
+    save_index = build_save_path_index(db)
+    folder_cache: dict[str, str] = {}
+
+    def find(image):
+        artist_id = folder_cache.get(image.folder)
+        if artist_id is None:
+            artist_id = resolve_folder_artist(image.folder, save_index)
+            folder_cache[image.folder] = artist_id
+        if not artist_id and image.pid:
+            artist_id = pid_map.get(image.pid, "")
+        return db.artists.get(artist_id) if artist_id else None
+
+    return find
+
+
 def list_images(payload: JsonDict, _emit_event: Emitter) -> JsonDict:
     settings = load_settings_for_payload(payload)
     db = ArtistDatabase.load(db_path(payload, settings))
@@ -59,19 +78,7 @@ def list_images(payload: JsonDict, _emit_event: Emitter) -> JsonDict:
     # works filed under an artist's folder inherit the artist + its tags even
     # when their PID isn't in that artist's online work-id list), then the PID
     # mapping. Folder resolution is cached per unique folder.
-    pid_map = build_pid_to_artist(db)
-    save_index = build_save_path_index(db)
-    folder_cache: dict[str, str] = {}
-
-    def artist_for(image):
-        artist_id = folder_cache.get(image.folder)
-        if artist_id is None:
-            artist_id = resolve_folder_artist(image.folder, save_index)
-            folder_cache[image.folder] = artist_id
-        if not artist_id and image.pid:
-            artist_id = pid_map.get(image.pid, "")
-        return db.artists.get(artist_id) if artist_id else None
-
+    artist_for = _artist_lookup(db)
     rows = [library_image_to_json(image, artist_for(image)) for image in images]
     roots, exclude_roots = _scan_paths(payload, settings)
     return {
@@ -123,8 +130,118 @@ def set_tags(payload: JsonDict, _emit_event: Emitter) -> JsonDict:
     image.tags = sorted({str(tag).strip() for tag in payload.get("tags") or [] if str(tag).strip()})
     save_library_index(catalog.values(), index_path)
     db = ArtistDatabase.load(db_path(payload, settings))
-    artist = db.artists.get(image.artist_id) if image.artist_id else None
+    artist = _artist_lookup(db)(image)
     return {"image": library_image_to_json(image, artist)}
+
+
+def update_metadata(payload: JsonDict, _emit_event: Emitter) -> JsonDict:
+    """Apply one metadata patch to many catalog images and persist once."""
+    settings = load_settings_for_payload(payload)
+    index_path = _index_path(payload)
+    catalog = load_library_index(index_path)
+    requested: list[str] = []
+    for item in payload.get("paths") or []:
+        if not str(item).strip():
+            continue
+        requested.append(str(Path(item).expanduser().resolve()))
+    if not requested:
+        raise ValueError("Choose at least one image")
+
+    add_tags = {str(tag).strip() for tag in payload.get("add_tags") or [] if str(tag).strip()}
+    remove_tags = {str(tag).strip() for tag in payload.get("remove_tags") or [] if str(tag).strip()}
+    copy_pixiv_tags = as_bool(payload, "copy_pixiv_tags", False)
+    set_favorite = "favorite" in payload
+    set_rating = "rating" in payload
+    set_markers = "markers" in payload
+    rating = max(0, min(5, int(payload.get("rating") or 0)))
+    allowed_markers = {"high_value", "used", "to_sort"}
+    markers = sorted({str(value) for value in payload.get("markers") or [] if str(value) in allowed_markers})
+    add_markers = {str(value) for value in payload.get("add_markers") or [] if str(value) in allowed_markers}
+    remove_markers = {str(value) for value in payload.get("remove_markers") or [] if str(value) in allowed_markers}
+
+    changed = []
+    for path_text in requested:
+        image = catalog.get(path_text)
+        if image is None:
+            continue
+        if set_favorite:
+            image.favorite = as_bool(payload, "favorite", False)
+        if set_rating:
+            image.rating = rating
+        if set_markers:
+            image.markers = list(markers)
+        elif add_markers or remove_markers:
+            marker_set = set(image.markers)
+            marker_set.update(add_markers)
+            marker_set.difference_update(remove_markers)
+            image.markers = sorted(marker_set)
+        tags = set(image.tags)
+        tags.update(add_tags)
+        tags.difference_update(remove_tags)
+        if copy_pixiv_tags:
+            tags.update(str(item.get("tag") or "").strip() for item in image.pixiv_tags if item.get("tag"))
+        image.tags = sorted(tag for tag in tags if tag)
+        changed.append(image)
+
+    if changed:
+        save_library_index(catalog.values(), index_path)
+    db = ArtistDatabase.load(db_path(payload, settings))
+    artist_for = _artist_lookup(db)
+    return {
+        "updated": len(changed),
+        "images": [library_image_to_json(image, artist_for(image)) for image in changed],
+    }
+
+
+def export_list(payload: JsonDict, _emit_event: Emitter) -> JsonDict:
+    """Export selected/filtered catalog rows as an Excel-friendly UTF-8 CSV."""
+    settings = load_settings_for_payload(payload)
+    output_text = str(payload.get("output") or "").strip()
+    if not output_text:
+        raise ValueError("Missing export path")
+    output = resolve_path(output_text, base_dir(payload))
+    if output.suffix.lower() != ".csv":
+        output = output.with_suffix(".csv")
+    output.parent.mkdir(parents=True, exist_ok=True)
+
+    catalog = load_library_index(_index_path(payload))
+    targets = []
+    seen: set[str] = set()
+    for item in payload.get("paths") or []:
+        path_text = str(Path(item).expanduser().resolve())
+        image = catalog.get(path_text)
+        if image is not None and path_text not in seen:
+            seen.add(path_text)
+            targets.append(image)
+    db = ArtistDatabase.load(db_path(payload, settings))
+    artist_for = _artist_lookup(db)
+    with output.open("w", encoding="utf-8-sig", newline="") as stream:
+        writer = csv.writer(stream)
+        writer.writerow([
+            "path", "filename", "artist_id", "artist_name", "pixiv_id", "page", "favorite", "rating",
+            "markers", "local_tags", "pixiv_tags", "width", "height", "format", "size_bytes", "modified",
+        ])
+        for image in targets:
+            artist = artist_for(image)
+            writer.writerow([
+                image.path,
+                Path(image.path).name,
+                artist.id if artist else image.artist_id,
+                (artist.name or "") if artist else "",
+                image.pid,
+                "" if image.page is None else image.page,
+                "1" if image.favorite else "0",
+                image.rating,
+                "; ".join(image.markers),
+                "; ".join(image.tags),
+                "; ".join(str(item.get("tag") or "") for item in image.pixiv_tags if item.get("tag")),
+                image.width,
+                image.height,
+                image.format,
+                image.size_bytes,
+                datetime.fromtimestamp(image.mtime_ns / 1_000_000_000).astimezone().isoformat() if image.mtime_ns else "",
+            ])
+    return {"output": str(output), "exported": len(targets)}
 
 
 def fetch_tags(payload: JsonDict, emit_event: Emitter) -> JsonDict:
