@@ -172,7 +172,7 @@ function LibraryDetailMetaPanel({
         language={language}
         image={image}
         disabled={busy}
-        onUpdate={(patch) => void updateImageMetadata([image.path], patch)}
+        onUpdate={(patch) => updateImageMetadata([image.path], patch)}
       />
       <div className="libraryPixivSection">
         <div className="libraryPixivHeader">

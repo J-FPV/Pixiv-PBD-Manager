@@ -18,13 +18,17 @@ export function LibraryMetadataControls({
   language: Language;
   image: LibraryImage;
   disabled: boolean;
-  onUpdate: (patch: LibraryMetadataPatch) => void;
+  onUpdate: (patch: LibraryMetadataPatch) => Promise<number>;
 }) {
+  const update = (patch: LibraryMetadataPatch) => {
+    void onUpdate(patch).catch(() => undefined);
+  };
+
   const toggleMarker = (marker: LibraryMarker) => {
     const next = new Set(image.markers);
     if (next.has(marker)) next.delete(marker);
     else next.add(marker);
-    onUpdate({ markers: [...next].sort() as LibraryMarker[] });
+    update({ markers: [...next].sort() as LibraryMarker[] });
   };
 
   return (
@@ -34,7 +38,7 @@ export function LibraryMetadataControls({
           type="button"
           className={`libraryFavoriteButton${image.favorite ? " active" : ""}`}
           disabled={disabled}
-          onClick={() => onUpdate({ favorite: !image.favorite })}
+          onClick={() => update({ favorite: !image.favorite })}
         >
           <Star size={17} fill={image.favorite ? "currentColor" : "none"} />
           {t(language, image.favorite ? "favorited" : "markFavorite")}
@@ -43,7 +47,7 @@ export function LibraryMetadataControls({
           language={language}
           rating={image.rating}
           disabled={disabled}
-          onChange={(rating) => onUpdate({ rating })}
+          onChange={(rating) => update({ rating })}
         />
       </div>
       <div className="libraryMarkerButtons">

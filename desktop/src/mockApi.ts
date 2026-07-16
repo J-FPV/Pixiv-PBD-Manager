@@ -133,7 +133,11 @@ export async function runMockGuiApi<T>(
     throw new Error(`${commandName} cancelled`);
   }
   options.onStart?.({ pause: () => undefined, resume: () => undefined });
-  await Promise.resolve();
+  if (commandName === "library.update_metadata") {
+    await new Promise((resolve) => window.setTimeout(resolve, 250));
+  } else {
+    await Promise.resolve();
+  }
   const result = mockCommand(commandName, payload, onEvent as (event: ApiEvent) => void) as T;
   onEvent?.({ type: "result", command: commandName, payload: result });
   return result;

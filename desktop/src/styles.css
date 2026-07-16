@@ -1960,6 +1960,26 @@ body.col-resizing .colHandle::after {
   cursor: pointer;
 }
 
+/* Modal field rules are intentionally broad for text inputs. Restore native
+   checkbox sizing and the horizontal label layout for check-line controls. */
+.modal label.checkLine {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+}
+
+.modal .checkLine input[type="checkbox"] {
+  flex: 0 0 auto;
+  width: 16px;
+  height: 16px;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  border-radius: 3px;
+  accent-color: var(--accent);
+}
+
 .compactCheck {
   min-height: 34px;
   padding: 0 2px;

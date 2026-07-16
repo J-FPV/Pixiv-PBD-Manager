@@ -21,6 +21,12 @@ test("mock backend covers the primary desktop flows", async ({ page }) => {
   await expect(page.locator(".libraryDetailCounter")).toHaveText("1 / 4");
 
   await page.keyboard.press("ArrowRight");
+  const favoriteButton = page.locator(".libraryFavoriteButton");
+  const highValueButton = page.locator(".libraryMarkerButtons .high_value");
+  await favoriteButton.click();
+  await highValueButton.click();
+  await expect(favoriteButton).toHaveClass(/active/, { timeout: 100 });
+  await expect(highValueButton).toHaveClass(/active/, { timeout: 100 });
   await expect(page.getByRole("heading", { name: "101000001_p1.jpg" })).toBeVisible();
   await page.getByRole("button", { name: "隐藏详情" }).click();
   await expect(page.locator(".libraryDetailMeta")).toHaveCount(0);
@@ -30,6 +36,11 @@ test("mock backend covers the primary desktop flows", async ({ page }) => {
   await expect(page.getByText("已选 1 张")).toBeVisible();
   await page.getByRole("button", { name: "批量编辑" }).click();
   await expect(page.getByRole("heading", { name: "批量编辑" })).toBeVisible();
+  const copyPixivTagsLine = page.locator(".libraryBatchModal label.checkLine");
+  const copyPixivTagsCheckbox = copyPixivTagsLine.locator('input[type="checkbox"]');
+  await expect(copyPixivTagsLine).toHaveCSS("display", "flex");
+  await expect(copyPixivTagsCheckbox).toHaveCSS("width", "16px");
+  await expect(copyPixivTagsCheckbox).toHaveCSS("height", "16px");
   await page.getByRole("combobox").selectOption("5");
   await page.getByRole("button", { name: "应用", exact: true }).click();
   await expect(page.getByText("已更新 1 张图片")).toBeVisible();

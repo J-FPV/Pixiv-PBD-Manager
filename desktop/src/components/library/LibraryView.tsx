@@ -199,7 +199,10 @@ export function LibraryView(props: LibraryViewProps) {
   });
   // Keyword changes are deferred so large catalogs do not refilter per keypress.
   const deferredFilters = useDeferredLibraryFilters(filters);
-  const { visibleImages, facets } = useLibraryFilter(images, deferredFilters, language);
+  // Per-image metadata changes should paint in the detail panel immediately.
+  // Defer the expensive whole-catalog facet rebuild so it cannot block clicks.
+  const deferredImages = useDeferredValue(images);
+  const { visibleImages, facets } = useLibraryFilter(deferredImages, deferredFilters, language);
   const selection = useLibrarySelection(images, visibleImages);
 
   useEffect(() => {
@@ -222,8 +225,8 @@ export function LibraryView(props: LibraryViewProps) {
     });
 
   const selectedImage =
-    visibleImages.find((image) => image.path === selectedPath) ||
     images.find((image) => image.path === selectedPath) ||
+    visibleImages.find((image) => image.path === selectedPath) ||
     null;
 
   const openDoctor = () => {

@@ -1,3 +1,4 @@
+import { useRef } from "react";
 import { browsePath, runGuiApi } from "../api";
 import { t } from "../i18n";
 import type {
@@ -6,6 +7,8 @@ import type {
   LibraryFetchTagsResult,
   LibraryExportResult,
   LibraryIndexStatus,
+  LibraryImage,
+  LibraryMarker,
   LibraryListPayload,
   LibraryMetadataPatch,
   LibraryMetadataResult,
@@ -13,6 +16,62 @@ import type {
   LibrarySetTagsPayload
 } from "../types";
 import type { AppState } from "./useAppState";
+
+function cleanMarkers(markers: Iterable<LibraryMarker>): LibraryMarker[] {
+  return Array.from(new Set(markers)).sort();
+}
+
+function cleanTags(tags: Iterable<string>): string[] {
+  return Array.from(new Set(Array.from(tags, (tag) => tag.trim()).filter(Boolean))).sort();
+}
+
+export function applyLibraryMetadataPatch(image: LibraryImage, patch: LibraryMetadataPatch): LibraryImage {
+  const markerSet = new Set<LibraryMarker>(patch.markers ?? image.markers);
+  if (patch.markers === undefined) {
+    for (const marker of patch.add_markers ?? []) markerSet.add(marker);
+    for (const marker of patch.remove_markers ?? []) markerSet.delete(marker);
+  }
+
+  const tagSet = new Set(image.tags);
+  for (const tag of patch.add_tags ?? []) tagSet.add(tag);
+  for (const tag of patch.remove_tags ?? []) tagSet.delete(tag);
+  if (patch.copy_pixiv_tags) {
+    for (const pixivTag of image.pixiv_tags) tagSet.add(pixivTag.tag);
+  }
+
+  return {
+    ...image,
+    favorite: patch.favorite ?? image.favorite,
+    rating: patch.rating === undefined ? image.rating : Math.max(0, Math.min(5, Math.trunc(patch.rating))),
+    markers: cleanMarkers(markerSet),
+    tags: cleanTags(tagSet)
+  };
+}
+
+function useMetadataUpdater(s: AppState, loadLibrary: () => Promise<void>) {
+  const queueRef = useRef<Promise<void>>(Promise.resolve());
+  return async (paths: string[], patch: LibraryMetadataPatch) => {
+    const targetPaths = new Set(paths);
+    s.setLibraryImages((current) =>
+      current.map((image) => (targetPaths.has(image.path) ? applyLibraryMetadataPatch(image, patch) : image))
+    );
+    const request = queueRef.current.then(() =>
+      runGuiApi<LibraryMetadataResult>("library.update_metadata", { paths, ...patch }, s.handleEvent)
+    );
+    queueRef.current = request.then(() => undefined, () => undefined);
+    try {
+      const result = await request;
+      s.showToast(t(s.language, "libraryUpdated").replace("{count}", String(result.updated)));
+      return result.updated;
+    } catch (reason) {
+      s.appendLog("error", reason instanceof Error ? reason.message : String(reason));
+      const reload = queueRef.current.then(loadLibrary);
+      queueRef.current = reload.then(() => undefined, () => undefined);
+      await reload;
+      throw reason;
+    }
+  };
+}
 
 export interface LibraryActions {
   loadLibrary: () => Promise<void>;
@@ -96,17 +155,9 @@ export function useLibraryActions(s: AppState): LibraryActions {
     }
   };
 
-  const updateImageMetadata = async (paths: string[], patch: LibraryMetadataPatch) => {
-    const result = await runGuiApi<LibraryMetadataResult>(
-      "library.update_metadata",
-      { paths, ...patch },
-      s.handleEvent
-    );
-    const updates = new Map(result.images.map((image) => [image.path, image]));
-    s.setLibraryImages((current) => current.map((image) => updates.get(image.path) ?? image));
-    s.showToast(t(s.language, "libraryUpdated").replace("{count}", String(result.updated)));
-    return result.updated;
-  };
+  // Metadata writes each spawn a short-lived backend process. Keep them in
+  // order so rapid clicks cannot race while still updating React immediately.
+  const updateImageMetadata = useMetadataUpdater(s, loadLibrary);
 
   const exportLibrary = async (paths: string[]) => {
     const output = await browsePath("save");

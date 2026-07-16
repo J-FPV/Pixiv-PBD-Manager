@@ -118,7 +118,10 @@ def _read_payload_source(command: str, argv: list[str]) -> tuple[str, int]:
         # subsequent ``{"control":"pause"}`` / ``{"control":"resume"}`` lines
         # for the control reader. Frontend writes one compact JSON line +
         # newline as the payload, then keeps stdin open for control messages.
-        return sys.stdin.readline(), 0
+        # Strip a UTF-8 BOM: Windows PowerShell 5.1 pipes prepend one, which
+        # would otherwise fail json.loads at char 0 (same reason the
+        # --payload-file branch reads with utf-8-sig).
+        return sys.stdin.readline().lstrip("﻿"), 0
     if first == "--payload-file":
         if len(argv) < 2:
             emit_event({"type": "error", "command": command, "message": "--payload-file requires a path"})
