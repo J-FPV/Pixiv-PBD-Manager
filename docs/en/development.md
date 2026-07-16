@@ -34,7 +34,7 @@ Production mode:
 
 Some historical names in the repository still say `sidecar`, but the current production package is **PyInstaller onedir + Tauri resources + shell allow-list**. It does not use Tauri's `externalBin` sidecar mechanism because `externalBin` is better suited to a single executable, while this project must ship PyInstaller's `_internal/` Python runtime folder.
 
-Frontend/backend IPC uses JSON Lines. To avoid Windows console encoding issues, the frontend sends ASCII JSON and the backend writes UTF-8 bytes to stdout.
+Frontend/backend IPC uses JSON Lines. To avoid Windows console encoding issues, the frontend sends ASCII JSON and the backend writes UTF-8 bytes to stdout. Stdin payloads are read from the binary buffer and decoded with `utf-8-sig`, so the UTF-8 BOM sometimes added by Windows PowerShell 5.1 is accepted without passing through a legacy GBK text layer.
 
 ## Development Environment
 
@@ -73,10 +73,13 @@ pixiv_pbd_manager/
   gui_api/               # JSON Lines API used by Tauri
   operations/            # scan, preview, update, download orchestration
   similar/               # similar-image indexing and grouping
+  library/               # library catalog, incremental index, image metadata
+  doctor.py              # read-only library diagnostics
 
 desktop/
   src/                   # React frontend
   src-tauri/             # Tauri / Rust shell, capabilities, packaging config
+  e2e/                   # mock GUI tests and screenshot driver
 
 docs/
   zh/                    # Chinese docs
@@ -120,6 +123,15 @@ npm run dev:mock
 
 Mock mode provides fixed artists, library images, scan preview, and similar-image data. It is enabled only in Vite development mode and is excluded from production installers.
 
+To generate a repeatable set of current GUI screenshots:
+
+```powershell
+cd desktop
+node e2e/screenshot.mjs
+```
+
+The driver reuses an existing `dev:mock` server or starts one, then captures Artists, Library, Detail, Scan Preview, Similar Images, and Settings. `.claude/skills/run-pixiv-pbd-manager/SKILL.md` documents the automated verification order and screenshot workflow.
+
 If you change GUI API commands, Tauri shell permissions, or frontend `runGuiApi(...)` calls, run at least:
 
 ```powershell
@@ -150,7 +162,7 @@ python -c "from pixiv_pbd_manager import gui_api; gui_api.run_command('settings.
 '{"settings": {}}' | Set-Content -NoNewline payload.json -Encoding utf8
 python -m pixiv_pbd_manager.gui_api settings.save --payload-file payload.json
 
-# 3. stdin: - reads the payload from stdin
+# 3. stdin: - reads stdin; PowerShell BOM input is decoded with utf-8-sig
 '{"settings": {}}' | python -m pixiv_pbd_manager.gui_api settings.save -
 ```
 
@@ -227,9 +239,9 @@ Release flow:
 
 ```powershell
 git status
-git tag -a v0.2.0 -m "v0.2.0"
+git tag -a vX.Y.Z -m "vX.Y.Z"
 git push origin main
-git push origin v0.2.0
+git push origin vX.Y.Z
 ```
 
 GitHub Actions automatically:
@@ -243,7 +255,7 @@ Manual release checks:
 
 ```powershell
 gh run list --repo J-FPV/Pixiv-PBD-Manager --workflow Release --limit 5
-gh release view v0.2.0 --repo J-FPV/Pixiv-PBD-Manager
+gh release view vX.Y.Z --repo J-FPV/Pixiv-PBD-Manager
 ```
 
 Tags containing `alpha`, `beta`, `rc`, or `dev` are automatically marked as prereleases.
@@ -277,3 +289,4 @@ This stores frontend-local state such as the development `Project root` and Pyth
 - GUI API commands must stay aligned across `pixiv_pbd_manager/gui_api/__init__.py`, Tauri shell capabilities, and frontend calls; `tests/test_shell_permissions.py` checks this.
 - `.pixiv-pbd-manager` paths are centralized in `pixiv_pbd_manager/paths.py`.
 - Keep business logic in Python `operations/` and `similar/`; avoid duplicating it in the frontend.
+- Keep user-facing release documentation paired in `README.md` / `README.en.md` and `docs/zh/release-notes.md` / `docs/en/release-notes.md`.

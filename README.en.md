@@ -18,6 +18,16 @@ Most users should use the `setup.exe`. An `msi` is also published for environmen
 
 The installer includes the Python backend and dependencies. You do not need to install Python, Node.js, or Rust just to use the app.
 
+## v0.1.9 Highlights
+
+- The Library now supports image favorites, 0–5 star ratings, workflow markers, local tags, batch editing, and CSV export.
+- Library filtering and tag toggles are faster; metadata controls update immediately instead of waiting for the backend process.
+- Similar-image and quarantine histories use compact pagination, while tall and portrait images initially fit inside preview dialogs.
+- Long scans can be cancelled, and a dismissed scan preview can be reopened from Scan results.
+- Windows stdin JSON handling now tolerates UTF-8 BOMs and legacy console encodings.
+
+See the [v0.1.9 release notes](docs/en/release-notes.md) for the complete summary.
+
 ## What It Does
 
 - Scans Pixiv image folders and identifies artists, artwork IDs, and save paths.
@@ -31,6 +41,7 @@ The installer includes the Python backend and dependencies. You do not need to i
 - Finds similar images across different file names, formats, and resolutions.
 - Supports thumbnail previews and difference-image comparison.
 - Recommends the best copy to keep and moves other selected files to a recoverable quarantine.
+- Shows progress for long-running work and offers pause or cancellation where the task supports it.
 - Supports Chinese / English UI switching.
 
 ## Recommended Workflow
@@ -41,7 +52,7 @@ The installer includes the Python backend and dependencies. You do not need to i
 4. Go to Artists and click Scan.
 5. Review and apply the scan preview.
 6. Click Check updates.
-7. Select artists and click Download updated, or click Open selected and use Powerful Pixiv Downloader in the browser.
+7. Select artists and click Download updated, or choose Open in browser from More to use Powerful Pixiv Downloader.
 
 ## First-Time Settings
 
@@ -79,7 +90,7 @@ Typical flow:
 
 The "Download concurrency" setting (1–5, default 1) downloads several artworks at once; higher is faster but more likely to trigger Pixiv rate-limiting, so 1–2 is recommended. The task window shows a separate progress bar for each concurrent download.
 
-If you prefer PBD naming rules, filters, or extension behavior, use Open selected and let PBD handle the browser pages.
+If you prefer PBD naming rules, filters, or extension behavior, choose Open in browser from More and let PBD handle the browser pages.
 
 ## Favorites And Tags
 
@@ -103,6 +114,7 @@ The Image Library page browses every image in your download folders as a thumbna
 - **Batch organization**: select images from the top-left control on each thumbnail, then add/remove tags, change favorites and ratings, set workflow markers, or promote fetched Pixiv tags to local tags.
 - **Export**: exports selected images when a selection exists, otherwise the current filtered result. The UTF-8 CSV can therefore be scoped by artist, folder, or tag before export.
 - **Detail**: click any thumbnail for the full image and metadata; edit favorites, ratings, status, and tags, or open the file location/Pixiv source page.
+- **Image viewing**: tall and portrait images initially fit within the available detail area; use the wheel to zoom, drag to pan, and the side buttons to move between images.
 - **Background incremental index**: when the index is older than six hours, scan folders change, or a root folder changes, it refreshes in the background and reuses unchanged dimensions without blocking artist or similar-image work.
 - **Library Doctor**: use the toolbar action to check the database, missing save paths, overlapping ownership, unsafe browser profiles, quarantine writability, and index freshness. Checks are read-only.
 
@@ -161,3 +173,4 @@ Source runs require Python, Node.js/npm, and Rust/Cargo. For normal use, install
 - [Advanced usage](docs/en/advanced-usage.md): legacy folder recognition, direct download details, similar image rules, cookie risks, and CLI commands.
 - [Development notes](docs/en/development.md): Tauri setup, project structure, tests, packaging, and release workflow.
 - [Manual test checklist](docs/zh/manual-test-checklist.md): GUI regression checklist, currently maintained in Chinese.
+- [Release notes](docs/en/release-notes.md): current-version highlights, upgrade notes, and important behavior changes.

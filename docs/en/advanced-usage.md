@@ -29,6 +29,8 @@ Then it checks file names for common fields:
 98765432_member_id=123456_title.webp
 ```
 
+When a folder contains several artwork IDs, online resolution does not rely only on the first sorted file. It samples a bounded set of newer, middle, and older PIDs and uses the majority artist result. One deleted, restricted, or inaccessible artwork therefore does not make the entire folder fail to resolve.
+
 If an old folder has an artist name but no artist ID:
 
 ```text
@@ -153,6 +155,8 @@ Ignored groups and cleanup history are stored in `.pixiv-pbd-manager/cleanup_sta
 
 Cleanup confirmation lists the keep set separately from the quarantine set. Results summarize group counts and reclaimable space for Exact / Highly similar / Possibly similar matches, and each group explains its recommendation rule. Quarantine records can open their task folder directly, while failed items keep their error reason for troubleshooting.
 
+Both scan results and quarantine history are paginated so large operations do not render every file at once. Quarantine history also lets you adjust the page size; paging changes only the view and never changes item state. Single, side-by-side, and difference previews initially fit the complete image into the available area before wheel zoom and drag panning are applied.
+
 ## Library Index And Doctor
 
 The catalog is stored in `.pixiv-pbd-manager/library_index.json`; `library_index.meta.json` stores scan time, scan/exclude folders, and root-folder timestamps. If the index is older than six hours, folder settings change, or a root changes, the desktop app starts an independent incremental refresh. Unchanged dimensions and tags are reused. Its task lane does not block artist update checks or similar-image scans.
@@ -160,6 +164,8 @@ The catalog is stored in `.pixiv-pbd-manager/library_index.json`; `library_index
 Library Doctor is a read-only diagnostic for database readability, missing or overlapping artist save paths, browser profiles placed inside the library, quarantine safety/writability, and index freshness. It never creates, moves, or deletes images.
 
 Image favorites, 0–5 star ratings, local tags, and the High reference value / Used / To organize workflow markers are stored in `library_index.json` and survive incremental rescans. Use the top-left selector on thumbnails to edit these fields in bulk. “Add Pixiv tags to local tags” copies tags already present in the index and does not make another network request.
+
+Favorite, rating, and workflow controls update the detail view immediately. Backend writes are serialized so rapid clicks cannot overwrite one another; if persistence fails, the app reloads the index and logs the error. In large libraries, filtering and facet counts use deferred recomputation so toggling a tag no longer blocks the current interaction.
 
 “Export list” writes a UTF-8 BOM CSV. It exports selected images when a selection exists and otherwise exports the current filter result, so filter by artist, folder, tag, rating, or workflow status before exporting a focused asset list.
 
