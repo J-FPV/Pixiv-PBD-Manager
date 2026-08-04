@@ -660,6 +660,9 @@ class GuiApiTests(unittest.TestCase):
                 ):
                     code, _events = invoke("library.fetch_tags", {"resolve_delay": 0})
                 _, list_events = invoke("library.list")
+                cache = json.loads(
+                    (root / ".pixiv-pbd-manager" / "pixiv_tags.json").read_text(encoding="utf-8")
+                )
             finally:
                 os.chdir(old_cwd)
 
@@ -669,6 +672,115 @@ class GuiApiTests(unittest.TestCase):
         self.assertEqual(len(tagged), 2)
         for row in tagged:
             self.assertEqual(row["pixiv_tags"], [{"tag": "水色髪", "translation": "light blue hair"}])
+        # One request served both pages, and the result is now durable per PID.
+        self.assertEqual(sorted(cache["entries"]), ["12345678", "99000099"])
+
+    def _scan_and_fetch(self, root: Path, tag: str = "水色髪") -> None:
+        invoke("library.scan")
+        with patch(
+            "pixiv_pbd_manager.resolver.fetch_artwork_tags",
+            return_value=([ArtworkTag(tag=tag, translation="")], False),
+        ):
+            invoke("library.fetch_tags", {"resolve_delay": 0})
+
+    def test_library_fetch_tags_second_run_issues_no_requests(self):
+        with TemporaryDirectory() as tmp:
+            root = _isolate(tmp)
+            old_cwd = Path.cwd()
+            try:
+                os.chdir(root)
+                self._setup_library(root)
+                self._scan_and_fetch(root)
+                with patch("pixiv_pbd_manager.resolver.fetch_artwork_tags") as mock:
+                    code, events = invoke("library.fetch_tags", {"resolve_delay": 0})
+            finally:
+                os.chdir(old_cwd)
+
+        self.assertEqual(code, 0)
+        self.assertEqual(mock.call_count, 0)
+        payload = events[-1]["payload"]
+        self.assertEqual((payload["total"], payload["attempted"], payload["skipped"]), (2, 0, 2))
+
+    def test_library_fetch_tags_force_refetches_cached_pids(self):
+        with TemporaryDirectory() as tmp:
+            root = _isolate(tmp)
+            old_cwd = Path.cwd()
+            try:
+                os.chdir(root)
+                self._setup_library(root)
+                self._scan_and_fetch(root)
+                with patch(
+                    "pixiv_pbd_manager.resolver.fetch_artwork_tags",
+                    return_value=([ArtworkTag(tag="新", translation="")], False),
+                ) as mock:
+                    code, events = invoke("library.fetch_tags", {"resolve_delay": 0, "force": True})
+                _, list_events = invoke("library.list")
+            finally:
+                os.chdir(old_cwd)
+
+        self.assertEqual(code, 0)
+        self.assertEqual(mock.call_count, 2)
+        self.assertEqual(events[-1]["payload"]["fetched"], 2)
+        rows = list_events[-1]["payload"]["images"]
+        self.assertEqual(rows[0]["pixiv_tags"], [{"tag": "新", "translation": ""}])
+
+    def test_library_scan_rehydrates_tags_after_file_rename(self):
+        # Tags are stored per file path in the catalog, so a rename used to drop
+        # them and force a full refetch. The PID-keyed sidecar restores them.
+        with TemporaryDirectory() as tmp:
+            root = _isolate(tmp)
+            old_cwd = Path.cwd()
+            try:
+                os.chdir(root)
+                images_dir = self._setup_library(root)
+                self._scan_and_fetch(root)
+                os.rename(images_dir / "12345678_p0.jpg", images_dir / "12345678_p0 renamed.jpg")
+                invoke("library.scan")
+                _, list_events = invoke("library.list")
+            finally:
+                os.chdir(old_cwd)
+
+        rows = {Path(row["path"]).name: row for row in list_events[-1]["payload"]["images"]}
+        self.assertIn("12345678_p0 renamed.jpg", rows)
+        self.assertEqual(
+            rows["12345678_p0 renamed.jpg"]["pixiv_tags"],
+            [{"tag": "水色髪", "translation": ""}],
+        )
+
+    def test_library_scan_seeds_cache_from_legacy_index(self):
+        # An index written before the sidecar existed must not trigger a refetch.
+        with TemporaryDirectory() as tmp:
+            root = _isolate(tmp)
+            old_cwd = Path.cwd()
+            try:
+                os.chdir(root)
+                self._setup_library(root)
+                invoke("library.scan")
+                index_path = root / ".pixiv-pbd-manager" / "library_index.json"
+                index = json.loads(index_path.read_text(encoding="utf-8"))
+                for entry in index["entries"].values():
+                    if entry["pid"] == "12345678":
+                        entry["pixiv_tags"] = [{"tag": "旧标签", "translation": "legacy"}]
+                index_path.write_text(json.dumps(index, ensure_ascii=False), encoding="utf-8")
+
+                invoke("library.scan")
+                cache = json.loads((root / ".pixiv-pbd-manager" / "pixiv_tags.json").read_text(encoding="utf-8"))
+                with patch(
+                    "pixiv_pbd_manager.resolver.fetch_artwork_tags",
+                    return_value=([ArtworkTag(tag="新", translation="")], False),
+                ) as mock:
+                    _, events = invoke("library.fetch_tags", {"resolve_delay": 0, "paths": []})
+            finally:
+                os.chdir(old_cwd)
+
+        seeded = cache["entries"]["12345678"]
+        self.assertTrue(seeded["ok"])
+        self.assertEqual(seeded["source"], "catalog")
+        self.assertEqual(seeded["tags"], [{"tag": "旧标签", "translation": "legacy"}])
+        # 99000099 had no tags in the legacy index, so it stays fetchable.
+        self.assertNotIn("99000099", cache["entries"])
+        self.assertEqual([call.args[0] for call in mock.call_args_list], ["99000099"])
+        self.assertEqual(events[-1]["payload"]["skipped"], 1)
 
     def test_library_list_attributes_artist_by_folder(self):
         with TemporaryDirectory() as tmp:

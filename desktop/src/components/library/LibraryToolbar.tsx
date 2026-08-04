@@ -1,4 +1,4 @@
-import { PanelLeft, RefreshCw, Search, Stethoscope, Tags, XCircle } from "lucide-react";
+import { PanelLeft, RefreshCw, RotateCcw, Search, Stethoscope, Tags, XCircle } from "lucide-react";
 import { t } from "../../i18n";
 import type { Language, LibraryIndexStatus } from "../../types";
 import { Button } from "../Button";
@@ -13,6 +13,7 @@ export function LibraryToolbar({
   indexStatus,
   onScan,
   onFetchTags,
+  onRefetchTags,
   fetchDisabled,
   toggleSidebar,
   onDoctor
@@ -26,6 +27,7 @@ export function LibraryToolbar({
   indexStatus: LibraryIndexStatus | null;
   onScan: () => void;
   onFetchTags: () => void;
+  onRefetchTags: () => void;
   fetchDisabled: boolean;
   toggleSidebar: () => void;
   onDoctor: () => void;
@@ -54,8 +56,22 @@ export function LibraryToolbar({
       <Button icon={<Stethoscope size={15} />} onClick={onDoctor}>
         {t(language, "libraryDoctor")}
       </Button>
-      <Button icon={<Tags size={15} />} onClick={onFetchTags} disabled={busy || fetchDisabled}>
+      <Button
+        icon={<Tags size={15} />}
+        onClick={onFetchTags}
+        disabled={busy || fetchDisabled}
+        title={t(language, "fetchPixivTagsHint")}
+      >
         {t(language, "fetchPixivTags")}
+      </Button>
+      <Button
+        icon={<RotateCcw size={15} />}
+        variant="quiet"
+        onClick={onRefetchTags}
+        disabled={busy || fetchDisabled}
+        title={t(language, "refetchPixivTagsHint")}
+      >
+        {t(language, "refetchPixivTags")}
       </Button>
       <Button icon={<RefreshCw size={15} />} onClick={onScan} disabled={busy}>
         {t(language, needsScan ? "scanLibrary" : "rescanLibrary")}

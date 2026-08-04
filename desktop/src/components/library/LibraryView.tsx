@@ -40,7 +40,7 @@ export interface LibraryViewProps {
   setImageTags: (path: string, tags: string[]) => void | Promise<void>;
   updateImageMetadata: (paths: string[], patch: LibraryMetadataPatch) => Promise<number>;
   exportLibrary: (paths: string[]) => Promise<void>;
-  fetchTags: (paths: string[]) => void;
+  fetchTags: (paths: string[], options?: { force?: boolean }) => void;
   revealFile: (path: string) => void;
 }
 
@@ -155,6 +155,7 @@ function LibraryOverlays({
   return (
     <>
       {selectedImage ? (
+        // One image, one explicit click: always force, cached or not.
         <LibraryDetailModal
           language={props.language}
           image={selectedImage}
@@ -164,7 +165,7 @@ function LibraryOverlays({
           revealFile={props.revealFile}
           setImageTags={props.setImageTags}
           updateImageMetadata={props.updateImageMetadata}
-          onFetchTags={() => props.fetchTags([selectedImage.path])}
+          onFetchTags={() => props.fetchTags([selectedImage.path], { force: true })}
           busy={props.busy}
         />
       ) : null}
@@ -263,6 +264,7 @@ export function LibraryView(props: LibraryViewProps) {
         indexStatus={props.indexStatus}
         onScan={props.scanLibrary}
         onFetchTags={() => props.fetchTags(visibleImages.map((image) => image.path))}
+        onRefetchTags={() => props.fetchTags(visibleImages.map((image) => image.path), { force: true })}
         fetchDisabled={!visibleImages.length}
         toggleSidebar={() => setSidebarOpen((value) => !value)}
         onDoctor={openDoctor}

@@ -389,9 +389,13 @@ function describeFetchTags(language: Language, event: ProgressEvent): PipelineDe
   switch (event.key) {
     case PROGRESS_FETCH_TAGS_START:
       return {
-        logText: `Fetching Pixiv tags: ${p.total ?? 0} artwork(s)`,
+        logText: `Fetching Pixiv tags: ${p.total ?? 0} of ${p.total_pids ?? p.total ?? 0} artwork(s), ${p.skipped ?? 0} already cached`,
         progressUpdate: () => ({
-          main: { label: t(language, "fetchPixivTags"), current: 0, total: numberValue(p.total), indeterminate: numberValue(p.total) === 0 }
+          // A fully-cached run has nothing pending. Show it complete rather than
+          // indeterminate, or the bar spins until DONE for no reason.
+          main: numberValue(p.total) === 0
+            ? { label: t(language, "fetchPixivTags"), current: 1, total: 1 }
+            : { label: t(language, "fetchPixivTags"), current: 0, total: numberValue(p.total) }
         })
       };
     case PROGRESS_FETCH_TAGS_ITEM:
@@ -407,7 +411,7 @@ function describeFetchTags(language: Language, event: ProgressEvent): PipelineDe
       };
     case PROGRESS_FETCH_TAGS_DONE:
       return {
-        logText: `Pixiv tags done: ${p.updated} updated, ${p.errors} errors`,
+        logText: `Pixiv tags done: ${p.fetched ?? p.updated} fetched, ${p.skipped ?? 0} cached, ${p.failed ?? p.errors ?? 0} failed`,
         progressUpdate: () => ({ main: { label: t(language, "fetchPixivTags"), current: 1, total: 1 } })
       };
     default:

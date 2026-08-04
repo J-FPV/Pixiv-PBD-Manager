@@ -17,11 +17,27 @@ from .catalog import (
     save_library_index,
     save_library_index_metadata,
 )
+from .tag_cache import (
+    TagCacheEntry,
+    apply_tag_cache,
+    load_tag_cache,
+    merge_tag_cache,
+    needs_fetch,
+    save_tag_cache,
+    seed_tag_cache_from_images,
+)
 
 
 __all__ = [
     "CatalogSummary",
     "LibraryImage",
+    "TagCacheEntry",
+    "apply_tag_cache",
+    "load_tag_cache",
+    "merge_tag_cache",
+    "needs_fetch",
+    "save_tag_cache",
+    "seed_tag_cache_from_images",
     "build_catalog",
     "build_pid_to_artist",
     "build_save_path_index",

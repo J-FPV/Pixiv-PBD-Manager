@@ -81,7 +81,7 @@ export interface LibraryActions {
   setImageTags: (path: string, tags: string[]) => Promise<void>;
   updateImageMetadata: (paths: string[], patch: LibraryMetadataPatch) => Promise<number>;
   exportLibrary: (paths: string[]) => Promise<void>;
-  fetchTags: (paths: string[]) => void;
+  fetchTags: (paths: string[], options?: { force?: boolean }) => void;
 }
 
 // Loads the joined catalog once (the frontend then filters/facets in-memory),
@@ -173,11 +173,15 @@ export function useLibraryActions(s: AppState): LibraryActions {
 
   // Fetch each artwork's Pixiv tags (original + English translation) and apply
   // them to every image sharing the PID. Cancellable + rate-limited backend.
-  const fetchTags = (paths: string[]) =>
-    s.runTask("library", t(s.language, "fetchPixivTags"), async (signal, registerControls) => {
+  // Incremental by default — the backend skips works it already fetched, so
+  // `force` is what re-downloads tags that are already cached.
+  const fetchTags = (paths: string[], options?: { force?: boolean }) => {
+    const force = options?.force ?? false;
+    const label = t(s.language, force ? "refetchPixivTags" : "fetchPixivTags");
+    return s.runTask("library", label, async (signal, registerControls) => {
       const result = await runGuiApi<LibraryFetchTagsResult>(
         "library.fetch_tags",
-        { ...s.settings, paths },
+        { ...s.settings, paths, force },
         s.handleEvent,
         { signal, onStart: registerControls, gracefulCancel: true }
       );
@@ -186,10 +190,22 @@ export function useLibraryActions(s: AppState): LibraryActions {
       for (const err of result.errors) {
         s.appendLog("error", err);
       }
+      s.appendLog(
+        "info",
+        t(s.language, "fetchPixivTagsSummary")
+          .replace("{fetched}", String(result.fetched))
+          .replace("{skipped}", String(result.skipped))
+          .replace("{failed}", String(result.failed))
+      );
       if (result.cancelled) {
         s.appendLog("warn", t(s.language, "taskCancelled"));
+      } else if (!force && result.attempted === 0) {
+        // A fully-cached run finishes instantly; without this it looks like the
+        // button did nothing at all.
+        s.showToast(t(s.language, "fetchPixivTagsUpToDate"));
       }
     });
+  };
 
   return {
     loadLibrary,

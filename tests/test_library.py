@@ -10,15 +10,22 @@ from PIL import Image
 from pixiv_pbd_manager.database import ArtistDatabase
 from pixiv_pbd_manager.library import (
     LibraryImage,
+    TagCacheEntry,
+    apply_tag_cache,
     build_catalog,
     build_pid_to_artist,
     build_save_path_index,
     library_index_status,
     load_library_index,
+    load_tag_cache,
+    merge_tag_cache,
+    needs_fetch,
     parse_pixiv_name,
     read_image_size,
     save_library_index,
     save_library_index_metadata,
+    save_tag_cache,
+    seed_tag_cache_from_images,
 )
 
 
@@ -197,6 +204,133 @@ class ReadImageSizeTests(unittest.TestCase):
             path = Path(tmp) / "sample.png"
             Image.new("RGB", (64, 48), "red").save(path)
             self.assertEqual(read_image_size(path), (64, 48))
+
+
+def _image(path: str, pid: str, pixiv_tags: list[dict[str, str]] | None = None) -> LibraryImage:
+    return LibraryImage(
+        path=path,
+        size_bytes=10,
+        mtime_ns=1,
+        width=4,
+        height=4,
+        format="jpg",
+        pid=pid,
+        pixiv_tags=list(pixiv_tags or []),
+    )
+
+
+TAGS = [{"tag": "水色髪", "translation": "light blue hair"}]
+
+
+class TagCacheTests(unittest.TestCase):
+    def test_round_trip_through_cache_file(self):
+        with TemporaryDirectory() as tmp:
+            path = Path(tmp) / "pixiv_tags.json"
+            entry = TagCacheEntry(
+                pid="12345678", tags=TAGS, fetched_at=1700.5, ok=True, source="fetch", attempts=2
+            )
+            save_tag_cache({entry.pid: entry}, path)
+            loaded = load_tag_cache(path)
+
+        self.assertEqual(list(loaded), ["12345678"])
+        restored = loaded["12345678"]
+        self.assertEqual(restored.tags, TAGS)
+        self.assertEqual(restored.fetched_at, 1700.5)
+        self.assertTrue(restored.ok)
+        self.assertEqual(restored.source, "fetch")
+        self.assertEqual(restored.attempts, 2)
+
+    def test_load_returns_empty_for_missing_and_corrupt_files(self):
+        with TemporaryDirectory() as tmp:
+            missing = Path(tmp) / "nope.json"
+            self.assertEqual(load_tag_cache(missing), {})
+            corrupt = Path(tmp) / "corrupt.json"
+            corrupt.write_text("{not json", encoding="utf-8")
+            self.assertEqual(load_tag_cache(corrupt), {})
+
+    def test_seed_adopts_catalog_tags_for_unknown_pid(self):
+        cache: dict[str, TagCacheEntry] = {}
+        seeded = seed_tag_cache_from_images(cache, [_image("a.jpg", "12345678", TAGS)], now=99.0)
+        self.assertEqual(seeded, 1)
+        entry = cache["12345678"]
+        self.assertEqual(entry.tags, TAGS)
+        self.assertTrue(entry.ok)
+        self.assertEqual(entry.source, "catalog")
+        self.assertEqual(entry.fetched_at, 99.0)
+
+    def test_seed_skips_pid_with_empty_catalog_tags(self):
+        # Empty catalog tags are ambiguous between "never fetched" and "this
+        # artwork has no tags", so they must stay fetchable rather than be
+        # adopted as a successful result.
+        cache: dict[str, TagCacheEntry] = {}
+        self.assertEqual(seed_tag_cache_from_images(cache, [_image("a.jpg", "12345678")]), 0)
+        self.assertNotIn("12345678", cache)
+        self.assertTrue(needs_fetch(cache.get("12345678")))
+
+    def test_seed_does_not_overwrite_existing_entry(self):
+        cache = {"12345678": TagCacheEntry(pid="12345678", ok=False, error="boom", fetched_at=5.0)}
+        self.assertEqual(seed_tag_cache_from_images(cache, [_image("a.jpg", "12345678", TAGS)]), 0)
+        self.assertFalse(cache["12345678"].ok)
+        self.assertTrue(needs_fetch(cache["12345678"]))
+
+    def test_seed_is_order_independent_across_pages(self):
+        images = [_image("a_p0.jpg", "12345678"), _image("a_p1.jpg", "12345678", TAGS)]
+        cache: dict[str, TagCacheEntry] = {}
+        self.assertEqual(seed_tag_cache_from_images(cache, images), 1)
+        self.assertEqual(cache["12345678"].tags, TAGS)
+
+    def test_apply_hydrates_moved_file_by_pid(self):
+        # The regression this whole cache exists for: the path changed, so the
+        # catalog's path-keyed carry-forward dropped the tags.
+        moved = _image("D:/new/place/12345678_p0.jpg", "12345678")
+        cache = {"12345678": TagCacheEntry(pid="12345678", tags=TAGS, ok=True)}
+        self.assertEqual(apply_tag_cache([moved], cache), {"12345678"})
+        self.assertEqual(moved.pixiv_tags, TAGS)
+
+    def test_apply_reports_no_change_when_already_current(self):
+        image = _image("a.jpg", "12345678", TAGS)
+        cache = {"12345678": TagCacheEntry(pid="12345678", tags=TAGS, ok=True)}
+        self.assertEqual(apply_tag_cache([image], cache), set())
+
+    def test_apply_ignores_failed_entries(self):
+        image = _image("a.jpg", "12345678", TAGS)
+        cache = {"12345678": TagCacheEntry(pid="12345678", tags=[], ok=False, error="404")}
+        self.assertEqual(apply_tag_cache([image], cache), set())
+        self.assertEqual(image.pixiv_tags, TAGS)
+
+    def test_apply_writes_empty_tags_for_a_tagless_artwork(self):
+        image = _image("a.jpg", "12345678", TAGS)
+        cache = {"12345678": TagCacheEntry(pid="12345678", tags=[], ok=True)}
+        self.assertEqual(apply_tag_cache([image], cache), {"12345678"})
+        self.assertEqual(image.pixiv_tags, [])
+
+    def test_apply_ignores_images_without_pid(self):
+        image = _image("a.jpg", "")
+        self.assertEqual(apply_tag_cache([image], {"": TagCacheEntry(pid="", tags=TAGS)}), set())
+
+    def test_needs_fetch_rules(self):
+        ok = TagCacheEntry(pid="1", ok=True)
+        failed = TagCacheEntry(pid="1", ok=False)
+        self.assertTrue(needs_fetch(None))
+        self.assertFalse(needs_fetch(ok))
+        self.assertTrue(needs_fetch(failed))
+        for entry in (None, ok, failed):
+            self.assertTrue(needs_fetch(entry, force=True))
+
+    def test_merge_prefers_newer_fetched_at(self):
+        base = {
+            "1": TagCacheEntry(pid="1", tags=[], fetched_at=10.0),
+            "2": TagCacheEntry(pid="2", tags=TAGS, fetched_at=50.0),
+        }
+        incoming = {
+            "1": TagCacheEntry(pid="1", tags=TAGS, fetched_at=20.0),
+            "2": TagCacheEntry(pid="2", tags=[], fetched_at=5.0),
+            "3": TagCacheEntry(pid="3", tags=TAGS, fetched_at=1.0),
+        }
+        merged = merge_tag_cache(base, incoming)
+        self.assertEqual(merged["1"].tags, TAGS)  # incoming is newer
+        self.assertEqual(merged["2"].tags, TAGS)  # base is newer, kept
+        self.assertIn("3", merged)  # new pid adopted
 
 
 if __name__ == "__main__":

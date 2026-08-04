@@ -67,6 +67,13 @@ def _find_legacy_data_dir(start: Path) -> Path | None:
 def write_json_atomic(path: Path, data: Any) -> None:
     """Serialize ``data`` to JSON and write it to ``path``.
 
+    The write goes to a temporary sibling and is then moved into place with
+    ``os.replace``, which is atomic on every platform we target. Writing in
+    place would leave a truncated file if the process died mid-write, and the
+    loaders here (``load_library_index``, ``load_tag_cache``, …) swallow
+    ``JSONDecodeError`` and return empty — so a partial write reads as silent
+    total data loss rather than an error.
+
     Uses ``errors='backslashreplace'`` on the final UTF-8 encode so lone
     surrogates that occasionally appear in Windows path strings (the
     ``\\udc80``-range chars from ``surrogateescape`` decode of MBCS bytes)
@@ -78,7 +85,13 @@ def write_json_atomic(path: Path, data: Any) -> None:
     """
     path.parent.mkdir(parents=True, exist_ok=True)
     text = json.dumps(data, ensure_ascii=False, indent=2) + "\n"
-    path.write_bytes(text.encode("utf-8", errors="backslashreplace"))
+    tmp = path.with_name(f"{path.name}.{os.getpid()}.tmp")
+    try:
+        tmp.write_bytes(text.encode("utf-8", errors="backslashreplace"))
+        os.replace(tmp, path)
+    except BaseException:
+        tmp.unlink(missing_ok=True)
+        raise
 
 
 def resolve_data_dir(start: Path | None = None) -> Path:
@@ -100,6 +113,7 @@ DATA_DIR = Path(LEGACY_DATA_DIR_NAME)
 DEFAULT_DB = DATA_DIR / "artists.json"
 DEFAULT_IMAGE_INDEX = DATA_DIR / "image_index.json"
 DEFAULT_LIBRARY_INDEX = DATA_DIR / "library_index.json"
+DEFAULT_PIXIV_TAG_CACHE = DATA_DIR / "pixiv_tags.json"
 DEFAULT_CLEANUP_STATE = DATA_DIR / "cleanup_state.json"
 DEFAULT_GUI_SETTINGS = DATA_DIR / "gui_settings.json"
 DEFAULT_CONSENT = DATA_DIR / "consent.json"

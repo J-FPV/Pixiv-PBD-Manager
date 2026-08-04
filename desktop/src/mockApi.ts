@@ -95,8 +95,24 @@ function mockCommand(commandName: string, payload: object, onEvent?: (event: Api
     }
     case "library.export":
       return { output: String(values.output || "C:\\Mock\\library.csv"), exported: ((values.paths as string[]) || []).length };
-    case "library.fetch_tags":
-      return { images: MOCK_LIBRARY_IMAGES, errors: [], cancelled: false };
+    case "library.fetch_tags": {
+      // The mock backend has no sidecar cache, so a non-forced run reports
+      // everything as already cached — the same shape a warm real run returns.
+      const force = Boolean(values.force);
+      const total = MOCK_LIBRARY_IMAGES.filter((image) => image.pid).length;
+      return {
+        images: MOCK_LIBRARY_IMAGES,
+        errors: [],
+        cancelled: false,
+        total,
+        attempted: force ? total : 0,
+        fetched: force ? total : 0,
+        failed: 0,
+        skipped: force ? 0 : total,
+        seeded: 0,
+        cached: total
+      };
+    }
     case "scan.preview":
       emitProgress(onEvent, PROGRESS_SCAN_START, { roots: 1 });
       emitProgress(onEvent, PROGRESS_SCAN_FILES, { files: 128, matched: 127, name_only: 1 });

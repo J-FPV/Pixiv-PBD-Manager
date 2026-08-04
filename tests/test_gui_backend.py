@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import json
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -9,20 +11,44 @@ from unittest.mock import patch
 from pixiv_pbd_manager import downloader
 from pixiv_pbd_manager.database import ArtistDatabase
 from pixiv_pbd_manager.downloader import ArtworkDownloadResult
+from pixiv_pbd_manager.library import LibraryImage, TagCacheEntry, load_tag_cache, save_tag_cache
 from pixiv_pbd_manager.operations import (
     check_artist_updates,
     download_artist_updates,
+    fetch_pixiv_tags,
     preview_scan_changes,
     scan_into_database,
 )
 from pixiv_pbd_manager.operations.updates import normalize_download_concurrency
 from pixiv_pbd_manager.resolver import (
+    ArtworkTag,
     PixivResolveError,
     PixivUserCandidate,
     PixivUserWorks,
     ResolvedArtist,
     fetch_artwork_tags,
 )
+
+
+def _library_image(pid: str, name: str = "", pixiv_tags: list[dict[str, str]] | None = None) -> LibraryImage:
+    return LibraryImage(
+        path=str(Path("D:/lib") / (name or f"{pid}_p0.jpg")),
+        size_bytes=10,
+        mtime_ns=1,
+        width=4,
+        height=4,
+        format="jpg",
+        pid=pid,
+        pixiv_tags=list(pixiv_tags or []),
+    )
+
+
+def _tags(name: str) -> list[dict[str, str]]:
+    return [{"tag": name, "translation": ""}]
+
+
+def _tag_response(name: str):
+    return ([ArtworkTag(tag=name, translation="")], False)
 
 
 class GuiBackendTests(unittest.TestCase):
@@ -551,6 +577,198 @@ class GuiBackendTests(unittest.TestCase):
             self.assertTrue(result.cancelled)
             self.assertEqual(result.artworks, 1)
             self.assertEqual(len(db.artists["123456"].new_work_ids), 2)
+
+
+class TagFetchOperationTests(unittest.TestCase):
+    """The incremental fetch loop in ``operations.tags``.
+
+    All of these patch ``pixiv_pbd_manager.resolver.fetch_artwork_tags`` and run
+    with ``delay_seconds=0`` so no test sleeps on the rate limiter.
+    """
+
+    def _run(self, tmp: str, images, **kwargs):
+        return fetch_pixiv_tags(
+            images,
+            cache_path=Path(tmp) / "pixiv_tags.json",
+            delay_seconds=0,
+            **kwargs,
+        )
+
+    def test_skips_pids_with_successful_cache_entries(self):
+        with TemporaryDirectory() as tmp:
+            cache_path = Path(tmp) / "pixiv_tags.json"
+            save_tag_cache({"111": TagCacheEntry(pid="111", tags=_tags("cached"), ok=True)}, cache_path)
+            images = [_library_image("111"), _library_image("222")]
+            with patch("pixiv_pbd_manager.resolver.fetch_artwork_tags", return_value=_tag_response("fresh")) as mock:
+                result = self._run(tmp, images)
+
+            self.assertEqual([call.args[0] for call in mock.call_args_list], ["222"])
+        self.assertEqual((result.total, result.attempted, result.skipped), (2, 1, 1))
+        self.assertEqual(result.fetched, 1)
+        # The skipped image is still hydrated from the cache.
+        self.assertEqual(images[0].pixiv_tags, _tags("cached"))
+        self.assertEqual(images[1].pixiv_tags, _tags("fresh"))
+
+    def test_retries_failed_cache_entries(self):
+        with TemporaryDirectory() as tmp:
+            cache_path = Path(tmp) / "pixiv_tags.json"
+            save_tag_cache({"111": TagCacheEntry(pid="111", ok=False, error="404")}, cache_path)
+            with patch("pixiv_pbd_manager.resolver.fetch_artwork_tags", return_value=_tag_response("fresh")) as mock:
+                result = self._run(tmp, [_library_image("111")])
+            entry = load_tag_cache(cache_path)["111"]
+
+        self.assertEqual(mock.call_count, 1)
+        self.assertEqual(result.attempted, 1)
+        self.assertTrue(entry.ok)
+        self.assertEqual(entry.tags, _tags("fresh"))
+        self.assertEqual(entry.attempts, 1)
+
+    def test_force_ignores_the_cache(self):
+        with TemporaryDirectory() as tmp:
+            cache_path = Path(tmp) / "pixiv_tags.json"
+            save_tag_cache(
+                {
+                    "111": TagCacheEntry(pid="111", tags=_tags("old"), ok=True),
+                    "222": TagCacheEntry(pid="222", tags=_tags("old"), ok=True),
+                },
+                cache_path,
+            )
+            images = [_library_image("111"), _library_image("222")]
+            with patch("pixiv_pbd_manager.resolver.fetch_artwork_tags", return_value=_tag_response("new")) as mock:
+                result = self._run(tmp, images, force=True)
+
+        self.assertEqual(mock.call_count, 2)
+        self.assertEqual((result.attempted, result.skipped, result.fetched), (2, 0, 2))
+        self.assertEqual(images[0].pixiv_tags, _tags("new"))
+
+    def test_seeds_from_catalog_and_makes_no_requests(self):
+        # The upgrade path: no sidecar yet, but the catalog already holds tags.
+        with TemporaryDirectory() as tmp:
+            images = [_library_image("111", pixiv_tags=_tags("a")), _library_image("222", pixiv_tags=_tags("b"))]
+            with patch("pixiv_pbd_manager.resolver.fetch_artwork_tags", side_effect=AssertionError("network")):
+                result = self._run(tmp, images)
+            cache = load_tag_cache(Path(tmp) / "pixiv_tags.json")
+
+        self.assertEqual((result.seeded, result.attempted, result.skipped), (2, 0, 2))
+        self.assertEqual(sorted(cache), ["111", "222"])
+        self.assertEqual(cache["111"].source, "catalog")
+
+    def test_hydrates_a_moved_file_without_fetching(self):
+        with TemporaryDirectory() as tmp:
+            cache_path = Path(tmp) / "pixiv_tags.json"
+            save_tag_cache({"111": TagCacheEntry(pid="111", tags=_tags("kept"), ok=True)}, cache_path)
+            moved = _library_image("111", name="renamed by hand.jpg")
+            flushed: list[dict[str, list[dict[str, str]]]] = []
+            with patch("pixiv_pbd_manager.resolver.fetch_artwork_tags", side_effect=AssertionError("network")):
+                result = self._run(tmp, [moved], on_flush=flushed.append)
+
+        self.assertEqual(result.attempted, 0)
+        self.assertEqual(moved.pixiv_tags, _tags("kept"))
+        # Hydration alone must still reach the catalog, or the recovery is lost.
+        self.assertEqual(flushed, [{"111": _tags("kept")}])
+
+    def test_records_failure_and_continues(self):
+        with TemporaryDirectory() as tmp:
+            with patch(
+                "pixiv_pbd_manager.resolver.fetch_artwork_tags",
+                side_effect=[PixivResolveError("nope"), _tag_response("ok")],
+            ):
+                result = self._run(tmp, [_library_image("111"), _library_image("222")])
+            cache = load_tag_cache(Path(tmp) / "pixiv_tags.json")
+
+        self.assertEqual((result.fetched, result.failed), (1, 1))
+        self.assertEqual(result.errors, ["111: nope"])
+        self.assertFalse(cache["111"].ok)
+        self.assertEqual(cache["111"].error, "nope")
+        self.assertTrue(cache["222"].ok)
+
+    def test_failure_does_not_erase_existing_tags(self):
+        with TemporaryDirectory() as tmp:
+            image = _library_image("111", pixiv_tags=_tags("existing"))
+            with patch("pixiv_pbd_manager.resolver.fetch_artwork_tags", side_effect=PixivResolveError("nope")):
+                self._run(tmp, [image], force=True)
+        self.assertEqual(image.pixiv_tags, _tags("existing"))
+
+    def test_flushes_every_n_pids(self):
+        with TemporaryDirectory() as tmp:
+            cache_path = Path(tmp) / "pixiv_tags.json"
+            seen_on_disk: list[list[str]] = []
+
+            def fake_fetch(pid, **_kwargs):
+                seen_on_disk.append(sorted(load_tag_cache(cache_path)))
+                return _tag_response(f"t{pid}")
+
+            images = [_library_image(str(100 + n)) for n in range(5)]
+            flushed: list[dict[str, list[dict[str, str]]]] = []
+            with patch("pixiv_pbd_manager.resolver.fetch_artwork_tags", side_effect=fake_fetch):
+                self._run(tmp, images, flush_every=2, on_flush=flushed.append)
+
+        # By the 3rd request the first two pids are already durable on disk,
+        # so a crash here would not throw away the work already paid for.
+        self.assertEqual(seen_on_disk[0], [])
+        self.assertEqual(seen_on_disk[2], ["100", "101"])
+        self.assertEqual(seen_on_disk[4], ["100", "101", "102", "103"])
+        self.assertEqual(len(flushed), 3)  # 2 mid-run + 1 final
+
+    def test_cancel_persists_partial_results(self):
+        with TemporaryDirectory() as tmp:
+            calls: list[str] = []
+
+            def fake_fetch(pid, **_kwargs):
+                calls.append(pid)
+                return _tag_response("t")
+
+            images = [_library_image("111"), _library_image("222"), _library_image("333")]
+            with patch("pixiv_pbd_manager.resolver.fetch_artwork_tags", side_effect=fake_fetch):
+                result = self._run(tmp, images, should_cancel=lambda: len(calls) >= 1)
+            cache = load_tag_cache(Path(tmp) / "pixiv_tags.json")
+
+        self.assertTrue(result.cancelled)
+        self.assertEqual(result.fetched, 1)
+        self.assertEqual(sorted(cache), ["111"])
+
+    def test_does_not_clobber_entries_written_concurrently(self):
+        with TemporaryDirectory() as tmp:
+            cache_path = Path(tmp) / "pixiv_tags.json"
+
+            def fake_fetch(pid, **_kwargs):
+                # Another process finishes its own fetch while this run is mid-flight.
+                other = load_tag_cache(cache_path)
+                other["999"] = TagCacheEntry(pid="999", tags=_tags("other"), ok=True, fetched_at=10.0)
+                save_tag_cache(other, cache_path)
+                return _tag_response("mine")
+
+            with patch("pixiv_pbd_manager.resolver.fetch_artwork_tags", side_effect=fake_fetch):
+                self._run(tmp, [_library_image("111")])
+            cache = load_tag_cache(cache_path)
+
+        self.assertEqual(sorted(cache), ["111", "999"])
+
+    def test_ignores_images_without_a_pid(self):
+        with TemporaryDirectory() as tmp:
+            with patch("pixiv_pbd_manager.resolver.fetch_artwork_tags", side_effect=AssertionError("network")):
+                result = self._run(tmp, [_library_image("", name="not-pixiv.jpg")])
+        self.assertEqual((result.total, result.attempted), (0, 0))
+
+    def test_emits_counter_payloads_with_compat_aliases(self):
+        events: list[tuple[str, dict]] = []
+        with TemporaryDirectory() as tmp:
+            cache_path = Path(tmp) / "pixiv_tags.json"
+            save_tag_cache({"111": TagCacheEntry(pid="111", tags=_tags("cached"), ok=True)}, cache_path)
+            images = [_library_image("111"), _library_image("222")]
+            with patch("pixiv_pbd_manager.resolver.fetch_artwork_tags", return_value=_tag_response("fresh")):
+                self._run(tmp, images, progress_callback=lambda key, payload: events.append((key, payload)))
+
+        by_key = {key: payload for key, payload in events}
+        start = by_key["progress_fetch_tags_start"]
+        self.assertEqual((start["total"], start["total_pids"], start["skipped"]), (1, 2, 1))
+        item = by_key["progress_fetch_tags_item"]
+        self.assertEqual((item["fetched"], item["failed"]), (1, 0))
+        done = by_key["progress_fetch_tags_done"]
+        self.assertEqual((done["fetched"], done["skipped"], done["cached"]), (1, 1, 2))
+        # Aliases the existing frontend log lines still read.
+        self.assertEqual(done["updated"], done["fetched"])
+        self.assertEqual(done["errors"], done["failed"])
 
 
 if __name__ == "__main__":

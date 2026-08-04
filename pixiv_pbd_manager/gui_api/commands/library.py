@@ -4,29 +4,27 @@
 from __future__ import annotations
 
 import csv
-import time
 from datetime import datetime
 from pathlib import Path
 
-from ... import resolver
 from ...cookie_store import load_cookie
 from ...database import ArtistDatabase
-from ...events import (
-    PROGRESS_FETCH_TAGS_DONE,
-    PROGRESS_FETCH_TAGS_ITEM,
-    PROGRESS_FETCH_TAGS_START,
-)
 from ...library import (
+    apply_tag_cache,
     build_catalog,
     build_pid_to_artist,
     build_save_path_index,
     library_index_status,
     load_library_index,
+    load_tag_cache,
     resolve_folder_artist,
     save_library_index,
     save_library_index_metadata,
+    save_tag_cache,
+    seed_tag_cache_from_images,
 )
-from ...paths import DEFAULT_LIBRARY_INDEX
+from ...operations.tags import fetch_pixiv_tags
+from ...paths import DEFAULT_LIBRARY_INDEX, DEFAULT_PIXIV_TAG_CACHE
 from ..payload import as_bool, as_float, base_dir, db_path, paths, resolve_path
 from ..runtime import CONTROL, Emitter, JsonDict, make_progress_callback
 from ..serializers import library_image_to_json
@@ -35,6 +33,10 @@ from .settings import load_settings_for_payload
 
 def _index_path(payload: JsonDict) -> Path:
     return resolve_path(payload.get("library_index") or DEFAULT_LIBRARY_INDEX, base_dir(payload))
+
+
+def _tag_cache_path(payload: JsonDict) -> Path:
+    return resolve_path(payload.get("pixiv_tag_cache") or DEFAULT_PIXIV_TAG_CACHE, base_dir(payload))
 
 
 def _scan_paths(payload: JsonDict, settings: JsonDict) -> tuple[list[Path], list[Path]]:
@@ -93,15 +95,30 @@ def scan(payload: JsonDict, emit_event: Emitter) -> JsonDict:
     settings = load_settings_for_payload(payload)
     roots, exclude_roots = _scan_paths(payload, settings)
     index_path = _index_path(payload)
+    cache_path = _tag_cache_path(payload)
     db = ArtistDatabase.load(db_path(payload, settings))
+    old_catalog = load_library_index(index_path)
+
+    # Adopt any tags the old catalog holds that the sidecar doesn't know yet, so
+    # an upgrade (or a scan predating the cache) doesn't force a full refetch.
+    # Read the OLD catalog, not the freshly built one: files that moved since the
+    # last scan still carry their tags here and lose them below, because
+    # build_catalog's carry-forward is keyed on the file path.
+    cache = load_tag_cache(cache_path)
+    if seed_tag_cache_from_images(cache, old_catalog.values()):
+        save_tag_cache(cache, cache_path)
+
     images, summary = build_catalog(
         roots,
         exclude_roots,
         pid_to_artist=build_pid_to_artist(db),
         save_path_index=build_save_path_index(db),
-        old_catalog=load_library_index(index_path),
+        old_catalog=old_catalog,
         progress_callback=make_progress_callback(emit_event),
     )
+    # Re-attach tags by work id — this is what lets a moved or renamed file keep
+    # them. Only fills gaps build_catalog's path-keyed carry-forward left behind.
+    apply_tag_cache(images, cache)
     save_library_index(images, index_path)
     save_library_index_metadata(index_path, roots, exclude_roots, entry_count=len(images))
     return {
@@ -247,7 +264,10 @@ def export_list(payload: JsonDict, _emit_event: Emitter) -> JsonDict:
 def fetch_tags(payload: JsonDict, emit_event: Emitter) -> JsonDict:
     """Fetch each artwork's Pixiv tags (original + English translation) and store
     them on every catalog image sharing that PID. Operates on the paths in the
-    payload (a single image or the filtered set); rate-limited and cancellable."""
+    payload (a single image or the filtered set); rate-limited and cancellable.
+
+    Incremental: a PID with a successful entry in the sidecar cache is skipped
+    unless ``force`` is set. Failed entries are always retried."""
     settings = load_settings_for_payload(payload)
     index_path = _index_path(payload)
     catalog = load_library_index(index_path)
@@ -258,43 +278,44 @@ def fetch_tags(payload: JsonDict, emit_event: Emitter) -> JsonDict:
     }
     targets = [image for image in catalog.values() if not requested or image.path in requested]
 
-    pid_to_images: dict[str, list] = {}
-    for image in targets:
-        if image.pid:
-            pid_to_images.setdefault(image.pid, []).append(image)
-    pids = list(pid_to_images)
+    def flush_catalog(changed: dict[str, list[dict[str, str]]]) -> None:
+        # Re-read and merge by PID rather than writing back our long-held
+        # snapshot: this run can last minutes, during which library.set_tags or
+        # library.update_metadata (separate processes) write their own full
+        # catalogs, and a wholesale write would silently revert them.
+        fresh = load_library_index(index_path)
+        for image in fresh.values():
+            tags = changed.get(image.pid) if image.pid else None
+            if tags is not None:
+                image.pixiv_tags = [dict(item) for item in tags]
+        save_library_index(fresh.values(), index_path)
 
-    cookie = payload.get("pixiv_cookie") or load_cookie()
-    allow_ssl = as_bool(payload, "ssl_fallback", bool(settings.get("ssl_fallback", True)))
-    delay = as_float(payload, "resolve_delay", 0.8)
-    progress = make_progress_callback(emit_event)
-    progress(PROGRESS_FETCH_TAGS_START, {"total": len(pids)})
-
-    errors: list[str] = []
-    updated = 0
-    cancelled = False
-    for index, pid in enumerate(pids, 1):
-        if CONTROL.is_cancelled():
-            cancelled = True
-            break
-        try:
-            tags, _ssl_used = resolver.fetch_artwork_tags(pid, cookie=cookie, allow_insecure_ssl_fallback=allow_ssl)
-            pixiv_tags = [{"tag": tag.tag, "translation": tag.translation} for tag in tags]
-            for image in pid_to_images[pid]:
-                image.pixiv_tags = [dict(item) for item in pixiv_tags]
-            updated += 1
-        except resolver.PixivResolveError as exc:
-            errors.append(f"{pid}: {exc}")
-        progress(PROGRESS_FETCH_TAGS_ITEM, {"current": index, "total": len(pids), "pid": pid, "errors": len(errors)})
-        if delay > 0 and index < len(pids):
-            time.sleep(delay)
-
-    save_library_index(catalog.values(), index_path)
-    progress(PROGRESS_FETCH_TAGS_DONE, {"total": len(pids), "updated": updated, "errors": len(errors)})
+    result = fetch_pixiv_tags(
+        targets,
+        cache_path=_tag_cache_path(payload),
+        force=as_bool(payload, "force", False),
+        pixiv_cookie=payload.get("pixiv_cookie") or load_cookie(),
+        allow_insecure_ssl_fallback=as_bool(payload, "ssl_fallback", bool(settings.get("ssl_fallback", True))),
+        delay_seconds=as_float(payload, "resolve_delay", 0.8),
+        on_flush=flush_catalog,
+        progress_callback=make_progress_callback(emit_event),
+        should_cancel=CONTROL.is_cancelled,
+    )
 
     db = ArtistDatabase.load(db_path(payload, settings))
     rows = [
         library_image_to_json(image, db.artists.get(image.artist_id) if image.artist_id else None)
         for image in targets
     ]
-    return {"images": rows, "errors": errors, "cancelled": cancelled}
+    return {
+        "images": rows,
+        "errors": result.errors,
+        "cancelled": result.cancelled,
+        "total": result.total,
+        "attempted": result.attempted,
+        "fetched": result.fetched,
+        "failed": result.failed,
+        "skipped": result.skipped,
+        "seeded": result.seeded,
+        "cached": result.cached,
+    }

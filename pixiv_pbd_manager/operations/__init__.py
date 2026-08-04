@@ -15,6 +15,7 @@ from .scan import (
     scan_into_database,
 )
 from .rebuild_index import WorkIndexArtistChange, WorkIndexRebuildResult, rebuild_artist_work_index
+from .tags import TagFetchResult, fetch_pixiv_tags
 from .updates import DownloadUpdatesResult, UpdateCheckResult, check_artist_updates, download_artist_updates
 
 
@@ -30,6 +31,8 @@ __all__ = [
     "scan_into_database",
     "preview_scan_changes",
     "apply_scan_changes",
+    "TagFetchResult",
+    "fetch_pixiv_tags",
     "UpdateCheckResult",
     "DownloadUpdatesResult",
     "check_artist_updates",
