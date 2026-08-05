@@ -109,6 +109,7 @@ function mockCommand(commandName: string, payload: object, onEvent?: (event: Api
         fetched: force ? total : 0,
         failed: 0,
         skipped: force ? 0 : total,
+        deferred: 0,
         seeded: 0,
         cached: total
       };

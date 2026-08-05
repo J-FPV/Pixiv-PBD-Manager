@@ -160,6 +160,7 @@ export interface LibraryFetchTagsResult {
   fetched: number;    // requests that succeeded this run
   failed: number;     // requests that errored this run
   skipped: number;    // served from the sidecar cache, no request
+  deferred: number;   // subset of skipped: failed repeatedly, backing off
   seeded: number;     // adopted from the catalog on first upgraded run
   cached: number;     // entries in pixiv_tags.json after the run
 }

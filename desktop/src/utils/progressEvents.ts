@@ -409,11 +409,16 @@ function describeFetchTags(language: Language, event: ProgressEvent): PipelineDe
           }
         })
       };
-    case PROGRESS_FETCH_TAGS_DONE:
+    case PROGRESS_FETCH_TAGS_DONE: {
+      // Works that failed too often are inside `skipped`, but reporting them as
+      // plain "cached" would hide the fact that they still have no tags.
+      const deferred = numberValue(p.deferred);
+      const suffix = deferred > 0 ? `, ${deferred} deferred after repeated failures` : "";
       return {
-        logText: `Pixiv tags done: ${p.fetched ?? p.updated} fetched, ${p.skipped ?? 0} cached, ${p.failed ?? p.errors ?? 0} failed`,
+        logText: `Pixiv tags done: ${p.fetched ?? p.updated} fetched, ${p.skipped ?? 0} cached, ${p.failed ?? p.errors ?? 0} failed${suffix}`,
         progressUpdate: () => ({ main: { label: t(language, "fetchPixivTags"), current: 1, total: 1 } })
       };
+    }
     default:
       return null;
   }

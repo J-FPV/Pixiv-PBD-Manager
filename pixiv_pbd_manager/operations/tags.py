@@ -40,6 +40,7 @@ class TagFetchResult:
     fetched: int = 0  # requests that succeeded this run
     failed: int = 0  # requests that raised PixivResolveError this run
     skipped: int = 0  # pids served from the cache with no request (includes seeded)
+    deferred: int = 0  # subset of skipped: failed too often, backing off (see needs_fetch)
     seeded: int = 0  # pids adopted from the catalog during the one-time migration
     cached: int = 0  # entries in the sidecar after the run
     updated_images: int = 0
@@ -96,7 +97,16 @@ def fetch_pixiv_tags(
             dirty[pid] = [dict(item) for item in entry.tags]
     result.updated_images = sum(len(by_pid.get(pid, ())) for pid in dirty)
 
-    pending = [pid for pid in by_pid if needs_fetch(cache.get(pid), force=force)]
+    # One timestamp for the whole selection, so a long run can't have the
+    # back-off window open partway through it.
+    stamp = now()
+    pending: list[str] = []
+    for pid in by_pid:
+        entry = cache.get(pid)
+        if needs_fetch(entry, force=force, now=stamp):
+            pending.append(pid)
+        elif entry is not None and not entry.ok:
+            result.deferred += 1
     result.attempted = len(pending)
     result.skipped = result.total - result.attempted
 
@@ -116,6 +126,7 @@ def fetch_pixiv_tags(
         total=result.attempted,
         total_pids=result.total,
         skipped=result.skipped,
+        deferred=result.deferred,
         seeded=result.seeded,
         force=force,
     )
@@ -190,6 +201,7 @@ def fetch_pixiv_tags(
         fetched=result.fetched,
         failed=result.failed,
         skipped=result.skipped,
+        deferred=result.deferred,
         seeded=result.seeded,
         cached=result.cached,
         errors=result.failed,

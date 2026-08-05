@@ -11,7 +11,14 @@ from unittest.mock import patch
 from pixiv_pbd_manager import downloader
 from pixiv_pbd_manager.database import ArtistDatabase
 from pixiv_pbd_manager.downloader import ArtworkDownloadResult
-from pixiv_pbd_manager.library import LibraryImage, TagCacheEntry, load_tag_cache, save_tag_cache
+from pixiv_pbd_manager.library import (
+    FAILURE_RETRY_INTERVAL,
+    FAILURE_RETRY_LIMIT,
+    LibraryImage,
+    TagCacheEntry,
+    load_tag_cache,
+    save_tag_cache,
+)
 from pixiv_pbd_manager.operations import (
     check_artist_updates,
     download_artist_updates,
@@ -622,6 +629,70 @@ class TagFetchOperationTests(unittest.TestCase):
         self.assertTrue(entry.ok)
         self.assertEqual(entry.tags, _tags("fresh"))
         self.assertEqual(entry.attempts, 1)
+
+    def test_defers_a_pid_that_failed_too_often(self):
+        # Deleted and restricted works fail the same way on every run. After a
+        # few honest retries they must stop taxing the rate limiter.
+        with TemporaryDirectory() as tmp:
+            cache_path = Path(tmp) / "pixiv_tags.json"
+            save_tag_cache(
+                {
+                    "111": TagCacheEntry(pid="111", ok=False, error="404", attempts=FAILURE_RETRY_LIMIT, fetched_at=900.0),
+                    "222": TagCacheEntry(pid="222", ok=False, error="500", attempts=1, fetched_at=900.0),
+                },
+                cache_path,
+            )
+            images = [_library_image("111"), _library_image("222")]
+            with patch("pixiv_pbd_manager.resolver.fetch_artwork_tags", return_value=_tag_response("fresh")) as mock:
+                result = self._run(tmp, images, now=lambda: 1000.0)
+
+            # Only the one still under the retry limit is asked for.
+            self.assertEqual([call.args[0] for call in mock.call_args_list], ["222"])
+        self.assertEqual((result.total, result.attempted, result.skipped), (2, 1, 1))
+        self.assertEqual(result.deferred, 1)
+
+    def test_deferred_pid_is_retried_once_the_interval_elapses(self):
+        with TemporaryDirectory() as tmp:
+            cache_path = Path(tmp) / "pixiv_tags.json"
+            save_tag_cache(
+                {"111": TagCacheEntry(pid="111", ok=False, attempts=FAILURE_RETRY_LIMIT, fetched_at=900.0)},
+                cache_path,
+            )
+            later = 900.0 + FAILURE_RETRY_INTERVAL
+            with patch("pixiv_pbd_manager.resolver.fetch_artwork_tags", return_value=_tag_response("fresh")) as mock:
+                result = self._run(tmp, [_library_image("111")], now=lambda: later)
+            entry = load_tag_cache(cache_path)["111"]
+
+        self.assertEqual(mock.call_count, 1)
+        self.assertEqual((result.attempted, result.deferred), (1, 0))
+        self.assertTrue(entry.ok)
+        self.assertEqual(entry.attempts, FAILURE_RETRY_LIMIT + 1)
+
+    def test_force_reaches_a_deferred_pid(self):
+        with TemporaryDirectory() as tmp:
+            cache_path = Path(tmp) / "pixiv_tags.json"
+            save_tag_cache(
+                {"111": TagCacheEntry(pid="111", ok=False, attempts=99, fetched_at=900.0)},
+                cache_path,
+            )
+            with patch("pixiv_pbd_manager.resolver.fetch_artwork_tags", return_value=_tag_response("fresh")) as mock:
+                result = self._run(tmp, [_library_image("111")], force=True, now=lambda: 1000.0)
+
+        self.assertEqual(mock.call_count, 1)
+        self.assertEqual((result.attempted, result.deferred), (1, 0))
+
+    def test_attempts_accumulate_across_runs(self):
+        # Without this the counter never reaches the limit and the back-off is
+        # dead code.
+        with TemporaryDirectory() as tmp:
+            cache_path = Path(tmp) / "pixiv_tags.json"
+            for expected in (1, 2, 3):
+                with patch(
+                    "pixiv_pbd_manager.resolver.fetch_artwork_tags",
+                    side_effect=PixivResolveError("nope"),
+                ):
+                    self._run(tmp, [_library_image("111")], now=lambda: 1000.0)
+                self.assertEqual(load_tag_cache(cache_path)["111"].attempts, expected)
 
     def test_force_ignores_the_cache(self):
         with TemporaryDirectory() as tmp:

@@ -27,6 +27,8 @@ from .catalog import LibraryImage, _clean_pixiv_tags
 
 __all__ = [
     "DEFAULT_PIXIV_TAG_CACHE",
+    "FAILURE_RETRY_INTERVAL",
+    "FAILURE_RETRY_LIMIT",
     "TAG_CACHE_VERSION",
     "TagCacheEntry",
     "apply_tag_cache",
@@ -38,6 +40,12 @@ __all__ = [
 ]
 
 TAG_CACHE_VERSION = 1
+
+# How many consecutive failures a work gets before we stop retrying it every
+# run, and how long we then leave it alone. ``attempts`` has been persisted
+# since version 1 precisely so this could land without a cache migration.
+FAILURE_RETRY_LIMIT = 3
+FAILURE_RETRY_INTERVAL = 7 * 24 * 60 * 60  # one week
 
 
 @dataclass
@@ -132,9 +140,32 @@ def merge_tag_cache(
     return merged
 
 
-def needs_fetch(entry: TagCacheEntry | None, *, force: bool = False) -> bool:
-    """A successful fetch is never repeated unless forced; failures retry."""
-    return force or entry is None or not entry.ok
+def needs_fetch(
+    entry: TagCacheEntry | None,
+    *,
+    force: bool = False,
+    now: float | None = None,
+) -> bool:
+    """A successful fetch is never repeated unless forced; a failed one retries
+    until ``FAILURE_RETRY_LIMIT`` attempts, then only once per
+    ``FAILURE_RETRY_INTERVAL``.
+
+    Retrying every failure on every run sounds harmless but isn't: a work that
+    is deleted, restricted, or set private fails identically forever, and at the
+    default 0.8 s delay a few dozen of them tax every single run — eating back
+    the win this cache exists for. The first few retries are still worth paying
+    for, since most failures are transient (a timeout, a 500, a rate-limit).
+
+    The deferral is never permanent: "re-fetch tags" passes ``force``.
+    """
+    if force or entry is None:
+        return True
+    if entry.ok:
+        return False
+    if entry.attempts < FAILURE_RETRY_LIMIT:
+        return True
+    stamp = time.time() if now is None else now
+    return (stamp - entry.fetched_at) >= FAILURE_RETRY_INTERVAL
 
 
 def apply_tag_cache(

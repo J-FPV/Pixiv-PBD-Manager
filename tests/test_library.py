@@ -9,6 +9,8 @@ from PIL import Image
 
 from pixiv_pbd_manager.database import ArtistDatabase
 from pixiv_pbd_manager.library import (
+    FAILURE_RETRY_INTERVAL,
+    FAILURE_RETRY_LIMIT,
     LibraryImage,
     TagCacheEntry,
     apply_tag_cache,
@@ -316,6 +318,30 @@ class TagCacheTests(unittest.TestCase):
         self.assertTrue(needs_fetch(failed))
         for entry in (None, ok, failed):
             self.assertTrue(needs_fetch(entry, force=True))
+
+    def test_needs_fetch_retries_a_failure_up_to_the_limit(self):
+        for attempts in range(FAILURE_RETRY_LIMIT):
+            entry = TagCacheEntry(pid="1", ok=False, attempts=attempts, fetched_at=100.0)
+            self.assertTrue(needs_fetch(entry, now=100.0), f"attempts={attempts}")
+
+    def test_needs_fetch_defers_after_repeated_failures(self):
+        # A deleted or restricted work fails identically forever; retrying it on
+        # every run is what this back-off exists to stop.
+        entry = TagCacheEntry(pid="1", ok=False, attempts=FAILURE_RETRY_LIMIT, fetched_at=100.0)
+        self.assertFalse(needs_fetch(entry, now=100.0 + FAILURE_RETRY_INTERVAL - 1))
+
+    def test_needs_fetch_retries_once_the_interval_elapses(self):
+        entry = TagCacheEntry(pid="1", ok=False, attempts=FAILURE_RETRY_LIMIT, fetched_at=100.0)
+        self.assertTrue(needs_fetch(entry, now=100.0 + FAILURE_RETRY_INTERVAL))
+
+    def test_force_overrides_the_back_off(self):
+        # The "re-fetch tags" button must always be able to reach a dead work.
+        entry = TagCacheEntry(pid="1", ok=False, attempts=99, fetched_at=100.0)
+        self.assertTrue(needs_fetch(entry, force=True, now=100.0))
+
+    def test_back_off_never_applies_to_a_success(self):
+        entry = TagCacheEntry(pid="1", ok=True, attempts=99, fetched_at=0.0)
+        self.assertFalse(needs_fetch(entry, now=1e12))
 
     def test_merge_prefers_newer_fetched_at(self):
         base = {

@@ -316,6 +316,7 @@ def fetch_tags(payload: JsonDict, emit_event: Emitter) -> JsonDict:
         "fetched": result.fetched,
         "failed": result.failed,
         "skipped": result.skipped,
+        "deferred": result.deferred,
         "seeded": result.seeded,
         "cached": result.cached,
     }

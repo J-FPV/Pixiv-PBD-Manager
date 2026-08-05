@@ -18,6 +18,8 @@ from .catalog import (
     save_library_index_metadata,
 )
 from .tag_cache import (
+    FAILURE_RETRY_INTERVAL,
+    FAILURE_RETRY_LIMIT,
     TagCacheEntry,
     apply_tag_cache,
     load_tag_cache,
@@ -30,6 +32,8 @@ from .tag_cache import (
 
 __all__ = [
     "CatalogSummary",
+    "FAILURE_RETRY_INTERVAL",
+    "FAILURE_RETRY_LIMIT",
     "LibraryImage",
     "TagCacheEntry",
     "apply_tag_cache",
