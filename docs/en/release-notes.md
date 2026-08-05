@@ -2,6 +2,33 @@
 
 [中文](../zh/release-notes.md)
 
+## v0.1.10
+
+A focused release on Pixiv tag fetching. The installer can upgrade an existing installation in place; `artists.json`, the library index, similar-image results, quarantine history, and settings remain intact.
+
+### Incremental Tag Fetching
+
+- Artworks that were already fetched are no longer re-fetched. Tag records now live in `.pixiv-pbd-manager/pixiv_tags.json`, keyed by work id, and a successful fetch is reused indefinitely.
+- The first upgraded run adopts the tags already present in the library index, so changing the storage format does not trigger a full re-fetch.
+- The toolbar keeps Fetch Pixiv tags (only artworks never fetched) and gains Re-fetch tags, which ignores the cache. The single-image button in the detail view always re-fetches.
+- A failed fetch is retried on the next run. After three consecutive failures it is retried weekly instead, so deleted or private artworks stop slowing down every later run.
+- When everything in the list is already cached, the app says so rather than looking like the button did nothing.
+
+### Fixes
+
+- Fetched tags survive organizing and renaming. Tags used to be keyed by file path, and similar-image cleanup moves files, so the next scan cleared them and forced a full re-fetch.
+- Fetching checkpoints every 25 artworks, so cancelling or crashing partway keeps the work already done.
+- JSON writes go to a temporary file and are then swapped into place atomically. A write interrupted partway used to leave a truncated file, which the readers treat as empty — silently losing the whole index.
+- Ratings, favorites, and tag edits made during a long tag fetch are no longer reverted when it finishes.
+
+### Upgrade Notes
+
+- Exit the previous version before installing `Pixiv.PBD.Manager_0.1.10_x64-setup.exe`.
+- User data still defaults to `%APPDATA%\PixivPbdManager\.pixiv-pbd-manager\`.
+- This release adds `pixiv_tags.json`. Downgrading still works; older builds simply ignore the file.
+
+Full code comparison: [v0.1.9...v0.1.10](https://github.com/J-FPV/Pixiv-PBD-Manager/compare/v0.1.9...v0.1.10)
+
 ## v0.1.9
 
 This release focuses on asset organization and smoother interaction with large libraries. The installer can upgrade an existing installation in place; `artists.json`, the library index, similar-image results, quarantine history, and settings remain intact.

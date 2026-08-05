@@ -18,15 +18,15 @@ Most users should use the `setup.exe`. An `msi` is also published for environmen
 
 The installer includes the Python backend and dependencies. You do not need to install Python, Node.js, or Rust just to use the app.
 
-## v0.1.9 Highlights
+## v0.1.10 Highlights
 
-- The Library now supports image favorites, 0–5 star ratings, workflow markers, local tags, batch editing, and CSV export.
-- Library filtering and tag toggles are faster; metadata controls update immediately instead of waiting for the backend process.
-- Similar-image and quarantine histories use compact pagination, while tall and portrait images initially fit inside preview dialogs.
-- Long scans can be cancelled, and a dismissed scan preview can be reopened from Scan results.
-- Windows stdin JSON handling now tolerates UTF-8 BOMs and legacy console encodings.
+- Pixiv tag fetching is now incremental: artworks already fetched are skipped, and a Re-fetch tags button forces a refresh.
+- Artworks that fail three times in a row are retried weekly instead, so deleted or private works stop slowing down every later run.
+- Fetched tags survive organizing and renaming, and fetching checkpoints every 25 artworks.
+- Fixed a case where an interrupted index write silently lost the entire index.
+- Fixed ratings, favorites, and tag edits being reverted when a long tag fetch finished.
 
-See the [v0.1.9 release notes](docs/en/release-notes.md) for the complete summary.
+See the [v0.1.10 release notes](docs/en/release-notes.md) for the complete summary.
 
 ## What It Does
 
