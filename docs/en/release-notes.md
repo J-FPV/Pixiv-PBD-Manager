@@ -20,6 +20,7 @@ A focused release on Pixiv tag fetching. The installer can upgrade an existing i
 - Fetching checkpoints every 25 artworks, so cancelling or crashing partway keeps the work already done.
 - JSON writes go to a temporary file and are then swapped into place atomically. A write interrupted partway used to leave a truncated file, which the readers treat as empty — silently losing the whole index.
 - Ratings, favorites, and tag edits made during a long tag fetch are no longer reverted when it finishes.
+- Frontend build dependencies were updated to resolve the npm security advisories; the audit now reports zero vulnerabilities.
 
 ### Upgrade Notes
 
