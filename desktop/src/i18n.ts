@@ -6,6 +6,7 @@ import { fr } from "./i18n.fr";
 import { de } from "./i18n.de";
 
 const zh = {
+  dragOriginalFailed: "原图拖出失败",
   scanResults: "扫描结果",
   quarantine: "隔离区",
   quarantineFolder: "隔离目录",

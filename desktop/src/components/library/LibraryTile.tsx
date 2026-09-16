@@ -4,6 +4,7 @@ import { runGuiApi } from "../../api";
 import { t } from "../../i18n";
 import type { ImageThumbnailPayload, Language, LibraryImage, LibraryMarker } from "../../types";
 import { thumbUrl } from "../../utils/thumbUrl";
+import { useFileDrag } from "../../hooks/useFileDrag";
 
 type LoadStage = "native" | "fallback" | "failed";
 
@@ -17,6 +18,7 @@ export function LibraryTile({
   selected,
   checked,
   onOpen,
+  onDragOriginals,
   onToggleSelected
 }: {
   language: Language;
@@ -24,11 +26,13 @@ export function LibraryTile({
   selected: boolean;
   checked: boolean;
   onOpen: (path: string) => void;
+  onDragOriginals: (path: string) => void;
   onToggleSelected: (path: string) => void;
 }) {
   const [stage, setStage] = useState<LoadStage>("native");
   const [retry, setRetry] = useState(0);
   const [fallbackUrl, setFallbackUrl] = useState<string | null>(null);
+  const dragProps = useFileDrag(() => onDragOriginals(image.path), () => onOpen(image.path));
 
   const onNativeError = () => {
     // The native handler drops the oldest pending request when the decode
@@ -64,7 +68,7 @@ export function LibraryTile({
 
   return (
     <div className={`libraryTile${selected ? " selected" : ""}${checked ? " checked" : ""}`}>
-      <button type="button" className="libraryTileOpen" title={image.filename} onClick={() => onOpen(image.path)}>
+      <button type="button" className="libraryTileOpen" title={image.filename} {...dragProps}>
         <span className="libraryTileImage">
         {stage === "failed" ? (
           <span className="thumbnailPlaceholder">!</span>
@@ -74,6 +78,7 @@ export function LibraryTile({
             alt={image.filename}
             loading="lazy"
             decoding="async"
+            draggable={false}
             onError={stage === "native" ? onNativeError : () => setStage("failed")}
           />
         )}

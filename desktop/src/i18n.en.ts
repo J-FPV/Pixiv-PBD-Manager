@@ -1,6 +1,7 @@
 import type { Dictionary } from "./i18n";
 
 export const en: Dictionary = {
+  dragOriginalFailed: "Could not drag original files",
   scanResults: "Scan results",
   quarantine: "Quarantine",
   quarantineFolder: "Quarantine folder",

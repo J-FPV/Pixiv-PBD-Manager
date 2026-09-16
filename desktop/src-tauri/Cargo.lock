@@ -2299,6 +2299,8 @@ dependencies = [
  "tauri-plugin-dialog",
  "tauri-plugin-shell",
  "urlencoding",
+ "windows",
+ "windows-core 0.61.2",
 ]
 
 [[package]]

@@ -2569,6 +2569,7 @@ body.col-resizing .colHandle::after {
 }
 
 .libraryTileOpen {
+  user-select: none;
   display: flex;
   flex: 1 1 0;
   flex-direction: column;
@@ -2641,6 +2642,7 @@ body.col-resizing .colHandle::after {
 }
 
 .libraryTileImage img {
+  -webkit-user-drag: none;
   display: block;
   width: 100%;
   height: 100%;
@@ -2655,6 +2657,24 @@ body.col-resizing .colHandle::after {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+.libraryDragError {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--danger, #d35050);
+  border-radius: 6px;
+  overflow-wrap: anywhere;
+}
+
+.libraryDragError span { flex: 1; }
+.libraryDragError button { flex-shrink: 0; }
 
 .modal.libraryDetailModal {
   width: min(1180px, 96vw);

@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
+import { invoke } from "@tauri-apps/api/core";
+import { X } from "lucide-react";
 import { LIBRARY_TILE_WIDTH } from "../../constants";
 import { t } from "../../i18n";
 import type { Language, LibraryImage } from "../../types";
@@ -28,6 +30,19 @@ export function LibraryGrid({
 }) {
   const parentRef = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(0);
+  const [dragError, setDragError] = useState("");
+  const dragging = useRef(false);
+  const dragOriginals = (path: string) => {
+    if (dragging.current) return;
+    const paths = selectedPaths.has(path)
+      ? images.filter((image) => selectedPaths.has(image.path)).map((image) => image.path)
+      : [path];
+    dragging.current = true;
+    setDragError("");
+    void invoke("drag_original_files", { paths })
+      .catch((error: unknown) => setDragError(`${t(language, "dragOriginalFailed")}: ${String(error)}`))
+      .finally(() => { dragging.current = false; });
+  };
 
   useEffect(() => {
     const element = parentRef.current;
@@ -51,6 +66,12 @@ export function LibraryGrid({
 
   return (
     <div className="libraryGridScroll" ref={parentRef}>
+      {dragError ? (
+        <div className="libraryDragError" role="alert">
+          <span>{dragError}</span>
+          <button type="button" title={t(language, "close")} aria-label={t(language, "close")} onClick={() => setDragError("")}><X size={16} /></button>
+        </div>
+      ) : null}
       {images.length ? (
         <div style={{ height: virtualizer.getTotalSize(), position: "relative" }}>
           {virtualizer.getVirtualItems().map((row) => {
@@ -76,6 +97,7 @@ export function LibraryGrid({
                     selected={image.path === selectedPath}
                     checked={selectedPaths.has(image.path)}
                     onOpen={onOpen}
+                    onDragOriginals={dragOriginals}
                     onToggleSelected={onToggleSelected}
                   />
                 ))}

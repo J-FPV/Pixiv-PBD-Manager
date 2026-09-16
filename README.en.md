@@ -108,6 +108,8 @@ Favorites and tags are stored in `artists.json` and never touch your local image
 
 The Image Library page browses every image in your download folders as a thumbnail grid, turning the app from a download manager into an asset manager.
 
+- **Drag originals out (Windows)**: drag a grid image into PureRef or another app that accepts file drops. Dragging a checked image includes the currently visible checked images (up to 1000 per drag). The payload contains the original files on disk, not thumbnails; only copy is offered, and source files are never moved or deleted. Dragging in the detail viewer still pans the image.
+
 - **Build the catalog**: on first open, click "Scan library". The app walks your download folders, reads each image's dimensions, and parses the Pixiv PID/artist into a local catalog (`library_index.json`). Later opens are instant; rescans only re-read files whose size or modified time changed.
 - **Filters**: the sidebar filters by artist, folder, tag, favorite state, rating, workflow status, format, orientation, resolution, and year. Search matches filenames, paths, PIDs, artists, and tags.
 - **Favorites, ratings, and status**: favorite an image, rate it from 0–5 stars, or mark it as High reference value, Used, or To organize. These fields only update the local index; image files are untouched.
