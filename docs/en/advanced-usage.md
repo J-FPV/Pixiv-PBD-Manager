@@ -29,7 +29,9 @@ Then it checks file names for common fields:
 98765432_member_id=123456_title.webp
 ```
 
-When a folder contains several artwork IDs, online resolution does not rely only on the first sorted file. It samples a bounded set of newer, middle, and older PIDs and uses the majority artist result. One deleted, restricted, or inaccessible artwork therefore does not make the entire folder fail to resolve.
+When a folder contains several artwork IDs, online resolution samples a bounded set of newer, middle, and older PIDs. Successfully resolved samples must agree on one author. Any conflicting author leaves the folder unmatched for manual review, without majority voting or fuzzy-name fallback. One deleted, restricted, or inaccessible artwork does not make the entire folder fail to resolve. Agreement among samples does not verify every image in the folder.
+
+A loose numeric subfolder matching an artwork ID found in its images does not override the enclosing artist folder. Explicit artwork formats such as `2026-09-09_12345678_p0.jpg` take precedence over date filtering. Multiple save paths for one artist are preserved, and same-named folders under different scan roots are resolved separately. With a depth limit, each explicitly selected root gets its own scan range; overlapping files are counted only once.
 
 If an old folder has an artist name but no artist ID:
 
@@ -37,7 +39,7 @@ If an old folder has an artist name but no artist ID:
 C:\PixivLibrary\ArtistName's illustrations - pixiv\12345678_p0.jpg
 ```
 
-the GUI can use artwork IDs in file names to query Pixiv online and resolve the artist ID. Offline scanning can only treat these folders as unmatched or name-only candidates.
+the GUI can use artwork IDs in file names to query Pixiv online and let you confirm the artist in the scan preview. Offline scanning tries an existing save-path assignment, known artwork ownership, and then a unique complete display-name match. Complete-name matching preserves punctuation and `@` suffixes. Conflicting known artwork owners are not overridden by a name guess; folders without reliable evidence remain unmatched.
 
 For manually named folders such as:
 

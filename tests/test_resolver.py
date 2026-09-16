@@ -5,9 +5,11 @@ from unittest.mock import patch
 
 from pixiv_pbd_manager.resolver import (
     PIXIV_PROFILE_WORKS_PER_PAGE,
+    PixivAuthorConflict,
     PixivResolveError,
     ResolvedArtist,
     candidate_score,
+    normalize_artist_display_name,
     fetch_artwork_author,
     fetch_user_profile,
     parse_user_name_from_profile_all,
@@ -61,7 +63,7 @@ class ResolverTests(unittest.TestCase):
     def test_candidate_score_handles_full_width_and_display_suffix(self):
         self.assertEqual(candidate_score("Ａｎｍｉ", "Anmi@画集発売中"), 1.0)
 
-    def test_name_only_resolution_requires_consistent_pid_authors(self):
+    def test_name_only_resolution_rejects_conflict_even_with_majority(self):
         hit = NameOnlyArtistHit(
             artist_key="name:test",
             artist_name="Artist",
@@ -77,11 +79,8 @@ class ResolverTests(unittest.TestCase):
             ResolvedArtist(id="2", name="B", work_id="100"),
         ]
         with patch("pixiv_pbd_manager.resolver.fetch_artwork_author", side_effect=results):
-            resolved = resolve_name_only_artist(hit, max_work_ids=3, delay_seconds=0)
-
-        self.assertIsNotNone(resolved)
-        assert resolved is not None
-        self.assertEqual(resolved.id, "1")
+            with self.assertRaises(PixivAuthorConflict):
+                resolve_name_only_artist(hit, max_work_ids=3, delay_seconds=0)
 
     def test_name_only_resolution_skips_bad_pid_and_keeps_trying(self):
         hit = NameOnlyArtistHit(
@@ -119,9 +118,25 @@ class ResolverTests(unittest.TestCase):
             ResolvedArtist(id="2", name="B", work_id="100"),
         ]
         with patch("pixiv_pbd_manager.resolver.fetch_artwork_author", side_effect=results):
-            resolved = resolve_name_only_artist(hit, max_work_ids=2, delay_seconds=0)
+            with self.assertRaises(PixivAuthorConflict):
+                resolve_name_only_artist(hit, max_work_ids=2, delay_seconds=0)
 
-        self.assertIsNone(resolved)
+    def test_consistent_authors_with_an_inaccessible_work_still_resolve(self):
+        hit = NameOnlyArtistHit(
+            "name:test", "Artist", "test", Path("."), Path("."), Path("100.jpg"), {"100", "101", "102"}
+        )
+        results = [ResolvedArtist("1", "A", "102"), None, ResolvedArtist("1", "A", "100")]
+        with patch("pixiv_pbd_manager.resolver.fetch_artwork_author", side_effect=results):
+            resolved = resolve_name_only_artist(hit, max_work_ids=3, delay_seconds=0)
+        self.assertIsNotNone(resolved)
+        self.assertEqual(resolved.id, "1")
+
+    def test_exact_display_names_do_not_match_shared_suffixes_or_drop_punctuation(self):
+        self.assertEqual(normalize_artist_display_name(" Ａｌｉｃｅ "), "alice")
+        self.assertNotEqual(
+            normalize_artist_display_name("Alice@commission"), normalize_artist_display_name("Bob@commission")
+        )
+        self.assertNotEqual(normalize_artist_display_name("A-B"), normalize_artist_display_name("AB"))
 
     def test_resolution_work_id_sampling_spreads_across_pid_range(self):
         work_ids = {str(work_id) for work_id in range(100, 110)}

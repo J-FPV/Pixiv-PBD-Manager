@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from collections import Counter
 import difflib
 import html
 import json
@@ -74,6 +73,10 @@ class ArtworkTag:
 
 class PixivResolveError(RuntimeError):
     pass
+
+
+class PixivAuthorConflict(PixivResolveError):
+    """Sampled works have different authors; do not fall back to a name guess."""
 
 
 def parse_user_work_ids_from_profile_all(raw: dict, max_pages: int | None = None) -> set[str]:
@@ -344,14 +347,10 @@ def resolve_name_only_artist(
             raise last_error
         return None
 
-    votes = Counter(item.id for item in resolved_items)
-    ranked = votes.most_common()
-    if len(ranked) > 1 and ranked[0][1] == ranked[1][1]:
-        return None
-    winning_id = ranked[0][0]
-    if len(ranked) > 1 and ranked[0][1] < 2:
-        return None
-    return next(item for item in resolved_items if item.id == winning_id)
+    if len({item.id for item in resolved_items}) > 1:
+        evidence = ", ".join(f"{item.work_id}->{item.id}" for item in resolved_items)
+        raise PixivAuthorConflict(f"Conflicting artwork authors in {hit.folder}: {evidence}")
+    return resolved_items[0]
 
 
 def select_resolution_work_ids(work_ids: set[str], max_work_ids: int) -> list[str]:
@@ -373,6 +372,11 @@ def select_resolution_work_ids(work_ids: set[str], max_work_ids: int) -> list[st
             selected.append(ordered[index])
             seen.add(index)
     return selected
+
+
+def normalize_artist_display_name(value: str) -> str:
+    """Normalize a complete display name without dropping punctuation or suffixes."""
+    return unicodedata.normalize("NFKC", value).casefold().strip()
 
 
 def normalize_search_text(value: str) -> str:

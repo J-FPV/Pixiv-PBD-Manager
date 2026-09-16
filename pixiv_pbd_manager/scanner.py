@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 import hashlib
 import os
@@ -53,8 +53,8 @@ KEYWORD_ARTIST_PATTERNS = [
 WORK_ID_PATTERN = re.compile(r"(?<!\d)(?P<id>\d{6,12})(?!\d)", re.I)
 PIXIV_PAGE_WORK_PATTERN = re.compile(r"(?<!\d)(?P<id>\d{4,12})[_-]p(?P<page>\d+)(?!\d)", re.I)
 PIXIV_PREFIX_WORK_PATTERNS = [
-    re.compile(r"(?:^|[^\w])(?:illust|artwork|pixiv|work)[_-](?P<id>\d{4,12})(?!\d)", re.I),
-    re.compile(r"(?:^|[^\w])(?:pid|illust[_-]?id|work[_-]?id)[= _-]*(?P<id>\d{4,12})(?!\d)", re.I),
+    re.compile(r"(?:^|[\W_])(?:illust|artwork|pixiv|work)[_-](?P<id>\d{4,12})(?!\d)", re.I),
+    re.compile(r"(?:^|[\W_])(?:pid|illust[_-]?id|work[_-]?id)[= _-]*(?P<id>\d{4,12})(?!\d)", re.I),
 ]
 LEADING_WORK_ID_PATTERN = re.compile(r"^(?P<id>\d{6,12})(?=$|[ ._-])", re.I)
 
@@ -72,6 +72,7 @@ EMBEDDED_TIMESTAMP_PATTERN = re.compile(
     r"(?<!\d)(?:19|20)\d{2}(?:0[1-9]|1[0-2])(?:0[1-9]|[12]\d|3[01])"
     r"[ ._-](?:[01]\d|2[0-3])[0-5]\d[0-5]\d(?!\d)"
 )
+
 
 def looks_like_timestamp_name(stem: str) -> bool:
     return bool(TIMESTAMP_NAME_PATTERN.match(stem))
@@ -102,9 +103,6 @@ def parse_pixiv_work_reference(path: Path) -> PixivWorkReference | None:
     do not become artwork IDs.
     """
     stem = path.stem
-    if looks_like_timestamp_name(stem):
-        return None
-
     match = PIXIV_PAGE_WORK_PATTERN.search(stem)
     if match:
         return PixivWorkReference(match.group("id"), int(match.group("page")), "page")
@@ -113,6 +111,9 @@ def parse_pixiv_work_reference(path: Path) -> PixivWorkReference | None:
         match = pattern.search(stem)
         if match:
             return PixivWorkReference(match.group("id"), None, "prefix")
+
+    if looks_like_timestamp_name(stem):
+        return None
 
     match = LEADING_WORK_ID_PATTERN.search(stem)
     if match and not looks_like_calendar_date_token(match.group("id")):
@@ -157,6 +158,7 @@ class FolderArtistIdentity:
     artist_name: str | None
     source: str
     folder: Path
+    explicit_id: bool = False
 
 
 @dataclass(frozen=True)
@@ -173,6 +175,7 @@ class ScanSummary:
     files_matched: int = 0
     excluded_dirs: int = 0
     artists: dict[str, ScanHit] = field(default_factory=dict)
+    artist_folder_hits: dict[tuple[str, Path, Path], ScanHit] = field(default_factory=dict)
     name_only_artists: dict[str, NameOnlyArtistHit] = field(default_factory=dict)
     unmatched_examples: list[Path] = field(default_factory=list)
     # Folder path -> number of unidentified media files under it. A folder is
@@ -186,6 +189,15 @@ class ScanSummary:
     unmatched_folder_roots: dict[str, str] = field(default_factory=dict)
 
     def add_hit(self, hit: ScanHit) -> None:
+        # Keep per-directory evidence separate from the per-artist counters.
+        key = (hit.artist_id, hit.root, hit.folder)
+        folder_hit = self.artist_folder_hits.get(key)
+        if folder_hit is None:
+            self.artist_folder_hits[key] = replace(hit, work_ids=set(hit.work_ids))
+        else:
+            folder_hit.work_ids.update(hit.work_ids)
+            if not folder_hit.artist_name and hit.artist_name:
+                folder_hit.artist_name = hit.artist_name
         existing = self.artists.get(hit.artist_id)
         if not existing:
             self.artists[hit.artist_id] = hit
@@ -209,8 +221,8 @@ def normalize_exclude_roots(exclude_roots: list[Path] | None = None) -> list[Pat
     return normalize_scan_roots(exclude_roots or [])
 
 
-def normalize_scan_roots(roots: list[Path]) -> list[Path]:
-    """Resolve, de-duplicate, and collapse roots covered by an ancestor root."""
+def normalize_scan_roots(roots: list[Path], *, max_depth: int | None = None) -> list[Path]:
+    """Collapse covered roots only when the ancestor walk has unlimited depth."""
     unique: dict[str, tuple[int, Path]] = {}
     for index, path in enumerate(roots):
         resolved = path.expanduser().resolve()
@@ -219,7 +231,7 @@ def normalize_scan_roots(roots: list[Path]) -> list[Path]:
     ordered = sorted(unique.values(), key=lambda item: (len(item[1].parts), item[0]))
     kept: list[Path] = []
     for _index, candidate in ordered:
-        if any(candidate == parent or is_relative_to(candidate, parent) for parent in kept):
+        if max_depth is None and any(is_relative_to(candidate, parent) for parent in kept):
             continue
         kept.append(candidate)
     return kept
@@ -247,6 +259,7 @@ def iter_media_files(
     exclude_roots: list[Path] | None = None,
     *,
     max_depth: int | None = None,
+    on_directory_files: Callable[[list[str]], None] | None = None,
 ):
     """Walk ``root`` for media files. ``max_depth`` limits how deep we recurse:
     ``None`` (default) = unlimited; ``0`` = only files directly in ``root``;
@@ -256,6 +269,8 @@ def iter_media_files(
     excludes = normalize_exclude_roots(exclude_roots)
     if root.is_file():
         if not is_excluded_resolved_path(root, excludes) and root.suffix.lower() in MEDIA_SUFFIXES:
+            if on_directory_files:
+                on_directory_files([root.name])
             yield root
         return
 
@@ -280,10 +295,11 @@ def iter_media_files(
                 kept_dirnames.append(dirname)
         dirnames[:] = kept_dirnames
 
-        for filename in filenames:
-            path = current_path / filename
-            if path.suffix.lower() in MEDIA_SUFFIXES:
-                yield path
+        media_names = [name for name in filenames if Path(name).suffix.lower() in MEDIA_SUFFIXES]
+        if on_directory_files:
+            on_directory_files(media_names)
+        for filename in media_names:
+            yield current_path / filename
 
 
 def clean_name(name: str | None) -> str | None:
@@ -349,10 +365,7 @@ def extract_work_ids(path: Path) -> set[str]:
 
 
 def stable_artist_key(root: Path, folder: Path, name: str) -> str:
-    try:
-        folder_text = str(folder.relative_to(root))
-    except ValueError:
-        folder_text = str(folder)
+    folder_text = os.path.normcase(str(folder.expanduser().resolve()))
     digest_source = f"{folder_text}|{name}".encode("utf-8", errors="backslashreplace")
     digest = hashlib.sha1(digest_source).hexdigest()[:12]
     return f"name:{digest}"
@@ -377,19 +390,47 @@ def _folder_parts_for_path(path: Path, root: Path) -> tuple[list[str], list[tupl
     return relative_parts, folder_paths
 
 
-def identify_artist_folder(path: Path, root: Path, *, allow_low_pids: bool = False) -> FolderArtistIdentity | None:
+def _artist_folder_candidates(
+    path: Path, root: Path, *, allow_low_pids: bool = False
+) -> tuple[FolderArtistIdentity, ...]:
     _, folder_paths = _folder_parts_for_path(path, root)
+    candidates: list[FolderArtistIdentity] = []
     for part, folder_path in reversed(folder_paths):
         found = find_artist_in_text(part, include_loose_patterns=True, allow_low_pids=allow_low_pids)
         if found:
             artist_id, artist_name, pattern = found
-            return FolderArtistIdentity(
-                artist_id=artist_id,
-                artist_name=artist_name,
-                source=f"folder:{pattern}",
-                folder=folder_path,
+            keyword_match = find_artist_in_text(part, include_loose_patterns=False, allow_low_pids=allow_low_pids)
+            explicit_id = keyword_match is not None and keyword_match[0] == artist_id
+            if not explicit_id and PIXIV_PAGE_WORK_PATTERN.search(part):
+                continue
+            candidates.append(
+                FolderArtistIdentity(
+                    artist_id=artist_id,
+                    artist_name=artist_name,
+                    source=f"folder:{pattern}",
+                    folder=folder_path,
+                    explicit_id=explicit_id,
+                )
             )
+    return tuple(candidates)
+
+
+def _select_artist_folder(
+    candidates: tuple[FolderArtistIdentity, ...], work_ids: set[str]
+) -> FolderArtistIdentity | None:
+    for candidate in candidates:
+        # A loose numeric folder matching the file's PID describes a work,
+        # not its author. Continue looking at the enclosing artist directory.
+        if not candidate.explicit_id and candidate.artist_id in work_ids:
+            continue
+        return candidate
     return None
+
+
+def identify_artist_folder(path: Path, root: Path, *, allow_low_pids: bool = False) -> FolderArtistIdentity | None:
+    return _select_artist_folder(
+        _artist_folder_candidates(path, root, allow_low_pids=allow_low_pids), extract_work_ids(path)
+    )
 
 
 def identify_artist_in_filename(path: Path, root: Path, *, allow_low_pids: bool = False) -> ScanHit | None:
@@ -467,10 +508,25 @@ def scan_roots(
 ) -> ScanSummary:
     summary = ScanSummary()
     excludes = normalize_exclude_roots(exclude_roots)
-    artist_folder_cache: dict[tuple[Path, Path, bool], FolderArtistIdentity | None] = {}
+    artist_folder_cache: dict[tuple[Path, Path, bool], tuple[FolderArtistIdentity, ...]] = {}
     name_only_folder_cache: dict[tuple[Path, Path], FolderNameOnlyIdentity | None] = {}
     resolved_parent_cache: dict[Path, Path] = {}
-    for root in normalize_scan_roots(roots):
+    filename_work_ids: dict[str, set[str]] = {}
+    directory_work_ids: set[str] = set()
+
+    def prepare_directory(filenames: list[str]) -> None:
+        # Reuse os.walk's names to validate loose folder IDs against the whole
+        # directory, independent of file order and without a second disk walk.
+        filename_work_ids.clear()
+        directory_work_ids.clear()
+        for filename in filenames:
+            work_ids = extract_work_ids(Path(filename))
+            filename_work_ids[filename] = work_ids
+            directory_work_ids.update(work_ids)
+
+    scan_roots_to_visit = normalize_scan_roots(roots, max_depth=max_depth)
+    visited: set[Path] | None = set() if max_depth is not None and len(scan_roots_to_visit) > 1 else None
+    for root in scan_roots_to_visit:
         if should_cancel and should_cancel():
             break
         root_excludes = [
@@ -479,21 +535,26 @@ def scan_roots(
             if root == exclude or is_relative_to(exclude, root) or is_relative_to(root, exclude)
         ]
         summary.excluded_dirs += len(root_excludes)
-        for path in iter_media_files(root, root_excludes, max_depth=max_depth):
+        for path in iter_media_files(root, root_excludes, max_depth=max_depth, on_directory_files=prepare_directory):
             # Cancellation checkpoint: a 36k-file walk must stop promptly when the
             # user cancels rather than running to completion in the background.
             if should_cancel and summary.files_seen % 256 == 0 and should_cancel():
                 return summary
+            if visited is not None:
+                if path in visited:
+                    continue
+                visited.add(path)
             summary.files_seen += 1
             if progress_callback and progress_interval > 0 and summary.files_seen % progress_interval == 0:
                 progress_callback(summary)
             parent = path.parent
             artist_cache_key = (root, parent, allow_low_pids)
             if artist_cache_key not in artist_folder_cache:
-                artist_folder_cache[artist_cache_key] = identify_artist_folder(
+                artist_folder_cache[artist_cache_key] = _artist_folder_candidates(
                     path, root, allow_low_pids=allow_low_pids
                 )
-            folder_identity = artist_folder_cache[artist_cache_key]
+            work_ids = filename_work_ids[path.name]
+            folder_identity = _select_artist_folder(artist_folder_cache[artist_cache_key], directory_work_ids)
             if folder_identity:
                 hit = ScanHit(
                     artist_id=folder_identity.artist_id,
@@ -502,7 +563,7 @@ def scan_roots(
                     root=root,
                     folder=folder_identity.folder,
                     path=path,
-                    work_ids=extract_work_ids(path),
+                    work_ids=work_ids,
                 )
             else:
                 hit = identify_artist_in_filename(path, root, allow_low_pids=allow_low_pids)
@@ -522,7 +583,7 @@ def scan_roots(
                     root=root,
                     folder=name_folder_identity.folder,
                     path=path,
-                    work_ids=extract_work_ids(path),
+                    work_ids=work_ids,
                     file_count=1,
                 )
                 if name_folder_identity
@@ -535,7 +596,6 @@ def scan_roots(
                 if parent_resolved is None:
                     parent_resolved = parent.resolve()
                     resolved_parent_cache[parent] = parent_resolved
-                work_ids = extract_work_ids(path)
                 # The scan root itself is normally the library starting point,
                 # not a folder the user needs to attribute. The exception is
                 # when the root directly contains Pixiv PID-named files: that is

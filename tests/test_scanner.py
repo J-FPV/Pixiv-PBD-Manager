@@ -304,6 +304,95 @@ class ScannerTests(unittest.TestCase):
             self.assertEqual(summary.files_seen, 1)
             self.assertEqual(summary.files_matched, 1)
 
+    def test_artwork_subfolder_does_not_override_parent_artist(self):
+        root = Path("library")
+        for folder in ("87654321_title", "87654321_p0", "title-87654321"):
+            with self.subTest(folder=folder):
+                image = root / "Artist-555666" / folder / "87654321_p0.jpg"
+                hit = identify_artist(image, root)
+                self.assertIsNotNone(hit)
+                self.assertEqual(hit.artist_id, "555666")
+                self.assertEqual(hit.folder, root / "Artist-555666")
+
+    def test_artwork_subfolder_without_parent_uid_remains_unidentified(self):
+        root = Path("library")
+        image = root / "87654321_title" / "87654321_p0.jpg"
+        self.assertIsNone(identify_artist(image, root))
+
+    def test_explicit_uid_is_not_discarded_when_equal_to_work_id(self):
+        root = Path("library")
+        for folder in ("user_id_555666", "user-id-555666", "uid-555666"):
+            with self.subTest(folder=folder):
+                hit = identify_artist(root / folder / "555666_p0.jpg", root)
+                self.assertIsNotNone(hit)
+                self.assertEqual(hit.artist_id, "555666")
+
+    def test_numeric_artist_prefix_is_kept_when_distinct_from_pid(self):
+        root = Path("library")
+        hit = identify_artist(root / "555666_Artist" / "87654321_p0.jpg", root)
+        self.assertIsNotNone(hit)
+        self.assertEqual(hit.artist_id, "555666")
+
+    def test_folder_cache_does_not_reuse_a_file_specific_pid_decision(self):
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            folder = root / "Artist-555666" / "87654321_title"
+            folder.mkdir(parents=True)
+            for filename in ("cover.jpg", "87654321_p0.jpg", "90000001_user_id_555666.jpg"):
+                (folder / filename).touch()
+            summary = scan_roots([root])
+            self.assertEqual(summary.files_seen, 3)
+            self.assertEqual(summary.files_matched, 3)
+            self.assertEqual(set(summary.artists), {"555666"})
+            self.assertEqual(summary.artists["555666"].work_ids, {"87654321", "90000001"})
+
+    def test_explicit_pid_wins_over_date_prefix(self):
+        for filename in (
+            "2026-09-09_12345678_p0.jpg",
+            "IMG_20260909_120000_12345678_p1.png",
+            "2026-09-09_illust_12345678.jpg",
+            "2026-09-09_pid_12345678.jpg",
+        ):
+            with self.subTest(filename=filename):
+                self.assertEqual(extract_work_ids(Path(filename)), {"12345678"})
+
+    def test_name_only_keys_include_full_folder_not_scan_root(self):
+        first = Path("library-a") / "Artist - pixiv"
+        second = Path("library-b") / "Artist - pixiv"
+        self.assertNotEqual(
+            stable_artist_key(first.parent, first, "Artist"),
+            stable_artist_key(second.parent, second, "Artist"),
+        )
+        self.assertEqual(
+            stable_artist_key(first.parent, first, "Artist"),
+            stable_artist_key(first, first, "Artist"),
+        )
+
+    def test_limited_depth_preserves_explicit_nested_scan_root(self):
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            child = root / "a" / "b"
+            child.mkdir(parents=True)
+            (child / "12345678_p0.jpg").touch()
+            summary = scan_roots([root, child], max_depth=0)
+            self.assertEqual(summary.files_seen, 1)
+            self.assertIn(str(child), summary.unmatched_folders)
+
+    def test_limited_depth_overlap_visits_each_file_once_and_reaches_deeper_files(self):
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            artist = root / "Artist-555666"
+            subfolder = artist / "pages"
+            subfolder.mkdir(parents=True)
+            (artist / "12345678_p0.jpg").touch()
+            (subfolder / "12345679_p0.jpg").touch()
+            summary = scan_roots([artist, root, artist], max_depth=1)
+            self.assertEqual(summary.files_seen, 2)
+            self.assertEqual(summary.files_matched, 2)
+            self.assertEqual(summary.artists["555666"].work_ids, {"12345678", "12345679"})
+            excluded = scan_roots([root, artist], exclude_roots=[artist], max_depth=1)
+            self.assertEqual(excluded.files_seen, 0)
+
 
 if __name__ == "__main__":
     unittest.main()

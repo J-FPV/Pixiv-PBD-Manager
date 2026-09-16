@@ -17,9 +17,8 @@ over. The order is stable:
      ``fuzzy_search_names``, only for name-only folders the previous step
      did not handle)
 
-Either resolver loop short-circuits if Pixiv returns a ``PixivResolveError``,
-matching the historical behaviour: one transient failure stops the whole
-online-resolve phase rather than spamming the API.
+Resolver loops stop after three consecutive request failures. Conflicting
+author evidence leaves a folder unmatched and is never sent to fuzzy search.
 """
 
 from __future__ import annotations
@@ -126,10 +125,10 @@ def collect_resolved_hits(
         result.cancelled = True
         return result
 
-    for artist_id, hit in summary.artists.items():
+    for hit in summary.artist_folder_hits.values():
         result.hits.append(
             ResolvedHit(
-                artist_id=artist_id,
+                artist_id=hit.artist_id,
                 artist_name=hit.artist_name,
                 source=hit.source,
                 root=hit.root,
@@ -139,30 +138,33 @@ def collect_resolved_hits(
         )
 
     resolved_hit_keys: set[str] = set()
+    conflicted_hit_keys: set[str] = set()
     name_only_hits = list(summary.name_only_artists.values())
     save_path_index = build_artist_save_path_index(existing_db)
     work_id_index = build_artist_work_id_index(existing_db)
+    name_index: dict[str, list[str]] = {}
+    for artist in existing_db.artists.values():
+        name = resolver.normalize_artist_display_name(artist.name or "")
+        if name:
+            name_index.setdefault(name, []).append(artist.id)
 
     # Existing database evidence is faster and safer than hitting Pixiv again.
-    # A known save path wins; otherwise an exact normalized display-name match
-    # is accepted only when it identifies one database record. If the folder has
-    # PID-named files already known in the DB, use that as a conservative
-    # offline fallback.
+    # A known save path wins, followed by PID ownership. Only use a unique,
+    # complete display-name match when there is no known PID evidence.
     for hit in name_only_hits:
         existing = find_artist_by_save_path(save_path_index, hit.folder)
         source = "local_save_path"
-        if existing is None and hit.artist_name:
-            candidates = [
-                artist
-                for artist in existing_db.artists.values()
-                if artist.name and resolver.candidate_score(hit.artist_name, artist.name) == 1.0
-            ]
-            if len(candidates) == 1:
-                existing = candidates[0]
-                source = "local_exact_name"
         if existing is None and hit.work_ids:
             existing = find_artist_by_work_ids(work_id_index, frozenset(hit.work_ids))
             source = "local_work_id"
+            if existing is None and any(pid in work_id_index for pid in hit.work_ids):
+                conflicted_hit_keys.add(hit.artist_key)
+                continue
+        if existing is None and hit.artist_name:
+            candidates = name_index.get(resolver.normalize_artist_display_name(hit.artist_name), [])
+            if len(candidates) == 1:
+                existing = existing_db.artists[candidates[0]]
+                source = "local_exact_name"
         if existing is None:
             continue
         result.hits.append(
@@ -179,9 +181,12 @@ def collect_resolved_hits(
 
     pid_folders = list(summary.unmatched_folder_work_ids.items())
     resolved_pid_folders: set[str] = set()
+    conflicted_pid_folders: set[str] = set()
     for folder_text, work_ids in pid_folders:
         existing = find_artist_by_work_ids(work_id_index, frozenset(work_ids))
         if existing is None:
+            if any(pid in work_id_index for pid in work_ids):
+                conflicted_pid_folders.add(folder_text)
             continue
         folder = Path(folder_text)
         result.hits.append(
@@ -209,7 +214,7 @@ def collect_resolved_hits(
         if cancelled():
             result.cancelled = True
             return result
-        if hit.artist_key in resolved_hit_keys:
+        if hit.artist_key in resolved_hit_keys or hit.artist_key in conflicted_hit_keys:
             continue
         if not hit.work_ids:
             continue
@@ -228,6 +233,11 @@ def collect_resolved_hits(
                 cookie=pixiv_cookie,
                 allow_insecure_ssl_fallback=allow_insecure_ssl_fallback,
             )
+        except resolver.PixivAuthorConflict as exc:
+            conflicted_hit_keys.add(hit.artist_key)
+            result.resolve_errors.append(str(exc))
+            consecutive_errors = 0
+            continue
         except resolver.PixivResolveError as exc:
             result.resolve_errors.append(str(exc))
             consecutive_errors += 1
@@ -260,7 +270,7 @@ def collect_resolved_hits(
         if cancelled():
             result.cancelled = True
             return result
-        if folder_text in resolved_pid_folders:
+        if folder_text in resolved_pid_folders or folder_text in conflicted_pid_folders:
             continue
         if not work_ids:
             continue
@@ -288,6 +298,10 @@ def collect_resolved_hits(
                 cookie=pixiv_cookie,
                 allow_insecure_ssl_fallback=allow_insecure_ssl_fallback,
             )
+        except resolver.PixivAuthorConflict as exc:
+            result.resolve_errors.append(str(exc))
+            consecutive_errors = 0
+            continue
         except resolver.PixivResolveError as exc:
             result.resolve_errors.append(str(exc))
             consecutive_errors += 1
@@ -324,7 +338,7 @@ def collect_resolved_hits(
         if cancelled():
             result.cancelled = True
             return result
-        if hit.artist_key in resolved_hit_keys:
+        if hit.artist_key in resolved_hit_keys or hit.artist_key in conflicted_hit_keys:
             continue
         emit(
             progress_callback,
