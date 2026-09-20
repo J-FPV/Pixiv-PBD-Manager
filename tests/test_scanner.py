@@ -376,7 +376,7 @@ class ScannerTests(unittest.TestCase):
             (child / "12345678_p0.jpg").touch()
             summary = scan_roots([root, child], max_depth=0)
             self.assertEqual(summary.files_seen, 1)
-            self.assertIn(str(child), summary.unmatched_folders)
+            self.assertIn(str(child.resolve()), summary.unmatched_folders)
 
     def test_limited_depth_overlap_visits_each_file_once_and_reaches_deeper_files(self):
         with TemporaryDirectory() as tmp:

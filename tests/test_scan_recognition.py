@@ -12,7 +12,9 @@ class ScanRecognitionTests(unittest.TestCase):
     def setUp(self):
         tmp = TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
-        self.base = Path(tmp.name)
+        # Windows runners may expose TEMP through an 8.3 alias (RUNNER~1).
+        # Scanner results intentionally use resolved, long-form paths.
+        self.base = Path(tmp.name).resolve()
         self.root = self.base / "library"
         self.db = ArtistDatabase.load(self.base / "artists.json")
 
