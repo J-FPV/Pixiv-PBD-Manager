@@ -45,6 +45,7 @@ def library_image_to_json(image: LibraryImage, artist: ArtistRecord | None = Non
         "folder": image.folder,
         "size_bytes": image.size_bytes,
         "mtime_ns": image.mtime_ns,
+        "created_ns": image.created_ns,
         "width": image.width,
         "height": image.height,
         "resolution": image.resolution,

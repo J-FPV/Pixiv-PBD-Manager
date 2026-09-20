@@ -1,11 +1,14 @@
 import { PanelLeft, RefreshCw, RotateCcw, Search, Stethoscope, Tags, XCircle } from "lucide-react";
 import { t } from "../../i18n";
-import type { Language, LibraryIndexStatus } from "../../types";
+import type { Language, LibraryIndexStatus, LibrarySort } from "../../types";
 import { Button } from "../Button";
+import { LibrarySortControls } from "./LibrarySortControls";
 
 export function LibraryToolbar({
   language,
   keyword,
+  sort,
+  setSort,
   setKeyword,
   count,
   busy,
@@ -20,6 +23,8 @@ export function LibraryToolbar({
 }: {
   language: Language;
   keyword: string;
+  sort: LibrarySort;
+  setSort: (sort: LibrarySort) => void;
   setKeyword: (value: string) => void;
   count: number;
   busy: boolean;
@@ -46,6 +51,7 @@ export function LibraryToolbar({
           </button>
         ) : null}
       </div>
+      <LibrarySortControls language={language} sort={sort} setSort={setSort} />
       <span className="libraryCount">{t(language, "libraryCount").replace("{count}", String(count))}</span>
       {indexStatus ? (
         <span className={`libraryIndexBadge ${indexStatus.stale ? "stale" : "fresh"}`}>

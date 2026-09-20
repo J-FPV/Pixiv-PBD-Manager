@@ -149,6 +149,7 @@ function LibraryDetailMetaPanel({
 }) {
   const [draft, setDraft] = useState("");
   const modified = image.mtime_ns ? new Date(image.mtime_ns / 1_000_000).toLocaleString() : "";
+  const created = image.created_ns != null ? new Date(image.created_ns / 1_000_000).toLocaleString() : "";
   const addTag = () => {
     const value = draft.trim();
     if (value) {
@@ -165,7 +166,8 @@ function LibraryDetailMetaPanel({
       <MetaRow label={t(language, "orientation")} value={orientationLabel(language, image.orientation)} />
       <MetaRow label={t(language, "format")} value={image.format.toUpperCase()} />
       <MetaRow label={t(language, "fileSize")} value={formatBytes(image.size_bytes)} />
-      <MetaRow label={t(language, "modified")} value={modified} />
+      <MetaRow label={t(language, "createdTime")} value={created} />
+      <MetaRow label={t(language, "modifiedTime")} value={modified} />
       <MetaRow label={t(language, "pageLabel")} value={image.page !== null ? String(image.page) : ""} />
       <MetaRow label={t(language, "artistTags")} value={image.artist_tags.join(", ")} />
       <LibraryMetadataControls

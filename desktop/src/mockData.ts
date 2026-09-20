@@ -62,6 +62,7 @@ function libraryImage(
     folder,
     size_bytes: 2_400_000 + page * 320_000,
     mtime_ns: mockMtime + page,
+    created_ns: mockMtime - page * 1_000_000_000,
     width,
     height,
     resolution: `${width} × ${height}`,

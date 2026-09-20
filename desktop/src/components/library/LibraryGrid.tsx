@@ -14,6 +14,7 @@ const ROW_HEIGHT = 200;
 export function LibraryGrid({
   language,
   images,
+  sortResetKey,
   selectedPath,
   selectedPaths,
   loading,
@@ -22,6 +23,7 @@ export function LibraryGrid({
 }: {
   language: Language;
   images: LibraryImage[];
+  sortResetKey: string;
   selectedPath: string | null;
   selectedPaths: Set<string>;
   loading: boolean;
@@ -63,6 +65,10 @@ export function LibraryGrid({
     estimateSize: () => ROW_HEIGHT,
     overscan: 6
   });
+
+  useEffect(() => {
+    virtualizer.scrollToOffset(0);
+  }, [sortResetKey, virtualizer]);
 
   return (
     <div className="libraryGridScroll" ref={parentRef}>

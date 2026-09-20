@@ -43,7 +43,7 @@ export function useAppState() {
   const [pixivCookie, setPixivCookie] = useState("");
   const [artists, setArtists] = useState<Artist[]>([]);
   const [artistTags, setArtistTags] = useState<string[]>([]);
-  const library = useLibraryState();
+  const library = useLibraryState(INITIAL_UI_STATE.librarySort);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [filter, setFilter] = useState(INITIAL_UI_STATE.filter || "");
   const [logs, setLogs] = useState<LogEntry[]>([]);

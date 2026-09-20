@@ -112,6 +112,7 @@ The Image Library page browses every image in your download folders as a thumbna
 
 - **Build the catalog**: on first open, click "Scan library". The app walks your download folders, reads each image's dimensions, and parses the Pixiv PID/artist into a local catalog (`library_index.json`). Later opens are instant; rescans only re-read files whose size or modified time changed.
 - **Filters**: the sidebar filters by artist, folder, tag, favorite state, rating, workflow status, format, orientation, resolution, and year. Search matches filenames, paths, PIDs, artists, and tags.
+- **Sorting**: next to search, sort by creation time, modification time, filename, file size, pixel area, or rating; the arrow toggles ascending/descending order. Modified time, newest first is the default. Your choice survives restarts, and detail navigation follows grid order. Creation time is the local file's creation time, not its Pixiv publication date, and may change when copied.
 - **Favorites, ratings, and status**: favorite an image, rate it from 0–5 stars, or mark it as High reference value, Used, or To organize. These fields only update the local index; image files are untouched.
 - **Batch organization**: select images from the top-left control on each thumbnail, then add/remove tags, change favorites and ratings, set workflow markers, or promote fetched Pixiv tags to local tags.
 - **Export**: exports selected images when a selection exists, otherwise the current filtered result. The UTF-8 CSV can therefore be scoped by artist, folder, or tag before export.

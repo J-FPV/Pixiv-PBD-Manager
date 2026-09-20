@@ -41,7 +41,7 @@ test("mock backend covers the primary desktop flows", async ({ page }) => {
   await expect(copyPixivTagsLine).toHaveCSS("display", "flex");
   await expect(copyPixivTagsCheckbox).toHaveCSS("width", "16px");
   await expect(copyPixivTagsCheckbox).toHaveCSS("height", "16px");
-  await page.getByRole("combobox").selectOption("5");
+  await page.locator(".libraryBatchModal").getByRole("combobox").selectOption("5");
   await page.getByRole("button", { name: "应用", exact: true }).click();
   await expect(page.getByText("已更新 1 张图片")).toBeVisible();
   await page.getByRole("button", { name: "图库体检", exact: true }).click();

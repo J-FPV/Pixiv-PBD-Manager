@@ -2,6 +2,7 @@ import type { PathPickKind } from "./api";
 
 export type Language = "zh" | "en" | "ja" | "es" | "fr" | "de";
 export type ThemeMode = "system" | "light" | "dark";
+export type SortDirection = "asc" | "desc";
 
 // Independent task lanes. The library lane (scan / update-check / download /
 // name-refresh …) mutates the artist DB and/or hits Pixiv, so its tasks stay

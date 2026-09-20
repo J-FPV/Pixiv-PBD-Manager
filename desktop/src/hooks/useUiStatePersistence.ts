@@ -9,6 +9,7 @@ export function useUiStatePersistence(s: AppState): void {
   const {
     activeTab,
     filter,
+    librarySort,
     similarRoots,
     similarExcludes,
     similarRootBoxHeight,
@@ -23,6 +24,7 @@ export function useUiStatePersistence(s: AppState): void {
     persistJson(UI_STATE_KEY, {
       activeTab,
       filter,
+      librarySort,
       similarRoots,
       similarExcludes,
       similarRootBoxHeight,
@@ -33,6 +35,7 @@ export function useUiStatePersistence(s: AppState): void {
   }, [
     activeTab,
     filter,
+    librarySort,
     similarRoots,
     similarExcludes,
     similarRootBoxHeight,

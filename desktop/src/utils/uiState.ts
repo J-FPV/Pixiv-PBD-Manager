@@ -1,5 +1,6 @@
 import { UI_STATE_KEY } from "../constants";
-import { TAB_KEYS, type TabKey } from "../types";
+import { TAB_KEYS, type LibrarySort, type TabKey } from "../types";
+import { normalizeLibrarySort } from "./librarySort";
 import { loadJson } from "./storage";
 import { clampTextareaHeight } from "./textarea";
 
@@ -12,12 +13,14 @@ export interface PersistedUiState {
   similarExcludeBoxHeight?: number;
   similarSkipPixivPages?: boolean;
   expandedGroups?: number[];
+  librarySort?: LibrarySort;
 }
 
 export function normalizedUiState(): PersistedUiState {
   const state = loadJson<PersistedUiState>(UI_STATE_KEY, {});
   return {
     ...state,
+    librarySort: normalizeLibrarySort(state.librarySort),
     activeTab: (TAB_KEYS as readonly string[]).includes(state.activeTab as string)
       ? state.activeTab
       : "artists",

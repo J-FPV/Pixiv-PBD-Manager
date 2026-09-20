@@ -1,10 +1,11 @@
 import type { Dispatch, SetStateAction } from "react";
 import { runGuiApi, setProjectRoot, setPythonCommand } from "../api";
 import { t } from "../i18n";
-import type { ApiEvent, AppSettings, ConfirmState, Language, LogEntry, ReleaseInfo, SettingsPayload } from "../types";
+import type { ApiEvent, AppSettings, ConfirmState, Language, LibrarySort, LogEntry, ReleaseInfo, SettingsPayload } from "../types";
 import { DEFAULT_SETTINGS } from "../constants";
 import { joinLines } from "../utils/paths";
 import { resetCurrentWindowLayout } from "../utils/window";
+import { DEFAULT_LIBRARY_SORT } from "../utils/librarySort";
 
 // Settings tab actions plus the cookie-consent flow. As with the other action
 // hooks, the state lives in App and only the logic moves here. Each action is a
@@ -23,6 +24,7 @@ export interface SettingsActionsDeps {
   setSimilarRootBoxHeight: Dispatch<SetStateAction<number | undefined>>;
   setSimilarExcludeBoxHeight: Dispatch<SetStateAction<number | undefined>>;
   setExpandedGroups: Dispatch<SetStateAction<Set<number>>>;
+  setLibrarySort: Dispatch<SetStateAction<LibrarySort>>;
   setProjectRootState: Dispatch<SetStateAction<string>>;
   setPythonCommandState: Dispatch<SetStateAction<string>>;
   setDisclaimer: Dispatch<SetStateAction<"accept" | "view" | null>>;
@@ -141,6 +143,7 @@ function resetSettings(deps: SettingsActionsDeps): void {
         setSimilarRootBoxHeight(undefined);
         setSimilarExcludeBoxHeight(undefined);
         setExpandedGroups(new Set());
+        deps.setLibrarySort(DEFAULT_LIBRARY_SORT);
         const message = t(languageValue, "settingsReset");
         appendLog("info", message);
         showToast(message);

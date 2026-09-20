@@ -3,6 +3,14 @@
 // keep that file under the max-lines budget; re-exported from there, so callers
 // keep importing everything from "../types".
 
+import type { SortDirection } from "./types";
+
+export type LibrarySortKey = "created" | "modified" | "filename" | "size" | "pixels" | "rating";
+export interface LibrarySort {
+  key: LibrarySortKey;
+  direction: SortDirection;
+}
+
 export type ImageOrientation = "portrait" | "landscape" | "square" | "unknown";
 
 // A tag fetched from Pixiv: original text + optional English translation,
@@ -21,6 +29,7 @@ export interface LibraryImage {
   folder: string;
   size_bytes: number;
   mtime_ns: number;
+  created_ns: number | null;
   width: number;
   height: number;
   resolution: string;

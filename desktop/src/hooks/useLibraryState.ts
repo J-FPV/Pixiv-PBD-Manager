@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from "react";
-import type { DoctorReport, LibraryImage, LibraryIndexStatus } from "../types";
+import type { DoctorReport, LibraryImage, LibraryIndexStatus, LibrarySort } from "../types";
+import { normalizeLibrarySort } from "../utils/librarySort";
 
 // The library browser's slice of app state, kept separate so useAppState stays
 // within its line budget. Spread into the main state bag.
-export function useLibraryState() {
+export function useLibraryState(initialSort?: LibrarySort) {
+  const [librarySort, setLibrarySort] = useState(() => normalizeLibrarySort(initialSort));
   const [libraryImages, setLibraryImages] = useState<LibraryImage[]>([]);
   const [libraryLoaded, setLibraryLoaded] = useState(false);
   const [libraryNeedsScan, setLibraryNeedsScan] = useState(false);
@@ -18,6 +20,8 @@ export function useLibraryState() {
   }, [libraryLoaded]);
 
   return {
+    librarySort,
+    setLibrarySort,
     libraryImages,
     setLibraryImages,
     libraryLoaded,

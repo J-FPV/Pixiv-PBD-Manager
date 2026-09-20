@@ -203,6 +203,41 @@ footer {
   flex: 1 0 12px;
 }
 
+.libraryToolbar {
+  flex-wrap: wrap;
+}
+
+.libraryToolbar .searchBox {
+  flex: 0 1 230px;
+  min-width: 140px;
+}
+
+.librarySortControls {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 0 0 auto;
+}
+
+.librarySortControls select {
+  width: 132px;
+  max-width: 100%;
+  min-height: 34px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 6px 9px;
+  color: var(--text);
+  background: var(--input-bg);
+  cursor: pointer;
+}
+
+.librarySortControls .iconButton {
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  flex-shrink: 0;
+}
+
 .button {
   display: inline-flex;
   gap: 7px;

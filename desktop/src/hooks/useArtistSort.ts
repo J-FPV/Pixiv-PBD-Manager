@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
-import type { Artist } from "../types";
+import type { Artist, SortDirection } from "../types";
 import { lastSeenTimestamp } from "../utils/format";
 
 export type ArtistSortKey = "id" | "name" | "works" | "new_works" | "lastSeen" | "favorite";
-export type SortDirection = "asc" | "desc";
+export type { SortDirection } from "../types";
 
 function matchesKeyword(artist: Artist, keyword: string): boolean {
   if (!keyword) {

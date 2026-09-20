@@ -161,6 +161,10 @@ Both scan results and quarantine history are paginated so large operations do no
 
 ## Library Index And Doctor
 
+Sort all filtered results by creation time, modification time, filename, file size, pixel area (width times height), or rating in either direction. Filenames use natural ordering (`2.jpg` before `10.jpg`); ties use filename then full path, and missing times or dimensions stay last. Changing sort returns the grid to the top without clearing selection. Preferences live in desktop UI state; Reset all settings restores the default, while Reset window layout leaves sorting unchanged.
+
+Index format v2 adds nullable `created_ns`. Legacy indexes remain readable while a background incremental scan fills in creation times, preserving cached dimensions, local/Pixiv tags, favorites, ratings, and markers. Creation time is not download time or Pixiv publication time; unavailable values remain unknown instead of substituting a different timestamp. The detail panel shows creation and modification times.
+
 The catalog is stored in `.pixiv-pbd-manager/library_index.json`; `library_index.meta.json` stores scan time, scan/exclude folders, and root-folder timestamps. If the index is older than six hours, folder settings change, or a root changes, the desktop app starts an independent incremental refresh. Unchanged dimensions and tags are reused. Its task lane does not block artist update checks or similar-image scans.
 
 Library Doctor is a read-only diagnostic for database readability, missing or overlapping artist save paths, browser profiles placed inside the library, quarantine safety/writability, and index freshness. It never creates, moves, or deletes images.

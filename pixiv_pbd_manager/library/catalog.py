@@ -24,9 +24,11 @@ from ..paths import DEFAULT_LIBRARY_INDEX, write_json_atomic
 from ..scanner import parse_pixiv_work_reference
 from ..similar._shared import ProgressCallback, emit
 from ..similar.filewalk import iter_image_files
+from .timestamps import file_creation_time_ns
 
 
 LIBRARY_INDEX_MAX_AGE_SECONDS = 6 * 60 * 60
+LIBRARY_INDEX_VERSION = 2
 LIBRARY_MARKERS = frozenset({"high_value", "used", "to_sort"})
 
 
@@ -99,6 +101,7 @@ class LibraryImage:
     favorite: bool = False
     rating: int = 0
     markers: list[str] = field(default_factory=list)
+    created_ns: int | None = None
 
     @classmethod
     def from_json(cls, raw: dict[str, Any]) -> "LibraryImage":
@@ -107,6 +110,7 @@ class LibraryImage:
             path=str(raw["path"]),
             size_bytes=int(raw.get("size_bytes") or 0),
             mtime_ns=int(raw.get("mtime_ns") or 0),
+            created_ns=int(raw["created_ns"]) if raw.get("created_ns") is not None else None,
             width=int(raw.get("width") or 0),
             height=int(raw.get("height") or 0),
             format=str(raw.get("format") or ""),
@@ -126,6 +130,7 @@ class LibraryImage:
             "path": self.path,
             "size_bytes": self.size_bytes,
             "mtime_ns": self.mtime_ns,
+            "created_ns": self.created_ns,
             "width": self.width,
             "height": self.height,
             "format": self.format,
@@ -261,6 +266,7 @@ def build_catalog(
                     path=resolved,
                     size_bytes=stat.st_size,
                     mtime_ns=stat.st_mtime_ns,
+                    created_ns=file_creation_time_ns(stat),
                     width=width,
                     height=height,
                     format=path.suffix.lower().lstrip("."),
@@ -326,7 +332,7 @@ def load_library_index(path: Path = DEFAULT_LIBRARY_INDEX) -> dict[str, LibraryI
 def save_library_index(images: Any, path: Path = DEFAULT_LIBRARY_INDEX) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     ordered = sorted(images, key=lambda image: image.path.lower())
-    write_json_atomic(path, {"version": 1, "entries": {image.path: image.to_json() for image in ordered}})
+    write_json_atomic(path, {"version": LIBRARY_INDEX_VERSION, "entries": {image.path: image.to_json() for image in ordered}})
 
 
 def library_index_metadata_path(path: Path = DEFAULT_LIBRARY_INDEX) -> Path:
@@ -370,7 +376,7 @@ def save_library_index_metadata(
     write_json_atomic(
         library_index_metadata_path(index_path),
         {
-            "version": 1,
+            "version": LIBRARY_INDEX_VERSION,
             "built_at": built_at,
             "roots": _normalized_roots(roots),
             "exclude_roots": _normalized_roots(exclude_roots),
@@ -415,6 +421,8 @@ def library_index_status(
         reasons.append("index_missing")
     if not metadata:
         reasons.append("metadata_missing")
+    elif metadata.get("version") != LIBRARY_INDEX_VERSION:
+        reasons.append("schema_changed")
 
     built_at = float(metadata.get("built_at") or 0)
     age_seconds = max(0, int(current_time - built_at)) if built_at else 0

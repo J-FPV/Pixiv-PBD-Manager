@@ -7,12 +7,14 @@ import type {
   LibraryFilters,
   LibraryImage,
   LibraryIndexStatus,
-  LibraryMetadataPatch
+  LibraryMetadataPatch,
+  LibrarySort
 } from "../../types";
 import type { FacetDimension } from "../../utils/libraryFacets";
 import { useDebouncedValue } from "../../hooks/useDebouncedValue";
 import { useLibraryFilter } from "../../hooks/useLibraryFilter";
 import { useLibrarySelection } from "../../hooks/useLibrarySelection";
+import { useLibrarySort } from "../../hooks/useLibrarySort";
 import { useResizablePanel } from "../../hooks/useResizablePanel";
 import { Button } from "../Button";
 import { LibraryDetailModal } from "./LibraryDetailModal";
@@ -26,6 +28,8 @@ import { LibraryToolbar } from "./LibraryToolbar";
 export interface LibraryViewProps {
   language: Language;
   images: LibraryImage[];
+  sort: LibrarySort;
+  setSort: (sort: LibrarySort) => void;
   loaded: boolean;
   needsScan: boolean;
   indexStatus: LibraryIndexStatus | null;
@@ -203,13 +207,12 @@ export function LibraryView(props: LibraryViewProps) {
   // Per-image metadata changes should paint in the detail panel immediately.
   // Defer the expensive whole-catalog facet rebuild so it cannot block clicks.
   const deferredImages = useDeferredValue(images);
-  const { visibleImages, facets } = useLibraryFilter(deferredImages, deferredFilters, language);
+  const { visibleImages: filteredImages, facets } = useLibraryFilter(deferredImages, deferredFilters, language);
+  const { sortedImages: visibleImages, sortResetKey } = useLibrarySort(filteredImages, props.sort, language);
   const selection = useLibrarySelection(images, visibleImages);
 
   useEffect(() => {
-    if (loaded || requested.current) {
-      return;
-    }
+    if (loaded || requested.current) return;
     requested.current = true;
     void loadLibrary();
   }, [loaded, loadLibrary]);
@@ -225,10 +228,7 @@ export function LibraryView(props: LibraryViewProps) {
       return { ...current, [dim]: [...next] };
     });
 
-  const selectedImage =
-    images.find((image) => image.path === selectedPath) ||
-    visibleImages.find((image) => image.path === selectedPath) ||
-    null;
+  const selectedImage = images.find((image) => image.path === selectedPath) ?? null;
 
   const openDoctor = () => {
     setView("doctor");
@@ -257,6 +257,8 @@ export function LibraryView(props: LibraryViewProps) {
       <LibraryToolbar
         language={language}
         keyword={filters.keyword}
+        sort={props.sort}
+        setSort={props.setSort}
         setKeyword={(keyword) => setFilters((current) => ({ ...current, keyword }))}
         count={visibleImages.length}
         busy={busy}
@@ -296,6 +298,7 @@ export function LibraryView(props: LibraryViewProps) {
         <LibraryGrid
           language={language}
           images={visibleImages}
+          sortResetKey={sortResetKey}
           selectedPath={selectedPath}
           selectedPaths={selection.selectedPaths}
           loading={!loaded}
@@ -307,7 +310,7 @@ export function LibraryView(props: LibraryViewProps) {
       <LibraryOverlays
         props={props}
         selectedImage={selectedImage}
-        detailImages={visibleImages.length ? visibleImages : images}
+        detailImages={visibleImages.length ? visibleImages : selectedImage ? [selectedImage] : []}
         selection={selection}
       />
     </section>
