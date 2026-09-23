@@ -45,7 +45,9 @@ class ScanShortPathTests(unittest.TestCase):
         self.assertEqual(aliased.changes, canonical.changes)
         self.assertEqual(aliased.summary.artist_folder_hits, canonical.summary.artist_folder_hits)
         self.assertEqual(aliased.changes[0]["save_paths"], [str(self.root / "Artist-555666")])
-        self.assertEqual(aliased.summary.unmatched_folders, {str(self.unmatched): 1})
+        self.assertEqual(
+            aliased.summary.unmatched_folders, {str(self.unmatched): 1, str(self.root / "Artist-555666"): 1}
+        )
         self.assertFalse(database.exists(), "preview must not write the database")
 
     def test_overlapping_long_and_short_roots_do_not_scan_files_twice(self):

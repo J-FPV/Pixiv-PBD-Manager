@@ -26,6 +26,7 @@ from ._shared import (
     ProgressCallback,
     artist_save_roots,
     is_under_known_save_root,
+    known_save_roots,
 )
 
 
@@ -62,6 +63,7 @@ class ScanApplyResult:
     save_paths_added: int = 0
     work_ids_added: int = 0
     db_path: Path | None = None
+    assigned_folders: list[str] = field(default_factory=list)
 
 
 # ---------- internal helpers (artist-record-aware) ----------
@@ -321,6 +323,14 @@ def preview_scan_changes(
     proposed: dict[str, dict] = {}
     for hit in pipeline.hits:
         _accumulate_hit(proposed, hit)
+    # A suggested match is not an assignment until the user applies its path.
+    # Include every scanned candidate not covered by the persisted database.
+    save_roots = known_save_roots(db)
+    pipeline.summary.unmatched_folders = {
+        folder: count
+        for folder, count in pipeline.summary.folder_file_counts.items()
+        if not is_under_known_save_root(Path(folder), save_roots)
+    }
     return ScanPreviewResult(
         changes=_build_diff_changes(proposed, db),
         summary=pipeline.summary,
@@ -333,7 +343,9 @@ def preview_scan_changes(
     )
 
 
-def apply_scan_changes(db_path: Path, operations: list[dict]) -> ScanApplyResult:
+def apply_scan_changes(
+    db_path: Path, operations: list[dict], *, unmatched_paths: list[str] | None = None
+) -> ScanApplyResult:
     """Apply a user-selected subset of scan changes to the database."""
     db = ArtistDatabase.load(db_path)
     result = ScanApplyResult(db_path=db.path.resolve())
@@ -409,4 +421,9 @@ def apply_scan_changes(db_path: Path, operations: list[dict]) -> ScanApplyResult
                     result.applied += 1
 
     db.save()
+    if unmatched_paths:
+        save_roots = known_save_roots(db)
+        result.assigned_folders = [
+            folder for folder in unmatched_paths if is_under_known_save_root(Path(folder), save_roots)
+        ]
     return result

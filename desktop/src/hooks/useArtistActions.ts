@@ -35,6 +35,7 @@ export interface ArtistActionsDeps {
   settings: AppSettings;
   selected: Set<string>;
   artists: Artist[];
+  unmatchedFolders: UnmatchedFolder[];
   cookieConsent: boolean;
   pendingExcludeFolders: Set<string>;
   setArtists: Dispatch<SetStateAction<Artist[]>>;
@@ -155,9 +156,10 @@ function reopenScanPreview(deps: ArtistActionsDeps): void {
 }
 
 async function applyScanChanges(deps: ArtistActionsDeps, operations: ScanChange[]): Promise<void> {
-  const { language: languageValue, settings, handleEvent, appendLog, setArtists, setScanPreview, setScanPreviewOpen } =
-    deps;
-  setScanPreview(null);
+  const {
+    language: languageValue, settings, handleEvent, appendLog, setArtists,
+    unmatchedFolders, setUnmatchedFolders, setScanPreview, setScanPreviewOpen
+  } = deps;
   setScanPreviewOpen(false);
   if (!operations.length) {
     return;
@@ -165,9 +167,12 @@ async function applyScanChanges(deps: ArtistActionsDeps, operations: ScanChange[
   try {
     const res = await runGuiApi<ScanApplyPayload>(
       "scan.apply",
-      { operations, database: settings.database },
+      { operations, database: settings.database, unmatched_paths: unmatchedFolders.map((folder) => folder.path) },
       handleEvent
     );
+    setScanPreview(null);
+    const assigned = new Set(res.assigned_folders ?? []);
+    setUnmatchedFolders((folders) => folders.filter((folder) => !assigned.has(folder.path)));
     appendLog(
       "info",
       `${t(languageValue, "scanApplied")}: ${res.applied} (new: ${res.new_artists}, names: ${res.name_changes}, paths: ${res.save_paths_added}, works: ${res.work_ids_added})`

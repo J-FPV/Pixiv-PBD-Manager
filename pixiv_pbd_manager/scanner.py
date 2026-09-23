@@ -182,6 +182,9 @@ class ScanSummary:
     # "unmatched" when its files hit neither an artist-id pattern nor a Pixiv
     # name-only folder pattern.
     unmatched_folders: dict[str, int] = field(default_factory=dict)
+    # All candidate folders, including matches that are not yet applied to the
+    # database. Keep counts from this walk so preview does not need a rescan.
+    folder_file_counts: dict[str, int] = field(default_factory=dict)
     # For unmatched folders that still contain Pixiv work ids in their filenames:
     # a few sample work ids and the scan root, so the pipeline can resolve the
     # artist online from a PID even when the folder name gives no signal.
@@ -189,6 +192,8 @@ class ScanSummary:
     unmatched_folder_roots: dict[str, str] = field(default_factory=dict)
 
     def add_hit(self, hit: ScanHit) -> None:
+        folder = str(hit.folder)
+        self.folder_file_counts[folder] = self.folder_file_counts.get(folder, 0) + 1
         # Keep per-directory evidence separate from the per-artist counters.
         key = (hit.artist_id, hit.root, hit.folder)
         folder_hit = self.artist_folder_hits.get(key)
@@ -209,6 +214,8 @@ class ScanSummary:
         self.files_matched += 1
 
     def add_name_only_hit(self, hit: NameOnlyArtistHit) -> None:
+        folder = str(hit.folder)
+        self.folder_file_counts[folder] = self.folder_file_counts.get(folder, 0) + hit.file_count
         existing = self.name_only_artists.get(hit.artist_key)
         if not existing:
             self.name_only_artists[hit.artist_key] = hit
@@ -603,6 +610,7 @@ def scan_roots(
                 # gives the online resolver enough evidence to identify it.
                 if parent_resolved != root or work_ids:
                     folder_text = str(parent_resolved)
+                    summary.folder_file_counts[folder_text] = summary.folder_file_counts.get(folder_text, 0) + 1
                     summary.unmatched_folders[folder_text] = summary.unmatched_folders.get(folder_text, 0) + 1
                     # Keep every PID we can recognize here. The resolver later
                     # samples across newest/middle/oldest IDs, so the request

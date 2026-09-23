@@ -91,6 +91,7 @@ export interface ScanApplyPayload {
   work_ids_added: number;
   db_path: string;
   artists: Artist[];
+  assigned_folders: string[];
 }
 
 export interface AppSettings {

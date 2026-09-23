@@ -101,8 +101,15 @@ def apply(payload: JsonDict, _emit_event: Emitter) -> JsonDict:
     operations = payload.get("operations")
     if not isinstance(operations, list):
         raise ValueError("operations must be a list")
+    unmatched_paths = payload.get("unmatched_paths", [])
+    if not isinstance(unmatched_paths, list) or any(
+        not isinstance(path, str) or not path.strip() for path in unmatched_paths
+    ):
+        raise ValueError("unmatched_paths must be a list of non-empty paths")
     resolved_db_path = db_path(payload, settings)
-    result = apply_scan_changes(resolved_db_path, [op for op in operations if isinstance(op, dict)])
+    result = apply_scan_changes(
+        resolved_db_path, [op for op in operations if isinstance(op, dict)], unmatched_paths=unmatched_paths
+    )
     # Include the updated artist list in the response so the frontend can
     # populate its state without a follow-up ``artists.list`` IPC. The cold
     # sidecar startup makes that second round-trip the dominant source of
@@ -117,4 +124,5 @@ def apply(payload: JsonDict, _emit_event: Emitter) -> JsonDict:
         "work_ids_added": result.work_ids_added,
         "db_path": str(result.db_path) if result.db_path else "",
         "artists": artists,
+        "assigned_folders": result.assigned_folders,
     }

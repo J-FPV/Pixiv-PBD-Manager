@@ -124,7 +124,9 @@ class ScanRecognitionTests(unittest.TestCase):
         result = preview_scan_changes([self.root], self.db.path)
         self.assertTrue(result.changes)
         self.assertTrue(all(change["artist_id"] == "111111" for change in result.changes))
-        self.assertNotIn(str(image.parent), result.summary.unmatched_folders)
+        self.assertIn(str(image.parent), result.summary.unmatched_folders)
+        apply_scan_changes(self.db.path, result.changes)
+        self.assertNotIn(str(image.parent), preview_scan_changes([self.root], self.db.path).summary.unmatched_folders)
 
     def test_ambiguous_complete_name_does_not_match_offline(self):
         image = self.image("Alice - pixiv/30000002_p0.jpg")
