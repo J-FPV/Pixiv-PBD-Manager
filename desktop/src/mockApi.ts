@@ -18,6 +18,9 @@ import {
   mockImageDataUrl
 } from "./mockData";
 import type { ApiEvent, ImageThumbnailPayload, LibraryImage, LibraryIndexStatus, SettingsPayload } from "./types";
+import { mockAnnotationCommand, mockAnnotationStatus } from "./mockAnnotations";
+import { applyLibraryMetadataPatch } from "./hooks/useLibraryMetadata";
+import { mockRecoveryCommand, recordMockEdit } from "./mockRecovery";
 
 const MOCK_INDEX_STATUS: LibraryIndexStatus = {
   index_exists: true,
@@ -49,6 +52,7 @@ function imageForPath(path: string): LibraryImage {
 
 function mockCommand(commandName: string, payload: object, onEvent?: (event: ApiEvent) => void): unknown {
   const values = payload as Record<string, unknown>;
+  if (commandName.startsWith("backup.") || commandName.startsWith("history.")) return mockRecoveryCommand(commandName, values);
   switch (commandName) {
     case "settings.get":
     case "settings.save":
@@ -59,9 +63,14 @@ function mockCommand(commandName: string, payload: object, onEvent?: (event: Api
     case "cleanup.list":
       return MOCK_CLEANUP;
     case "library.status":
-      return MOCK_INDEX_STATUS;
+      return { ...MOCK_INDEX_STATUS, annotation_status: mockAnnotationStatus() };
+    case "library.annotations.protect":
+    case "library.annotations.unlinked":
+    case "library.annotations.relink":
+      return mockAnnotationCommand(commandName, values);
     case "library.list":
-      return { images: MOCK_LIBRARY_IMAGES, needs_scan: false, index_status: MOCK_INDEX_STATUS, db_path: "C:\\Mock\\library_index.json" };
+      return { images: MOCK_LIBRARY_IMAGES, needs_scan: false, index_status: MOCK_INDEX_STATUS,
+        annotation_status: mockAnnotationStatus(), db_path: "C:\\Mock\\library_index.json" };
     case "library.scan":
       emitProgress(onEvent, PROGRESS_LIBRARY_START, { total_files: MOCK_LIBRARY_IMAGES.length });
       emitProgress(onEvent, PROGRESS_LIBRARY_DONE, { indexed: MOCK_LIBRARY_IMAGES.length });
@@ -85,13 +94,12 @@ function mockCommand(commandName: string, payload: object, onEvent?: (event: Api
       return { image: { ...imageForPath(String(values.path || "")), tags: (values.tags as string[]) || [] } };
     case "library.update_metadata": {
       const paths = new Set((values.paths as string[]) || []);
-      const images = MOCK_LIBRARY_IMAGES.filter((image) => paths.has(image.path)).map((image) => ({
-        ...image,
-        favorite: "favorite" in values ? Boolean(values.favorite) : image.favorite,
-        rating: "rating" in values ? Number(values.rating) : image.rating,
-        markers: (values.markers as LibraryImage["markers"] | undefined) ?? image.markers
-      }));
-      return { updated: images.length, images };
+      const before = MOCK_LIBRARY_IMAGES.filter((image) => paths.has(image.path)).map((image) => structuredClone(image));
+      const images = MOCK_LIBRARY_IMAGES.filter((image) => paths.has(image.path)).map((image) => {
+        Object.assign(image, applyLibraryMetadataPatch(image, values), { annotation_revision: image.annotation_revision + 1 });
+        return { ...image };
+      });
+      return { updated: images.length, images, annotation_status: mockAnnotationStatus(), undo_operation: recordMockEdit(before) };
     }
     case "library.export":
       return { output: String(values.output || "C:\\Mock\\library.csv"), exported: ((values.paths as string[]) || []).length };

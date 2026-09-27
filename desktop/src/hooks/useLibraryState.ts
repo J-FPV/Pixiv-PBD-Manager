@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import type { DoctorReport, LibraryImage, LibraryIndexStatus, LibrarySort } from "../types";
+import type { AnnotationStatus, DoctorReport, LibraryImage, LibraryIndexStatus, LibrarySort } from "../types";
 import { normalizeLibrarySort } from "../utils/librarySort";
 
 // The library browser's slice of app state, kept separate so useAppState stays
@@ -8,6 +8,7 @@ export function useLibraryState(initialSort?: LibrarySort) {
   const [librarySort, setLibrarySort] = useState(() => normalizeLibrarySort(initialSort));
   const [libraryImages, setLibraryImages] = useState<LibraryImage[]>([]);
   const [libraryLoaded, setLibraryLoaded] = useState(false);
+  const [annotationStatus, setAnnotationStatus] = useState<AnnotationStatus | null>(null);
   const [libraryNeedsScan, setLibraryNeedsScan] = useState(false);
   const [libraryIndexStatus, setLibraryIndexStatus] = useState<LibraryIndexStatus | null>(null);
   const [librarySelectedPath, setLibrarySelectedPath] = useState<string | null>(null);
@@ -20,6 +21,7 @@ export function useLibraryState(initialSort?: LibrarySort) {
   }, [libraryLoaded]);
 
   return {
+    annotationStatus, setAnnotationStatus,
     librarySort,
     setLibrarySort,
     libraryImages,

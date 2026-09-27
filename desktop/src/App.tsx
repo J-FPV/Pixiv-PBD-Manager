@@ -11,6 +11,9 @@ import { AppFooter } from "./components/app/AppFooter";
 import { AppModals } from "./components/app/AppModals";
 import { MainContent } from "./components/app/MainContent";
 import { TopBar } from "./components/app/TopBar";
+import { RecoveryContext } from "./hooks/RecoveryContext";
+import { useRecovery } from "./hooks/useRecovery";
+import { RecoveryNotice } from "./components/RecoveryUndo";
 
 export default function App() {
   const s = useAppState();
@@ -18,6 +21,7 @@ export default function App() {
   const artistActions = useArtistActions(s);
   const similarActions = useSimilarActions(s);
   const libraryActions = useLibraryActions(s);
+  const recovery = useRecovery(s, libraryActions);
   const { markAutosaveReady } = useSettingsAutosave(s);
 
   useAppBootstrap(s, settingsActions.applySettingsPayload, markAutosaveReady, libraryActions.refreshIndexIfStale);
@@ -25,8 +29,9 @@ export default function App() {
   useUiStatePersistence(s);
 
   return (
-    <div className="app">
+    <RecoveryContext.Provider value={recovery}><div className="app">
       <TopBar language={s.language} activeTab={s.activeTab} setActiveTab={s.setActiveTab} />
+      <RecoveryNotice language={s.language} />
       <MainContent
         state={s}
         settingsActions={settingsActions}
@@ -61,6 +66,6 @@ export default function App() {
         openArtist={artistActions.openArtist}
         toastMessage={s.toastMessage}
       />
-    </div>
+    </div></RecoveryContext.Provider>
   );
 }

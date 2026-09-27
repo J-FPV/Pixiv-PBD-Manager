@@ -2,6 +2,17 @@
 
 [中文](../zh/release-notes.md)
 
+## Unreleased
+
+- Settings → Backup & recovery adds rolling snapshots, category previews/restores and credential-free ZIP import/export.
+- Persistent undo retains the latest 20 image-annotation and manual artist-assignment operations, with all-or-nothing conflict handling.
+- Cross-process commit guards and recovery journals protect interrupted restores; damaged artist JSON can no longer be silently overwritten.
+
+- Independent SQLite storage for local tags, favorites, ratings, and workflow markers, with automatic backup/migration and preservation across index rebuilds.
+- Cancellable, resumable background verification; unique unchanged moves/renames regain their annotations while duplicate copies remain independent.
+- More → Unlinked annotations adds search, pagination, manual relinking, and extra confirmation for uncertain content.
+- Quarantine and restore retain image identity; revision-aware frontend writes prevent older responses from reverting recent edits.
+
 ## v0.1.10
 
 A focused release on Pixiv tag fetching. The installer can upgrade an existing installation in place; `artists.json`, the library index, similar-image results, quarantine history, and settings remain intact.

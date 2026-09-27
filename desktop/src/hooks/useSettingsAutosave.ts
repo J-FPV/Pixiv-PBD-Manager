@@ -1,7 +1,9 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { MutableRefObject } from "react";
 import { runGuiApi, setProjectRoot, setPythonCommand } from "../api";
 import type { ApiEvent, AppSettings, LogEntry, SettingsPayload } from "../types";
+import { collectPreferences } from "../utils/recoveryPreferences";
+import { isRecoveryLocked } from "../utils/recoveryGate";
 
 // Stable string fingerprint of everything the auto-save persists. App also uses
 // it to seed the baseline after the initial load (see markAutosaveReady).
@@ -12,7 +14,7 @@ export function settingsAutosaveSignature(
   projectRoot: string,
   pythonCommand: string
 ): string {
-  return JSON.stringify({ settings, cookieConsent, pixivCookie, projectRoot, pythonCommand });
+  return JSON.stringify({ settings, cookieConsent, pixivCookie, projectRoot, pythonCommand, preferences: collectPreferences() });
 }
 
 export interface SettingsAutosaveParams {
@@ -42,6 +44,16 @@ export function useSettingsAutosave({
   const readyRef = useRef(false);
   const lastSignatureRef = useRef("");
   const saveSeqRef = useRef(0);
+  const [preferencesVersion, setPreferencesVersion] = useState(0);
+  useEffect(() => {
+    const changed = () => setPreferencesVersion((value) => value + 1);
+    window.addEventListener("pbd-preferences-changed", changed);
+    window.addEventListener("pbd-recovery-lock", changed);
+    return () => {
+      window.removeEventListener("pbd-preferences-changed", changed);
+      window.removeEventListener("pbd-recovery-lock", changed);
+    };
+  }, []);
 
   useEffect(() => {
     const signature = settingsAutosaveSignature(
@@ -62,6 +74,7 @@ export function useSettingsAutosave({
     const saveSeq = saveSeqRef.current + 1;
     saveSeqRef.current = saveSeq;
     const timer = window.setTimeout(() => {
+      if (isRecoveryLocked()) return;
       setProjectRoot(projectRootValue);
       setPythonCommand(pythonCommandValue);
       void runGuiApi<SettingsPayload>(
@@ -87,7 +100,7 @@ export function useSettingsAutosave({
     return () => window.clearTimeout(timer);
     // handleEventRef/appendLogRef are stable useRef containers (never change
     // identity), included only to satisfy exhaustive-deps.
-  }, [settings, cookieConsent, pixivCookie, projectRootValue, pythonCommandValue, handleEventRef, appendLogRef]);
+  }, [settings, cookieConsent, pixivCookie, projectRootValue, pythonCommandValue, handleEventRef, appendLogRef, preferencesVersion]);
 
   return {
     markAutosaveReady: (signature: string) => {

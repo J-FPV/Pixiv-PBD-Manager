@@ -24,6 +24,8 @@ export type LibraryMarker = "high_value" | "used" | "to_sort";
 
 // One row of the image library catalog (joined with live artist data).
 export interface LibraryImage {
+  image_id: string;
+  annotation_revision: number;
   path: string;
   filename: string;
   folder: string;
@@ -85,6 +87,7 @@ export interface LibraryFacets {
 }
 
 export interface LibraryListPayload {
+  annotation_status?: AnnotationStatus;
   images: LibraryImage[];
   needs_scan: boolean;
   index_status: LibraryIndexStatus;
@@ -92,6 +95,7 @@ export interface LibraryListPayload {
 }
 
 export interface LibraryIndexStatus {
+  annotation_status?: AnnotationStatus;
   index_exists: boolean;
   metadata_path: string;
   stale: boolean;
@@ -102,6 +106,8 @@ export interface LibraryIndexStatus {
 }
 
 export interface LibraryScanSummary {
+  cancelled?: boolean;
+  annotation_status?: AnnotationStatus;
   files_seen: number;
   indexed: number;
   reused: number;
@@ -137,6 +143,7 @@ export interface LibrarySetTagsPayload {
 }
 
 export interface LibraryMetadataPatch {
+  tags?: string[];
   favorite?: boolean;
   rating?: number;
   markers?: LibraryMarker[];
@@ -148,8 +155,46 @@ export interface LibraryMetadataPatch {
 }
 
 export interface LibraryMetadataResult {
+  annotation_status?: AnnotationStatus;
   updated: number;
   images: LibraryImage[];
+}
+
+export interface AnnotationStatus {
+  pending: number;
+  protected: number;
+  unlinked: number;
+  errors: number;
+}
+
+export interface UnlinkedAnnotation {
+  image_id: string;
+  annotation_revision: number;
+  old_path: string;
+  reason: "missing" | "changed" | "unverified";
+  error: string;
+  verified: boolean;
+  tags: string[];
+  favorite: boolean;
+  rating: number;
+  markers: LibraryMarker[];
+  candidate_ids: string[];
+}
+
+export interface UnlinkedAnnotations {
+  entries: UnlinkedAnnotation[];
+  total: number;
+  page: number;
+  page_size: number;
+  annotation_status: AnnotationStatus;
+}
+
+export interface AnnotationRelinkResult {
+  target_sha256?: string;
+  confirmation_required: boolean;
+  reason?: "content_mismatch" | "unverified";
+  annotation_status?: AnnotationStatus;
+  image?: LibraryImage;
 }
 
 export interface LibraryExportResult {

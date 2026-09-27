@@ -21,6 +21,7 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
+from verify_annotation_storage import verify_annotation_storage
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SPEC = REPO_ROOT / "pixiv-pbd-api.spec"
@@ -76,6 +77,7 @@ def main() -> int:
     if not internal.is_dir():
         print(f"FAIL: expected _internal/ next to worker at {internal}", file=sys.stderr)
         return 1
+    verify_annotation_storage(worker)
 
     launcher = DIST_DIR / LAUNCHER_NAME
     if sys.platform == "win32":

@@ -51,6 +51,9 @@ def get(payload: JsonDict, _emit_event: Emitter) -> JsonDict:
 
 def save(payload: JsonDict, _emit_event: Emitter) -> JsonDict:
     settings = repair_settings_paths(dict(payload.get("settings") or {}))
+    if "ui_preferences" in payload:
+        from ...recovery.policy import UI_KEYS
+        settings["ui_preferences"] = {key: value for key, value in (payload.get("ui_preferences") or {}).items() if key in UI_KEYS}
     save_json(settings_path(payload), settings)
 
     if "cookie_consent" in payload:

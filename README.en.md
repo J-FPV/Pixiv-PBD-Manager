@@ -6,6 +6,8 @@ Pixiv PBD Manager is a local Pixiv image library manager. It scans existing down
 
 This README is written for people who just want to use the app. Development notes, CLI details, and implementation notes live in [docs/en](docs/en/).
 
+The unreleased development version adds Settings → Backup & recovery: automatic organization-data backups, category restores, and persistent undo for the last 20 image-annotation or manual artist-assignment edits. See [Backup and undo](docs/en/backup-recovery.md).
+
 ## Download And Install
 
 Windows x64 installers are available:
@@ -122,6 +124,14 @@ The Image Library page browses every image in your download folders as a thumbna
 - **Library Doctor**: use the toolbar action to check the database, missing save paths, overlapping ownership, unsafe browser profiles, quarantine writability, and index freshness. Checks are read-only.
 
 The catalog lives in `library_index.json`; scan metadata is stored beside it in `library_index.meta.json`. Neither changes local image files.
+
+### Annotation Protection (Development Branch, Unreleased)
+
+Favorites, ratings, local tags, and workflow markers now live independently in `library_index.annotations.sqlite3`. The first upgraded run backs up and migrates the old catalog, then verifies annotated images in the background. Pause or cancel the task, and resume it from the library's More menu.
+
+After verification, rescanning can recover a unique unchanged file after a move or rename. Identical copies keep independent annotations. Ambiguous, changed, or unverified files can be linked manually through More → Unlinked annotations; existing target annotations are never overwritten. Quarantine, restore, and index rebuilding do not delete the annotation database.
+
+Include this SQLite file in your backups; it is not a disposable cache. See the [technical notes](docs/en/development.md#annotation-storage) for migration and downgrade guidance.
 
 ## Similar Images
 

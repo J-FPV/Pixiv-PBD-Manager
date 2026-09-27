@@ -1,0 +1,67 @@
+.annotationStatus {
+  padding: 8px 12px;
+  max-width: 320px;
+  font-size: 12px;
+  white-space: normal;
+}
+
+.modal.annotationRecoveryModal {
+  width: min(960px, calc(100vw - 40px));
+  max-height: calc(100dvh - 40px);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  overflow: hidden;
+}
+
+.annotationRecoveryHeader,
+.annotationPagination,
+.annotationValues {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.annotationRecoveryHeader { justify-content: space-between; }
+.annotationRecoveryHeader h3 { margin: 0; }
+.annotationRecoveryBody {
+  display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 20px;
+  min-height: 0; overflow: auto; flex: 1;
+}
+.annotationRecoveryHeader,
+.annotationRecoveryModal .modalActions { flex-shrink: 0; }
+.annotationSources,
+.annotationTargetPane { min-width: 0; display: flex; flex-direction: column; gap: 12px; }
+.annotationSourceList { height: min(370px, 45dvh); overflow: auto; border-block: 1px solid var(--line); }
+.annotationSource {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  padding: 12px;
+  text-align: left;
+  background: transparent;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+.annotationSource:hover { background: var(--row-hover); }
+.annotationSource.selected { background: var(--row-checked); box-shadow: inset 3px 0 var(--accent); }
+.annotationPagination { justify-content: center; }
+.annotationValues { flex-wrap: wrap; font-size: 13px; overflow-wrap: anywhere; }
+.annotationPath { overflow-wrap: anywhere; margin: 0; font-size: 13px; }
+.annotationTargetPane p { margin-block: 0; }
+.annotationTargetPane select {
+  width: 100%; min-height: 130px; flex: 1; border: 1px solid var(--line); border-radius: 4px;
+  color: var(--text); background: var(--input-bg);
+}
+.annotationTargetPane option { padding: 6px 4px; }
+.annotationError { color: var(--danger); overflow-wrap: anywhere; font-size: 13px; }
+.libraryEmptyPanel { flex: 1; }
+@media (max-width: 720px) {
+  .modal.annotationRecoveryModal { width: calc(100vw - 24px); padding: 16px; }
+  .annotationRecoveryBody { grid-template-columns: minmax(0, 1fr); }
+  .annotationSourceList { height: 140px; }
+}

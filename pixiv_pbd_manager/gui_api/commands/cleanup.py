@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from functools import wraps
 
 from ...cleanup import (
     cleanup_summary,
@@ -13,9 +14,31 @@ from ...cleanup import (
     unignore_group,
 )
 from ...paths import DEFAULT_CLEANUP_STATE, DEFAULT_IMAGE_INDEX
+from ...library.annotations import annotated_catalog, cleanup_annotation_move
+from ...library.catalog import library_index_metadata_path, save_library_index
 from ..payload import base_dir, paths, resolve_path
 from ..runtime import CONTROL, Emitter, JsonDict, make_progress_callback
 from .settings import load_settings_for_payload
+from .library import _index_path as _library_index_path
+
+
+def _with_annotations(command):
+    @wraps(command)
+    def run(payload, emit_event):
+        index = _library_index_path(payload)
+        with annotated_catalog(index) as (store, _catalog):
+            callback = lambda item, state: cleanup_annotation_move(store, item, state)
+            result = command({**payload, "_annotation_callback": callback}, emit_event)
+            if result.get("moved_paths"):
+                # Reload so a concurrent scan's physical metadata is not reverted.
+                with annotated_catalog(index) as (_fresh_store, fresh):
+                    removed = set(result["moved_paths"])
+                    save_library_index([image for image in fresh.values() if image.path not in removed],
+                                       index, annotation_store_id=store.store_id)
+            if result.get("restored_paths"):
+                library_index_metadata_path(index).unlink(missing_ok=True)
+            return result
+    return run
 
 
 def _state_path(payload: JsonDict) -> Path:
@@ -26,10 +49,12 @@ def _index_path(payload: JsonDict) -> Path:
     return resolve_path(payload.get("index_path") or DEFAULT_IMAGE_INDEX, base_dir(payload))
 
 
+@_with_annotations
 def list_cleanup(payload: JsonDict, _emit_event: Emitter) -> JsonDict:
-    return cleanup_summary(_state_path(payload))
+    return cleanup_summary(_state_path(payload), annotation_callback=payload["_annotation_callback"])
 
 
+@_with_annotations
 def quarantine(payload: JsonDict, emit_event: Emitter) -> JsonDict:
     settings = load_settings_for_payload(payload)
     quarantine_text = str(payload.get("quarantine_dir") or settings.get("quarantine_dir") or "").strip()
@@ -46,9 +71,11 @@ def quarantine(payload: JsonDict, emit_event: Emitter) -> JsonDict:
         index_path=_index_path(payload),
         progress_callback=make_progress_callback(emit_event),
         should_cancel=CONTROL.is_cancelled,
+        annotation_callback=payload["_annotation_callback"],
     )
 
 
+@_with_annotations
 def restore(payload: JsonDict, emit_event: Emitter) -> JsonDict:
     return restore_files(
         str(payload.get("operation_id") or ""),
@@ -57,9 +84,11 @@ def restore(payload: JsonDict, emit_event: Emitter) -> JsonDict:
         index_path=_index_path(payload),
         progress_callback=make_progress_callback(emit_event),
         should_cancel=CONTROL.is_cancelled,
+        annotation_callback=payload["_annotation_callback"],
     )
 
 
+@_with_annotations
 def delete(payload: JsonDict, emit_event: Emitter) -> JsonDict:
     return delete_quarantined_files(
         str(payload.get("operation_id") or ""),
@@ -67,6 +96,7 @@ def delete(payload: JsonDict, emit_event: Emitter) -> JsonDict:
         state_path=_state_path(payload),
         progress_callback=make_progress_callback(emit_event),
         should_cancel=CONTROL.is_cancelled,
+        annotation_callback=payload["_annotation_callback"],
     )
 
 

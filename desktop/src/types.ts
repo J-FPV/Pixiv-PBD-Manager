@@ -95,6 +95,7 @@ export interface ScanApplyPayload {
 }
 
 export interface AppSettings {
+  ui_preferences?: Record<string, unknown>;
   language?: Language;
   theme?: ThemeMode;
   database?: string;
@@ -316,6 +317,8 @@ export type CleanupItemStatus =
   | "error";
 
 export interface CleanupItem {
+  library_image_id?: string;
+  annotation_store_id?: string;
   id: string;
   original_path: string;
   quarantine_path: string;

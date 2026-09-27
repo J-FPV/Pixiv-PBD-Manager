@@ -6,6 +6,12 @@ This document is for people who want to modify, test, package, or release the pr
 
 ## Current GUI Direction
 
+### Recovery Transactions (Unreleased)
+
+`pixiv_pbd_manager/recovery/` owns cross-process guards, allowlisted archives, consistent SQLite snapshots and prepared-write journals. Each GUI IPC process has a recovery session: slow discovery stays outside locks, while commits check the restore epoch. Replaying a journal is idempotent and annotation restoration never rewinds media bindings. The frontend suspends autosave during restore and reloads afterward.
+
+IPC: `backup.list/create/preview/restore/export/import/delete` and `history.list/undo/discard`; keep capabilities, event names and frontend types synchronized. Coverage: `tests/test_recovery.py`, `tests/test_recovery_scale.py`, `desktop/e2e/backup-recovery.spec.ts`. `scripts/verify_annotation_storage.py` exercises backup/undo in a frozen worker. See [behavior and compatibility](backup-recovery.md).
+
 The main GUI uses Tauri + React + TypeScript:
 
 ```text
@@ -259,6 +265,24 @@ gh release view vX.Y.Z --repo J-FPV/Pixiv-PBD-Manager
 ```
 
 Tags containing `alpha`, `beta`, `rc`, or `dev` are automatically marked as prereleases.
+
+## Annotation Storage
+
+The development branch stores per-copy annotations in `<index-stem>.annotations.sqlite3`, normally `library_index.annotations.sqlite3`. `images.id` is a per-copy UUID, not a content hash. Identical copies do not share annotations. `binding_key` uniquely binds a current location, `revision` tracks edits, and `binding_revision` guards against concurrent scans, hashing, and cleanup.
+
+- `annotation_store.py`: schema v1, transactions, overlays, and atomic migration backup (`library_index.json.pre-annotations.bak`). Failed migration rolls back without clearing annotations.
+- `annotation_identity.py`: original-path reuse, then filesystem identity and unique SHA-256 move matching. Both move paths require verified content. Size/mtime are cache hints; Pixiv IDs and perceptual hashes never transfer user annotations.
+- `annotations.py`: edits, recovery, and quarantine binding changes. Even an explicitly cleared target record cannot be overwritten by recovery.
+- Catalog v3 stores rebuildable facts and `image_id`, not user annotations. SQLite overlays local metadata; `pixiv_tags.json` remains the Pixiv tag cache. Missing, corrupt, or mismatched annotation databases raise errors instead of silently creating an empty replacement.
+- IPC: `library.annotations.protect` fingerprints annotated files in the background with pause/cancel/resume/retry; `.unlinked` searches old paths/tags in pages of 50; `.relink` restores a selected record. Unverified or different content requires confirmation tied to the target's SHA-256.
+- Library responses expose `annotation_status`; images expose `image_id` and `annotation_revision`. A shared frontend write queue reapplies pending edits and rejects stale metadata responses. `progress_annotations` uses the index task lane.
+- Cleanup manifests carry `library_image_id` and `annotation_store_id`. Intent is persisted before file I/O; startup history loading reconciles interrupted operations. Permanent deletion changes record state and never transfers annotations to another copy.
+
+Files moved or changed before initial verification may require manual recovery. Offline disks, permission errors, and ambiguous duplicates are not treated as reliable cross-volume matches. The annotation database is user data: settings/layout resets, rescans, and index deletion do not remove it. No management folders are created inside the image library.
+
+Back up the data directory with the app closed, including SQLite and quarantine manifests. Older app versions cannot read independent annotations. Do not run old and new versions against the same data directory; to downgrade, make a full backup and use the pre-migration JSON in a separate data directory. New edits are not reverse-merged into legacy JSON.
+
+The PyInstaller spec explicitly includes `sqlite3` / `_sqlite3`. `scripts/verify_annotation_storage.py` tests editing, fingerprinting, and move recovery inside the frozen worker during sidecar builds.
 
 ## Data Directory
 

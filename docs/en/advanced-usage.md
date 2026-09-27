@@ -169,7 +169,9 @@ The catalog is stored in `.pixiv-pbd-manager/library_index.json`; `library_index
 
 Library Doctor is a read-only diagnostic for database readability, missing or overlapping artist save paths, browser profiles placed inside the library, quarantine safety/writability, and index freshness. It never creates, moves, or deletes images.
 
-Image favorites, 0–5 star ratings, local tags, and the High reference value / Used / To organize workflow markers are stored in `library_index.json` and survive incremental rescans. Use the top-left selector on thumbnails to edit these fields in bulk. “Add Pixiv tags to local tags” copies tags already present in the index and does not make another network request.
+In the development branch, image favorites, 0–5 star ratings, local tags, and workflow markers live in `library_index.annotations.sqlite3`. Legacy catalog annotations are automatically backed up and migrated. Rescans and index rebuilding do not clear them. Use thumbnail selectors for bulk editing; “Add Pixiv tags to local tags” copies fetched tags without another network request.
+
+After background verification, rescanning can match a unique unchanged file that moved or was renamed. Duplicate copies remain independent. For uncertain matches, use More → Unlinked annotations to find the old record and choose a current image without an annotation record. Unverified or different content requires confirmation, and existing target annotations are never overwritten. Cancelled protection can resume from More → Resume annotation protection. Back up SQLite as well as the rebuildable catalog.
 
 Favorite, rating, and workflow controls update the detail view immediately. Backend writes are serialized so rapid clicks cannot overwrite one another; if persistence fails, the app reloads the index and logs the error. In large libraries, filtering and facet counts use deferred recomputation so toggling a tag no longer blocks the current interaction.
 
@@ -314,3 +316,6 @@ Use a specific browser profile:
 ```powershell
 python -m pixiv_pbd_manager open --browser "C:\Program Files\Google\Chrome\Application\chrome.exe" --user-data-dir "C:\PixivBrowserProfile"
 ```
+## Backup And Undo (Unreleased)
+
+See [Backup and safe undo](backup-recovery.md) for retention, category restoration, archive validation and conflict handling.

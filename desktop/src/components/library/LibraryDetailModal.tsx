@@ -183,7 +183,7 @@ function LibraryDetailMetaPanel({
             <Button
               icon={<CopyPlus size={14} />}
               iconOnly
-              onClick={() => void updateImageMetadata([image.path], { copy_pixiv_tags: true })}
+              onClick={() => void updateImageMetadata([image.path], { copy_pixiv_tags: true }).catch(() => undefined)}
               disabled={busy || !image.pixiv_tags.length}
               title={t(language, "copyPixivTagsToLocal")}
             >

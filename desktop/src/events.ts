@@ -5,6 +5,7 @@
 // bar will stop updating for that key.
 
 // Local-scan pipeline
+export const PROGRESS_RECOVERY = "progress_recovery";
 export const PROGRESS_SCAN_START = "progress_scan_start";
 export const PROGRESS_SCAN_FILES = "progress_scan_files";
 export const PROGRESS_SCAN_DONE = "progress_scan_done";
@@ -49,6 +50,7 @@ export const PROGRESS_SIMILAR_DONE = "progress_similar_done";
 export const PROGRESS_LIBRARY_START = "progress_library_start";
 export const PROGRESS_LIBRARY_FILES = "progress_library_files";
 export const PROGRESS_LIBRARY_DONE = "progress_library_done";
+export const PROGRESS_ANNOTATIONS = "progress_annotations";
 
 // Fetching Pixiv artwork tags onto library images
 export const PROGRESS_FETCH_TAGS_START = "progress_fetch_tags_start";

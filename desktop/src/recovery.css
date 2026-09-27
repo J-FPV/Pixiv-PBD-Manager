@@ -1,0 +1,24 @@
+.recoveryToolbar, .recoveryRowActions, .recoveryCategories { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.recoveryToolbar { margin: 14px 0; }
+.recoveryTableScroll { max-height: 400px; overflow: auto; }
+.recoveryTable { width: 100%; border-collapse: collapse; font-size: 13px; }
+.recoveryTable td, .recoveryTable th { padding: 10px 8px; text-align: left; border-bottom: 1px solid var(--line); overflow-wrap: anywhere; }
+.recoveryTable th { position: sticky; top: 0; background: var(--surface); z-index: 1; }
+.recoveryRowActions { flex-wrap: nowrap; justify-content: flex-end; }
+.recoveryRowActions .button { width: 34px; height: 34px; padding: 0; flex-shrink: 0; justify-content: center; }
+.recoveryHistory { margin-top: 28px; }
+.modal.recoveryRestoreModal { width: min(720px, calc(100vw - 32px)); display: flex; flex-direction: column; max-height: calc(100dvh - 32px); }
+.recoveryCategories { padding: 12px 0; flex-shrink: 0; }
+.modal .recoveryCategories label { display: inline-flex; flex-direction: row; align-items: center; gap: 7px; margin: 0; }
+.modal .recoveryCategories input[type="checkbox"] { width: 16px; height: 16px; margin: 0; }
+.recoveryPreviewBody { min-height: 0; overflow: auto; }
+.recoveryDifference { border-top: 1px solid var(--line); padding: 10px 0; overflow-wrap: anywhere; }
+.recoveryDifference pre { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; }
+.recoveryComparison { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 10px; }
+.recoveryRestoreModal .modalActions { flex-shrink: 0; }
+.recoveryInlineError, .recoveryWarning { color: var(--text); background: var(--surface); border: 1px solid #d88438; padding: 10px 14px; overflow-wrap: anywhere; }
+.recoveryWarning { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 8px 12px; }
+.recoveryToast { position: fixed; right: 20px; bottom: 70px; z-index: 1200; display: flex; align-items: center; gap: 12px; max-width: calc(100vw - 40px); padding: 12px; background: var(--surface); color: var(--text); border: 1px solid var(--line); border-radius: 6px; box-shadow: 0 4px 18px #0003; }
+.recoveryToast button, .recoveryWarning button { display: inline-flex; align-items: center; gap: 6px; border: 0; padding: 4px; color: inherit; background: transparent; cursor: pointer; }
+@media (max-width: 700px) { .recoveryTable { min-width: 460px; } .recoveryToast { flex-wrap: wrap; } }
+@media (max-width: 500px) { .recoveryComparison { grid-template-columns: minmax(0, 1fr); } }

@@ -1,3 +1,6 @@
+@import "./annotations.css";
+@import "./recovery.css";
+
 :root {
   color-scheme: light;
   font-family: "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;

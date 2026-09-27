@@ -63,6 +63,8 @@ def library_image_to_json(image: LibraryImage, artist: ArtistRecord | None = Non
             if isinstance(entry, dict) and entry.get("tag")
         ],
         "favorite": bool(image.favorite),
+        "image_id": image.image_id,
+        "annotation_revision": image.annotation_revision,
         "rating": int(image.rating),
         "markers": list(image.markers),
         "artwork_url": f"https://www.pixiv.net/artworks/{image.pid}" if image.pid else "",

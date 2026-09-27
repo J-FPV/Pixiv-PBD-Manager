@@ -38,7 +38,7 @@ a = Analysis(
     # Pillow auto-discovers its image plugins (JpegImagePlugin, etc.) via
     # __init__ side effects; PyInstaller's PIL hook usually catches them.
     # Add explicit submodule collection as a safety net.
-    hiddenimports=collect_submodules('PIL'),
+    hiddenimports=collect_submodules('PIL') + ['sqlite3', '_sqlite3'],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],

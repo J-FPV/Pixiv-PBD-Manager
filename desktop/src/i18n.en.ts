@@ -1,6 +1,28 @@
 import type { Dictionary } from "./i18n";
+import { recoveryEn } from "./i18n.recovery";
 
 export const en: Dictionary = {
+  ...recoveryEn,
+  annotationRecovery: "Unlinked annotations",
+  protectAnnotations: "Protecting annotations",
+  resumeProtection: "Resume annotation protection",
+  annotationStatus: "Protected {protected} · Pending {pending} · Unlinked {unlinked} · Failed {errors}",
+  annotationMissing: "Original file not found",
+  annotationChanged: "Original file changed",
+  annotationUnverified: "Content not verified",
+  annotationVerified: "Content verified",
+  annotationTarget: "Restore to image",
+  annotationTargetSearch: "Search target filename or path",
+  annotationOldSearch: "Search original path or tags",
+  annotationChoose: "Select an annotation record",
+  annotationEmpty: "No unlinked annotations",
+  annotationNoTargets: "No matching unannotated images",
+  annotationRecover: "Restore annotations",
+  annotationConfirmTitle: "Restore to this image?",
+  annotationConfirmUnknown: "The original file was not verified, so identical content cannot be confirmed. This will attach its annotations to the selected image.",
+  annotationConfirmMismatch: "The selected image differs from the original file. This will attach its annotations to the selected image.",
+  annotationRecovered: "Annotations restored",
+  annotationRefreshRequired: "Image identity changed. Rescan the library before editing annotations.",
   dragOriginalFailed: "Could not drag original files",
   scanResults: "Scan results",
   quarantine: "Quarantine",

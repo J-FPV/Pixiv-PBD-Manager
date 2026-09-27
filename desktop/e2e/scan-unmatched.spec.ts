@@ -21,7 +21,7 @@ const preview = {
 async function openScan(page: Page) {
   // Backend behavior is covered by Python tests; inject a small IPC fixture for
   // preview cancellation, partial apply, and retry without touching user data.
-  await page.route("**/src/mockApi.ts", async (route) => {
+  await page.route(/\/src\/mockApi\.ts(?:\?.*)?$/, async (route) => {
     const response = await route.fetch();
     const script = (await response.text())
       .replace("return MOCK_SCAN_PREVIEW;", `return ${JSON.stringify(preview)};`)

@@ -1,7 +1,8 @@
-import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { EMPTY_LIBRARY_FILTERS, LIBRARY_SIDEBAR_WIDTH_KEY } from "../../constants";
 import { t } from "../../i18n";
 import type {
+  AnnotationStatus,
   DoctorReport,
   Language,
   LibraryFilters,
@@ -25,6 +26,9 @@ import { LibraryGrid } from "./LibraryGrid";
 import { LibrarySelectionBar } from "./LibrarySelectionBar";
 import { LibraryToolbar } from "./LibraryToolbar";
 
+const AnnotationRecoveryModal = lazy(() => import("./AnnotationRecoveryModal")
+  .then((module) => ({ default: module.AnnotationRecoveryModal })));
+
 export interface LibraryViewProps {
   language: Language;
   images: LibraryImage[];
@@ -33,6 +37,8 @@ export interface LibraryViewProps {
   loaded: boolean;
   needsScan: boolean;
   indexStatus: LibraryIndexStatus | null;
+  annotationStatus: AnnotationStatus | null;
+  protectAnnotations: () => void;
   busy: boolean;
   doctor: DoctorReport | null;
   doctorBusy: boolean;
@@ -46,6 +52,16 @@ export interface LibraryViewProps {
   exportLibrary: (paths: string[]) => Promise<void>;
   fetchTags: (paths: string[], options?: { force?: boolean }) => void;
   revealFile: (path: string) => void;
+}
+
+function useInitialLibraryLoad(loaded: boolean, loadLibrary: () => Promise<void>) {
+  const requested = useRef(false);
+  useEffect(() => {
+    if (loaded || requested.current) return;
+    requested.current = true;
+    // The shared IPC event handler reports load failures in the status/log UI.
+    void loadLibrary().catch(() => undefined);
+  }, [loaded, loadLibrary]);
 }
 
 function useDeferredLibraryFilters(filters: LibraryFilters): LibraryFilters {
@@ -93,7 +109,7 @@ function LibraryEmptyState({
   onDoctor: () => void;
 }) {
   return (
-    <section className="panel libraryPanel">
+    <section className="libraryEmptyPanel">
       <div className="emptyState libraryEmpty">
         <p>{t(language, "noLibraryYet")}</p>
         <p className="muted">{t(language, "noLibraryHint")}</p>
@@ -192,7 +208,8 @@ export function LibraryView(props: LibraryViewProps) {
   const [filters, setFilters] = useState<LibraryFilters>(EMPTY_LIBRARY_FILTERS);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [view, setView] = useState<"gallery" | "doctor">("gallery");
-  const requested = useRef(false);
+  const [recoveryOpen, setRecoveryOpen] = useState(false);
+  useInitialLibraryLoad(loaded, loadLibrary);
   const libraryBodyRef = useRef<HTMLDivElement>(null);
   const sidebar = useResizablePanel({
     storageKey: LIBRARY_SIDEBAR_WIDTH_KEY,
@@ -210,12 +227,6 @@ export function LibraryView(props: LibraryViewProps) {
   const { visibleImages: filteredImages, facets } = useLibraryFilter(deferredImages, deferredFilters, language);
   const { sortedImages: visibleImages, sortResetKey } = useLibrarySort(filteredImages, props.sort, language);
   const selection = useLibrarySelection(images, visibleImages);
-
-  useEffect(() => {
-    if (loaded || requested.current) return;
-    requested.current = true;
-    void loadLibrary();
-  }, [loaded, loadLibrary]);
 
   const toggleFilter = (dim: FacetDimension, value: string) =>
     setFilters((current) => {
@@ -248,10 +259,6 @@ export function LibraryView(props: LibraryViewProps) {
     );
   }
 
-  if (loaded && needsScan && !images.length) {
-    return <LibraryEmptyState language={language} busy={busy} onScan={props.scanLibrary} onDoctor={openDoctor} />;
-  }
-
   return (
     <section className="panel libraryPanel libraryManagerPanel">
       <LibraryToolbar
@@ -264,6 +271,9 @@ export function LibraryView(props: LibraryViewProps) {
         busy={busy}
         needsScan={needsScan}
         indexStatus={props.indexStatus}
+        annotationStatus={props.annotationStatus}
+        onRecover={() => setRecoveryOpen(true)}
+        onProtect={props.protectAnnotations}
         onScan={props.scanLibrary}
         onFetchTags={() => props.fetchTags(visibleImages.map((image) => image.path))}
         onRefetchTags={() => props.fetchTags(visibleImages.map((image) => image.path), { force: true })}
@@ -285,7 +295,7 @@ export function LibraryView(props: LibraryViewProps) {
         )}
       />
       <div className="libraryBody" ref={libraryBodyRef}>
-        {sidebarOpen ? (
+        {sidebarOpen && images.length ? (
           <LibraryFilterPane
             language={language}
             facets={facets}
@@ -295,7 +305,8 @@ export function LibraryView(props: LibraryViewProps) {
             onClear={() => setFilters((current) => ({ ...EMPTY_LIBRARY_FILTERS, keyword: current.keyword }))}
           />
         ) : null}
-        <LibraryGrid
+        {loaded && needsScan && !images.length ? <LibraryEmptyState
+          language={language} busy={busy} onScan={props.scanLibrary} onDoctor={openDoctor} /> : <LibraryGrid
           language={language}
           images={visibleImages}
           sortResetKey={sortResetKey}
@@ -304,7 +315,7 @@ export function LibraryView(props: LibraryViewProps) {
           loading={!loaded}
           onOpen={setSelectedPath}
           onToggleSelected={selection.togglePath}
-        />
+        />}
       </div>
       {sidebar.resizing ? <div className="panelResizeOverlay" /> : null}
       <LibraryOverlays
@@ -313,6 +324,10 @@ export function LibraryView(props: LibraryViewProps) {
         detailImages={visibleImages.length ? visibleImages : selectedImage ? [selectedImage] : []}
         selection={selection}
       />
+      {recoveryOpen ? <Suspense fallback={null}>
+        <AnnotationRecoveryModal language={language} images={images} onClose={() => setRecoveryOpen(false)}
+          onRecovered={loadLibrary} />
+      </Suspense> : null}
     </section>
   );
 }

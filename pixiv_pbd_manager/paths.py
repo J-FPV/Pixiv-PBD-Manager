@@ -83,6 +83,14 @@ def write_json_atomic(path: Path, data: Any) -> None:
     escape form, which loses fidelity for the actual filesystem path but
     keeps the rest of the data intact.
     """
+    from .recovery import active
+    session = active()
+    if session:
+        return session.json_write(path, data, lambda: _write_json_atomic(path, data))
+    _write_json_atomic(path, data)
+
+
+def _write_json_atomic(path: Path, data: Any) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     text = json.dumps(data, ensure_ascii=False, indent=2) + "\n"
     tmp = path.with_name(f"{path.name}.{os.getpid()}.tmp")

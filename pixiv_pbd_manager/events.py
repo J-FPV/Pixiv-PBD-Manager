@@ -59,6 +59,7 @@ PROGRESS_SIMILAR_DONE = "progress_similar_done"
 PROGRESS_LIBRARY_START = "progress_library_start"
 PROGRESS_LIBRARY_FILES = "progress_library_files"
 PROGRESS_LIBRARY_DONE = "progress_library_done"
+PROGRESS_ANNOTATIONS = "progress_annotations"
 
 # Fetching Pixiv artwork tags onto library images
 PROGRESS_FETCH_TAGS_START = "progress_fetch_tags_start"
@@ -69,3 +70,4 @@ PROGRESS_FETCH_TAGS_DONE = "progress_fetch_tags_done"
 PROGRESS_CLEANUP_START = "progress_cleanup_start"
 PROGRESS_CLEANUP_ITEM = "progress_cleanup_item"
 PROGRESS_CLEANUP_DONE = "progress_cleanup_done"
+PROGRESS_RECOVERY = "progress_recovery"

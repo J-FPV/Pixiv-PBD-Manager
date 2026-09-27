@@ -15,7 +15,6 @@ from ...library import (
     build_pid_to_artist,
     build_save_path_index,
     library_index_status,
-    load_library_index,
     load_tag_cache,
     resolve_folder_artist,
     save_library_index,
@@ -24,6 +23,8 @@ from ...library import (
     seed_tag_cache_from_images,
 )
 from ...operations.tags import fetch_pixiv_tags
+from ...library.annotation_identity import ProtectionCancelled, reconcile
+from ...library.annotations import annotated_catalog, update_annotations
 from ...paths import DEFAULT_LIBRARY_INDEX, DEFAULT_PIXIV_TAG_CACHE
 from ..payload import as_bool, as_float, base_dir, db_path, paths, resolve_path
 from ..runtime import CONTROL, Emitter, JsonDict, make_progress_callback
@@ -49,7 +50,9 @@ def _scan_paths(payload: JsonDict, settings: JsonDict) -> tuple[list[Path], list
 def index_status(payload: JsonDict, _emit_event: Emitter) -> JsonDict:
     settings = load_settings_for_payload(payload)
     roots, exclude_roots = _scan_paths(payload, settings)
-    return library_index_status(_index_path(payload), roots, exclude_roots)
+    with annotated_catalog(_index_path(payload)) as (store, _catalog):
+        return {**library_index_status(_index_path(payload), roots, exclude_roots),
+                "annotation_status": store.status()}
 
 
 def _artist_lookup(db: ArtistDatabase):
@@ -73,7 +76,9 @@ def list_images(payload: JsonDict, _emit_event: Emitter) -> JsonDict:
     settings = load_settings_for_payload(payload)
     db = ArtistDatabase.load(db_path(payload, settings))
     index_path = _index_path(payload)
-    catalog = load_library_index(index_path)
+    with annotated_catalog(index_path) as (store, catalog):
+        annotation_status = store.status()
+    apply_tag_cache(list(catalog.values()), load_tag_cache(_tag_cache_path(payload)))
     images = sorted(catalog.values(), key=lambda image: image.mtime_ns, reverse=True)
 
     # Attribute each image to an artist live: the folder it lives under wins (so
@@ -88,6 +93,7 @@ def list_images(payload: JsonDict, _emit_event: Emitter) -> JsonDict:
         "needs_scan": not catalog,
         "index_status": library_index_status(index_path, roots, exclude_roots),
         "db_path": str(db.path),
+        "annotation_status": annotation_status,
     }
 
 
@@ -97,7 +103,8 @@ def scan(payload: JsonDict, emit_event: Emitter) -> JsonDict:
     index_path = _index_path(payload)
     cache_path = _tag_cache_path(payload)
     db = ArtistDatabase.load(db_path(payload, settings))
-    old_catalog = load_library_index(index_path)
+    with annotated_catalog(index_path) as (_store, old_catalog):
+        pass
 
     # Adopt any tags the old catalog holds that the sidecar doesn't know yet, so
     # an upgrade (or a scan predating the cache) doesn't force a full refetch.
@@ -108,18 +115,21 @@ def scan(payload: JsonDict, emit_event: Emitter) -> JsonDict:
     if seed_tag_cache_from_images(cache, old_catalog.values()):
         save_tag_cache(cache, cache_path)
 
-    images, summary = build_catalog(
-        roots,
-        exclude_roots,
-        pid_to_artist=build_pid_to_artist(db),
-        save_path_index=build_save_path_index(db),
-        old_catalog=old_catalog,
-        progress_callback=make_progress_callback(emit_event),
-    )
+    try:
+        images, summary = build_catalog(
+            roots, exclude_roots, pid_to_artist=build_pid_to_artist(db),
+            save_path_index=build_save_path_index(db), old_catalog=old_catalog,
+            progress_callback=make_progress_callback(emit_event), should_cancel=CONTROL.is_cancelled,
+        )
+        with annotated_catalog(index_path) as (store, _catalog):
+            images = reconcile(store, images, roots, CONTROL.is_cancelled)
+            apply_tag_cache(images, cache)
+            save_library_index(images, index_path, annotation_store_id=store.store_id)
+            annotation_status = store.status()
+    except ProtectionCancelled:
+        return {"cancelled": True, "index_status": library_index_status(index_path, roots, exclude_roots)}
     # Re-attach tags by work id — this is what lets a moved or renamed file keep
     # them. Only fills gaps build_catalog's path-keyed carry-forward left behind.
-    apply_tag_cache(images, cache)
-    save_library_index(images, index_path)
     save_library_index_metadata(index_path, roots, exclude_roots, entry_count=len(images))
     return {
         "files_seen": summary.files_seen,
@@ -130,32 +140,24 @@ def scan(payload: JsonDict, emit_event: Emitter) -> JsonDict:
         "error_examples": list(summary.errors[:20]),
         "needs_scan": not images,
         "index_status": library_index_status(index_path, roots, exclude_roots),
+        "annotation_status": annotation_status,
     }
 
 
 def set_tags(payload: JsonDict, _emit_event: Emitter) -> JsonDict:
-    settings = load_settings_for_payload(payload)
     path_text = str(payload.get("path") or "").strip()
     if not path_text:
         raise ValueError("Missing path")
-    index_path = _index_path(payload)
-    catalog = load_library_index(index_path)
-    key = str(Path(path_text).expanduser().resolve())
-    image = catalog.get(key) or catalog.get(path_text)
-    if image is None:
+    result = update_metadata({**payload, "paths": [path_text], "tags": payload.get("tags") or []}, _emit_event)
+    if not result["images"]:
         raise ValueError(f"Image not in library catalog: {path_text}")
-    image.tags = sorted({str(tag).strip() for tag in payload.get("tags") or [] if str(tag).strip()})
-    save_library_index(catalog.values(), index_path)
-    db = ArtistDatabase.load(db_path(payload, settings))
-    artist = _artist_lookup(db)(image)
-    return {"image": library_image_to_json(image, artist)}
+    return {"image": result["images"][0], "annotation_status": result["annotation_status"]}
 
 
 def update_metadata(payload: JsonDict, _emit_event: Emitter) -> JsonDict:
-    """Apply one metadata patch to many catalog images and persist once."""
+    """Merge a patch transactionally without rewriting the rebuildable catalog."""
     settings = load_settings_for_payload(payload)
     index_path = _index_path(payload)
-    catalog = load_library_index(index_path)
     requested: list[str] = []
     for item in payload.get("paths") or []:
         if not str(item).strip():
@@ -164,49 +166,17 @@ def update_metadata(payload: JsonDict, _emit_event: Emitter) -> JsonDict:
     if not requested:
         raise ValueError("Choose at least one image")
 
-    add_tags = {str(tag).strip() for tag in payload.get("add_tags") or [] if str(tag).strip()}
-    remove_tags = {str(tag).strip() for tag in payload.get("remove_tags") or [] if str(tag).strip()}
-    copy_pixiv_tags = as_bool(payload, "copy_pixiv_tags", False)
-    set_favorite = "favorite" in payload
-    set_rating = "rating" in payload
-    set_markers = "markers" in payload
-    rating = max(0, min(5, int(payload.get("rating") or 0)))
-    allowed_markers = {"high_value", "used", "to_sort"}
-    markers = sorted({str(value) for value in payload.get("markers") or [] if str(value) in allowed_markers})
-    add_markers = {str(value) for value in payload.get("add_markers") or [] if str(value) in allowed_markers}
-    remove_markers = {str(value) for value in payload.get("remove_markers") or [] if str(value) in allowed_markers}
-
-    changed = []
-    for path_text in requested:
-        image = catalog.get(path_text)
-        if image is None:
-            continue
-        if set_favorite:
-            image.favorite = as_bool(payload, "favorite", False)
-        if set_rating:
-            image.rating = rating
-        if set_markers:
-            image.markers = list(markers)
-        elif add_markers or remove_markers:
-            marker_set = set(image.markers)
-            marker_set.update(add_markers)
-            marker_set.difference_update(remove_markers)
-            image.markers = sorted(marker_set)
-        tags = set(image.tags)
-        tags.update(add_tags)
-        tags.difference_update(remove_tags)
-        if copy_pixiv_tags:
-            tags.update(str(item.get("tag") or "").strip() for item in image.pixiv_tags if item.get("tag"))
-        image.tags = sorted(tag for tag in tags if tag)
-        changed.append(image)
-
-    if changed:
-        save_library_index(catalog.values(), index_path)
+    with annotated_catalog(index_path) as (store, catalog):
+        changed = [catalog[path] for path in dict.fromkeys(requested) if path in catalog]
+        apply_tag_cache(changed, load_tag_cache(_tag_cache_path(payload)))
+        update_annotations(store, changed, payload, payload.get("identities"))
+        annotation_status = store.status()
     db = ArtistDatabase.load(db_path(payload, settings))
     artist_for = _artist_lookup(db)
     return {
         "updated": len(changed),
         "images": [library_image_to_json(image, artist_for(image)) for image in changed],
+        "annotation_status": annotation_status,
     }
 
 
@@ -221,7 +191,9 @@ def export_list(payload: JsonDict, _emit_event: Emitter) -> JsonDict:
         output = output.with_suffix(".csv")
     output.parent.mkdir(parents=True, exist_ok=True)
 
-    catalog = load_library_index(_index_path(payload))
+    with annotated_catalog(_index_path(payload)) as (_store, catalog):
+        pass
+    apply_tag_cache(list(catalog.values()), load_tag_cache(_tag_cache_path(payload)))
     targets = []
     seen: set[str] = set()
     for item in payload.get("paths") or []:
@@ -270,7 +242,8 @@ def fetch_tags(payload: JsonDict, emit_event: Emitter) -> JsonDict:
     unless ``force`` is set. Failed entries are always retried."""
     settings = load_settings_for_payload(payload)
     index_path = _index_path(payload)
-    catalog = load_library_index(index_path)
+    with annotated_catalog(index_path) as (_store, catalog):
+        pass
     requested = {
         str(Path(item).expanduser().resolve())
         for item in (payload.get("paths") or [])
@@ -283,12 +256,12 @@ def fetch_tags(payload: JsonDict, emit_event: Emitter) -> JsonDict:
         # snapshot: this run can last minutes, during which library.set_tags or
         # library.update_metadata (separate processes) write their own full
         # catalogs, and a wholesale write would silently revert them.
-        fresh = load_library_index(index_path)
-        for image in fresh.values():
-            tags = changed.get(image.pid) if image.pid else None
-            if tags is not None:
-                image.pixiv_tags = [dict(item) for item in tags]
-        save_library_index(fresh.values(), index_path)
+        with annotated_catalog(index_path) as (store, fresh):
+            for image in fresh.values():
+                tags = changed.get(image.pid) if image.pid else None
+                if tags is not None:
+                    image.pixiv_tags = [dict(item) for item in tags]
+            save_library_index(fresh.values(), index_path, annotation_store_id=store.store_id)
 
     result = fetch_pixiv_tags(
         targets,
@@ -302,6 +275,8 @@ def fetch_tags(payload: JsonDict, emit_event: Emitter) -> JsonDict:
         should_cancel=CONTROL.is_cancelled,
     )
 
+    with annotated_catalog(index_path) as (store, _catalog):
+        store.overlay(targets)
     db = ArtistDatabase.load(db_path(payload, settings))
     rows = [
         library_image_to_json(image, db.artists.get(image.artist_id) if image.artist_id else None)

@@ -132,7 +132,7 @@ function resetSettings(deps: SettingsActionsDeps): void {
       try {
         const payload = await runGuiApi<SettingsPayload>(
           "settings.save",
-          { settings: resetValues, cookie_consent: false, pixiv_cookie: "" },
+          { settings: resetValues, cookie_consent: false, pixiv_cookie: "", reset_settings: true },
           handleEvent
         );
         applySettingsPayload(deps, payload);

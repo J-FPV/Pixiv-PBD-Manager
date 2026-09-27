@@ -53,7 +53,11 @@ export function useAppBootstrap(
             pythonCommandValue
           )
         );
-        void refreshLibraryIndex(mergedSettings);
+        if (sessionStorage.getItem("pbd-after-restore")) {
+          sessionStorage.removeItem("pbd-after-restore");
+        } else {
+          void refreshLibraryIndex(mergedSettings);
+        }
         appendLog("info", "Desktop GUI ready");
         setStatus(t(payload.settings.language || "zh", "ready"));
       } catch (error) {

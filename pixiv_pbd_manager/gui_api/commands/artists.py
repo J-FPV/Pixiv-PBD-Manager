@@ -49,6 +49,8 @@ def _artists_and_tags(db: ArtistDatabase) -> JsonDict:
 def list_artists(payload: JsonDict, _emit_event: Emitter) -> JsonDict:
     settings = load_settings_for_payload(payload)
     db = ArtistDatabase.load(db_path(payload, settings))
+    if db.load_error:
+        raise ValueError(db.load_error)
     return {
         **_artists_and_tags(db),
         "db_path": str(db.path),

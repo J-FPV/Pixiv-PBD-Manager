@@ -19,12 +19,22 @@ import traceback
 from pathlib import Path
 from typing import Callable
 
-from .commands import app_info, artists, cleanup, doctor, files, library, scan, settings, similar, updates
+from .commands import app_info, artists, cleanup, doctor, files, library, library_annotations, recovery, scan, settings, similar, updates
 from .payload import resolve_base_dir
 from .runtime import CONTROL, Emitter, JsonDict, emit_event, start_control_reader
 
 
 COMMANDS: dict[str, Callable[[JsonDict, Emitter], JsonDict]] = {
+    "backup.list": recovery.list_backups,
+    "backup.create": recovery.create,
+    "backup.preview": recovery.preview,
+    "backup.restore": recovery.restore,
+    "backup.export": recovery.export,
+    "backup.import": recovery.import_backup,
+    "backup.delete": recovery.delete,
+    "history.list": recovery.list_history,
+    "history.undo": recovery.undo,
+    "history.discard": recovery.discard,
     "settings.get": settings.get,
     "settings.save": settings.save,
     "cookie.revoke": settings.revoke_cookie,
@@ -56,6 +66,9 @@ COMMANDS: dict[str, Callable[[JsonDict, Emitter], JsonDict]] = {
     "library.update_metadata": library.update_metadata,
     "library.export": library.export_list,
     "library.fetch_tags": library.fetch_tags,
+    "library.annotations.protect": library_annotations.protect_annotations,
+    "library.annotations.unlinked": library_annotations.unlinked,
+    "library.annotations.relink": library_annotations.relink_annotations,
     "cleanup.list": cleanup.list_cleanup,
     "cleanup.quarantine": cleanup.quarantine,
     "cleanup.restore": cleanup.restore,
@@ -83,7 +96,14 @@ def run_command(command: str, payload: JsonDict | None = None, *, emit: Emitter 
         return 2
 
     try:
-        result = handler(payload, emit)
+        if command.startswith(("image.", "file.", "browser.", "app.")) or command == "cookie.revoke":
+            result = handler(payload, emit)
+        else:
+            from ..recovery.session import RecoverySession
+            with RecoverySession(payload, command, emit) as session:
+                result = handler(payload, emit)
+                if isinstance(result, dict) and session.last_undo:
+                    result["undo_operation"] = {"id": session.last_undo, "command": command}
     except Exception as exc:  # noqa: BLE001 -- this is the top-level handler boundary
         emit(
             {

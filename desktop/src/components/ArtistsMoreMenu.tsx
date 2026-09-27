@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { ChevronDown, Copy, DatabaseBackup, ExternalLink, MoreHorizontal, RefreshCw } from "lucide-react";
 import { t } from "../i18n";
 import type { Language } from "../types";
+import { RecoveryUndo } from "./RecoveryUndo";
 
 // The "more actions" dropdown in the artists toolbar. Owns its open/close state
 // and closes on any outside pointer-down.
@@ -56,6 +57,7 @@ export function ArtistsMoreMenu({
       </button>
       {open ? (
         <div className="toolbarDropdown alignRight">
+          <RecoveryUndo language={language} />
           <button type="button" disabled={selectedCount === 0} onClick={run(openSelected)}>
             <ExternalLink size={15} />
             <span>{t(language, "openSelected")}{selectedCount ? ` (${selectedCount})` : ""}</span>

@@ -6,6 +6,12 @@
 
 ## 当前 GUI 路线
 
+### 备份事务（开发版）
+
+`pixiv_pbd_manager/recovery/` 管理跨进程锁、白名单 ZIP、SQLite 一致性快照和持久化提交日志。GUI IPC 每个进程拥有恢复会话；耗时查询在锁外运行，JSON/标注提交受短锁和恢复代次保护。恢复日志可重复执行，更新标注时不回退身份绑定。前端恢复入口暂停自动保存并在完成后重载，禁止旧状态写回。
+
+新增 IPC 为 `backup.list/create/preview/restore/export/import/delete` 和 `history.list/undo/discard`；权限、事件和类型须同步修改。验证入口：`tests/test_recovery.py`、`tests/test_recovery_scale.py`、`desktop/e2e/backup-recovery.spec.ts`。`scripts/verify_annotation_storage.py` 同时验证冻结后端的备份与撤销。使用边界见[备份与撤销](backup-recovery.md)。
+
 主 GUI 使用 Tauri + React + TypeScript，位于：
 
 ```text
@@ -35,6 +41,24 @@ Python 仍是唯一业务逻辑来源。扫描、检查更新、下载、相似�
 注意：项目里有些历史命名仍叫 `sidecar`，但当前生产包实际采用的是 **PyInstaller onedir + Tauri resources + shell allow-list**。没有使用 Tauri `externalBin` sidecar 机制，因为 `externalBin` 更适合单文件可执行程序，而这里需要一起携带 `_internal/` Python 运行时目录。
 
 前后端 IPC 使用 JSON Lines。为避开 Windows 控制台编码问题，前端传入 ASCII JSON，后端 stdout 也按 UTF-8 字节写出。stdin payload 优先从二进制缓冲区读取并按 `utf-8-sig` 解码，因此兼容 Windows PowerShell 5.1 可能添加的 UTF-8 BOM，也不会经过 GBK 文本层把 BOM 变成乱码。
+
+## 图片标注存储
+
+开发分支使用独立 SQLite 文件 `<索引文件名>.annotations.sqlite3`，默认 `library_index.annotations.sqlite3`。`images.id` 是每份文件独立的 UUID，不是内容哈希；同内容副本不共享收藏、评分、本地标签或状态。`binding_key` 只允许一个当前绑定；`revision` 跟踪用户编辑，`binding_revision` 防止扫描、后台哈希或清理覆盖并发的位置变更。
+
+- `annotation_store.py`：schema v1、事务、旧数据迁移和读取叠加。首次迁移原子保存 `library_index.json.pre-annotations.bak`；失败会回滚，不清空用户标注。
+- `annotation_identity.py`：先匹配原路径，移动候选优先用文件系统标识、再用唯一 SHA-256 匹配，二者均须校验内容。文件大小、mtime 仅用于缓存/筛选；不按 Pixiv ID 或感知哈希继承用户标注。
+- `annotations.py`：批量编辑、待恢复记录、手动关联和隔离状态同步。目标哪怕主动清空过标注，也不能被恢复操作覆盖。
+- 图库索引 v3 只写物理信息和 `image_id`；用户标注由 SQLite 叠加，Pixiv 标签仍由 `pixiv_tags.json` 负责。删除索引后可重建，不能删除标注库。库缺失、损坏或身份不符会报错，不静默重建空库。
+- IPC：`library.annotations.protect` 后台补齐已标注文件哈希，支持暂停、取消、继续/重试；`library.annotations.unlinked` 按原路径/标签搜索，每页 50 条；`library.annotations.relink` 手动绑定，未知/不同内容须二次确认并提交确认时的 SHA-256。
+- `library.list/status/scan/update_metadata` 返回 `annotation_status`；每张图片包含 `image_id`、`annotation_revision`。统一的前端写队列保留待提交修改，较旧响应不会覆盖较新标注。后台进度事件为 `progress_annotations`，使用索引任务通道。
+- 清理清单新增 `library_image_id`、`annotation_store_id`。先持久化移动意图，再变更文件和绑定；启动读取隔离历史时对中断状态重新协调。永久删除只改变记录状态，不把标注转移给其他副本。
+
+内容校验完成前，外部改名、改动或移走的文件可能需要手动恢复。离线磁盘、权限错误、多个相同候选不会被当成可靠的跨盘匹配。标注库属于用户数据，不随重置设置、重置布局、重新扫描或删除图片索引而清除；不在图库内生成管理目录。
+
+备份应在退出软件后复制整个数据目录，尤其保留 SQLite 文件和隔离清单。旧版软件不识别独立标注库，**不要让新旧版本同时写同一数据目录**；需要降级时先完整备份，再在单独的数据目录使用迁移前备份，迁移后的编辑不会自动反向合并进旧 JSON。
+
+打包脚本显式包含 `sqlite3` / `_sqlite3`，并使用 `scripts/verify_annotation_storage.py` 在冻结后的 worker 内验证编辑、哈希和移动恢复，不仅测试开发环境的 Python。
 
 ## 开发环境
 

@@ -40,6 +40,7 @@ class ArtistDatabase:
         self.path = path
         self.artists: dict[str, ArtistRecord] = {}
         self.defined_tags: list[str] = []
+        self.load_error = ""
 
     @classmethod
     def load(cls, path: Path | str | None = None) -> "ArtistDatabase":
@@ -55,23 +56,33 @@ class ArtistDatabase:
         # files as "empty DB" so the user can rescan to repopulate.
         try:
             text = db.path.read_text(encoding="utf-8")
-        except OSError:
+        except OSError as exc:
+            db.load_error = str(exc)
             return db
         if not text.strip():
+            db.load_error = "Artist database is empty or damaged; restore a backup before writing"
             return db
         try:
             raw = json.loads(text)
         except json.JSONDecodeError:
+            db.load_error = "Artist database is damaged; restore a backup before writing"
             return db
         if not isinstance(raw, dict):
+            db.load_error = "Invalid artist database; restore a backup before writing"
             return db
         for artist_id, artist in (raw.get("artists") or {}).items():
             record = ArtistRecord.from_json({**artist, "id": str(artist.get("id") or artist_id)})
             db.artists[record.id] = record
         db.defined_tags = _merge_tag_order(raw.get("tags"), db.artists.values())
+        from .recovery import active
+        if active():
+            from .recovery.archive import artist_data
+            active().remember(db.path, artist_data(raw))
         return db
 
     def save(self) -> None:
+        if self.load_error:
+            raise ValueError(self.load_error)
         payload = {
             "version": 1,
             "tags": list(self.defined_tags),

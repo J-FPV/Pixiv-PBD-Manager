@@ -76,7 +76,7 @@ export function useTaskRunner(
     }));
 
   const runTask: TaskRunner["runTask"] = async (lane, label, task) => {
-    if (lanes[lane].runningTask) {
+    if (controlsRef.current[lane]) {
       appendLog("warn", `${t(language, "running")}: ${lanes[lane].runningTask}`);
       return;
     }

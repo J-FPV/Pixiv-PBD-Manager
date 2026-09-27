@@ -1,5 +1,7 @@
 import type { Dispatch, SetStateAction } from "react";
 import {
+  PROGRESS_ANNOTATIONS,
+  PROGRESS_RECOVERY,
   PROGRESS_CLEANUP_DONE,
   PROGRESS_CLEANUP_ITEM,
   PROGRESS_CLEANUP_START,
@@ -353,6 +355,10 @@ function describeSimilar(language: Language, event: ProgressEvent): PipelineDesc
 function describeLibrary(language: Language, event: ProgressEvent): PipelineDescriptor | null {
   const p = event.payload;
   switch (event.key) {
+    case PROGRESS_ANNOTATIONS:
+      return { logText: null, progressUpdate: () => ({ main: {
+        label: t(language, "protectAnnotations"), current: numberValue(p.done), total: numberValue(p.total)
+      } }) };
     case PROGRESS_LIBRARY_START:
       return {
         logText: `Library scan started: ${p.total_files ?? "?"} file(s)`,
@@ -482,6 +488,9 @@ const PIPELINES: { lane: TaskLane; describe: (language: Language, event: Progres
 // The matched pipeline's lane is stamped onto the descriptor so concurrent
 // tasks drive their own progress bar.
 export function describeProgressEvent(language: Language, event: ApiEvent): ProgressEventDescriptor {
+  if (event.type === "progress" && event.key === PROGRESS_RECOVERY) {
+    return { lane: "library", logText: t(language, "recoveryRunning"), progressUpdate: null };
+  }
   if (event.type === "error") {
     return { lane: "library", logText: `${t(language, "error")}: ${event.message}`, progressUpdate: null };
   }

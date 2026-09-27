@@ -40,6 +40,8 @@ class CleanupItem:
     moved_at: str | None = None
     restored_at: str | None = None
     deleted_at: str | None = None
+    library_image_id: str = ""
+    annotation_store_id: str = ""
 
     @classmethod
     def from_json(cls, raw: dict[str, Any]) -> "CleanupItem":
@@ -59,6 +61,8 @@ class CleanupItem:
             moved_at=raw.get("moved_at"),
             restored_at=raw.get("restored_at"),
             deleted_at=raw.get("deleted_at"),
+            library_image_id=str(raw.get("library_image_id") or ""),
+            annotation_store_id=str(raw.get("annotation_store_id") or ""),
         )
 
     def to_json(self) -> dict[str, Any]:
@@ -78,6 +82,8 @@ class CleanupItem:
             "moved_at": self.moved_at,
             "restored_at": self.restored_at,
             "deleted_at": self.deleted_at,
+            "library_image_id": self.library_image_id,
+            "annotation_store_id": self.annotation_store_id,
         }
 
 
@@ -245,12 +251,32 @@ def _load_operations(state: dict[str, Any]) -> list[CleanupOperation]:
     ]
 
 
-def cleanup_summary(state_path: Path = DEFAULT_CLEANUP_STATE) -> dict[str, Any]:
+def _sync_annotation(item: CleanupItem, callback) -> bool:
+    if not callback:
+        return False
+    state = {"restored": "linked"}.get(item.status, item.status)
+    if state == "error":
+        original, quarantined = Path(item.original_path), Path(item.quarantine_path)
+        state = "linked" if original.is_file() and not quarantined.exists() else "unverified"
+    try:
+        callback(item, state)
+    except Exception as exc:  # Keep the actual file outcome, even if metadata sync fails.
+        message = f"Annotation sync: {exc}"
+        if message not in item.error:
+            item.error = f"{item.error}\n{message}".strip()
+            return True
+    return False
+
+
+def cleanup_summary(state_path: Path = DEFAULT_CLEANUP_STATE, *, annotation_callback=None) -> dict[str, Any]:
     state = load_cleanup_state(state_path)
     changed = False
     operations = _load_operations(state)
     for operation in operations:
-        operation_changed = any(_reconcile_item(item) for item in operation.items)
+        # Evaluate every item; any(generator) would stop at the first recovered file.
+        operation_changed = any([_reconcile_item(item) for item in operation.items])
+        annotation_changed = any([_sync_annotation(item, annotation_callback) for item in operation.items])
+        operation_changed = operation_changed or annotation_changed
         if operation_changed:
             _persist_operation(state_path, state, operation)
             changed = True
@@ -353,6 +379,7 @@ def quarantine_files(
     index_path: Path,
     progress_callback: ProgressCallback | None = None,
     should_cancel: CancelCallback | None = None,
+    annotation_callback=None,
 ) -> dict[str, Any]:
     if not raw_items:
         raise ValueError("Select at least one file to quarantine")
@@ -406,7 +433,11 @@ def quarantine_files(
                     raise ValueError(f"File changed after the scan: {source}")
             item.status = "moving"
             item.error = ""
+            if annotation_callback:
+                annotation_callback(item, "prepare")
             _persist_operation(state_path, state, operation)
+            if annotation_callback:
+                annotation_callback(item, "moving")
             shutil.move(str(source), str(item.quarantine_path))
             item.status = "quarantined"
             item.moved_at = _utc_now()
@@ -414,6 +445,7 @@ def quarantine_files(
         except Exception as exc:  # noqa: BLE001 - per-file transaction boundary
             item.status = "error"
             item.error = str(exc)
+        _sync_annotation(item, annotation_callback)
         _persist_operation(state_path, state, operation)
         _emit(
             progress_callback,
@@ -435,7 +467,7 @@ def quarantine_files(
         succeeded=len(moved_paths),
         cancelled=cancelled,
     )
-    result = cleanup_summary(state_path)
+    result = cleanup_summary(state_path, annotation_callback=annotation_callback)
     result["operation_id"] = operation.id
     result["moved_paths"] = sorted(moved_paths)
     result["cancelled"] = cancelled
@@ -466,6 +498,7 @@ def restore_files(
     index_path: Path,
     progress_callback: ProgressCallback | None = None,
     should_cancel: CancelCallback | None = None,
+    annotation_callback=None,
 ) -> dict[str, Any]:
     state = load_cleanup_state(state_path)
     operation = _find_operation(state, operation_id)
@@ -488,6 +521,8 @@ def restore_files(
             item.status = "restoring"
             item.error = ""
             _persist_operation(state_path, state, operation)
+            if annotation_callback:
+                annotation_callback(item, "restoring")
             shutil.move(str(source), str(destination))
             item.status = "restored"
             item.restored_at = _utc_now()
@@ -495,6 +530,7 @@ def restore_files(
         except Exception as exc:  # noqa: BLE001 - per-file transaction boundary
             item.status = "quarantined" if source.exists() else "error"
             item.error = str(exc)
+        _sync_annotation(item, annotation_callback)
         _persist_operation(state_path, state, operation)
         _emit(
             progress_callback,
@@ -514,7 +550,7 @@ def restore_files(
         succeeded=len(restored),
         cancelled=cancelled,
     )
-    result = cleanup_summary(state_path)
+    result = cleanup_summary(state_path, annotation_callback=annotation_callback)
     result["restored_paths"] = [item.original_path for item in restored]
     result["cancelled"] = cancelled
     return result
@@ -527,6 +563,7 @@ def delete_quarantined_files(
     state_path: Path = DEFAULT_CLEANUP_STATE,
     progress_callback: ProgressCallback | None = None,
     should_cancel: CancelCallback | None = None,
+    annotation_callback=None,
 ) -> dict[str, Any]:
     state = load_cleanup_state(state_path)
     operation = _find_operation(state, operation_id)
@@ -545,6 +582,8 @@ def delete_quarantined_files(
             item.status = "deleting"
             item.error = ""
             _persist_operation(state_path, state, operation)
+            if annotation_callback:
+                annotation_callback(item, "deleting")
             source.unlink()
             item.status = "deleted"
             item.deleted_at = _utc_now()
@@ -552,6 +591,7 @@ def delete_quarantined_files(
         except Exception as exc:  # noqa: BLE001 - per-file transaction boundary
             item.status = "quarantined" if source.exists() else "error"
             item.error = str(exc)
+        _sync_annotation(item, annotation_callback)
         _persist_operation(state_path, state, operation)
         _emit(
             progress_callback,
@@ -570,7 +610,7 @@ def delete_quarantined_files(
         succeeded=deleted,
         cancelled=cancelled,
     )
-    result = cleanup_summary(state_path)
+    result = cleanup_summary(state_path, annotation_callback=annotation_callback)
     result["deleted"] = deleted
     result["cancelled"] = cancelled
     return result

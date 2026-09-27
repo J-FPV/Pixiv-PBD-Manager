@@ -18,6 +18,8 @@ export function LibraryTab({ state: s, actions }: { state: AppState; actions: Li
         loaded={s.libraryLoaded}
         needsScan={s.libraryNeedsScan}
         indexStatus={s.libraryIndexStatus}
+        annotationStatus={s.annotationStatus}
+        protectAnnotations={actions.protectAnnotations}
         busy={s.libraryBusy || s.indexBusy}
         doctor={s.libraryDoctor}
         doctorBusy={s.libraryDoctorBusy}

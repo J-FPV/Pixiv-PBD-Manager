@@ -1,6 +1,8 @@
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { Child, Command } from "@tauri-apps/plugin-shell";
 import type { ApiEvent } from "./types";
+import { enterRequest } from "./utils/recoveryGate";
+import { collectPreferences } from "./utils/recoveryPreferences";
 
 export type PathPickKind = "folder" | "file" | "save";
 
@@ -62,6 +64,23 @@ export async function runGuiApi<T>(
   payload: object = {},
   onEvent?: (event: ApiEvent<T>) => void,
   options: { signal?: AbortSignal; onStart?: (controls: TaskControls) => void; gracefulCancel?: boolean } = {}
+): Promise<T> {
+  const leave = enterRequest(commandName);
+  try {
+    const values = commandName === "settings.save" ? { ...payload, ui_preferences: collectPreferences() } : payload;
+    const result = await executeGuiApi<T>(commandName, values, onEvent, options);
+    window.dispatchEvent(new CustomEvent("pbd-api-result", { detail: { command: commandName, result } }));
+    return result;
+  } finally {
+    leave();
+  }
+}
+
+async function executeGuiApi<T>(
+  commandName: string,
+  payload: object,
+  onEvent: ((event: ApiEvent<T>) => void) | undefined,
+  options: { signal?: AbortSignal; onStart?: (controls: TaskControls) => void; gracefulCancel?: boolean }
 ): Promise<T> {
   if (options.signal?.aborted) {
     throw new GuiApiCancelledError(commandName);

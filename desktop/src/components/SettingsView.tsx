@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { lazy, Suspense, useState } from "react";
 import type { ReactNode } from "react";
-import { Folder, Globe, Key, Search, SlidersHorizontal } from "lucide-react";
+import { Archive, Folder, Globe, Key, Search, SlidersHorizontal } from "lucide-react";
 import { t } from "../i18n";
 import type { AppSettings, Language, ReleaseInfo } from "../types";
 import { BrowserSection } from "./settings/BrowserSection";
@@ -9,7 +9,8 @@ import { FoldersSection } from "./settings/FoldersSection";
 import { GeneralSection } from "./settings/GeneralSection";
 import { ScanSection } from "./settings/ScanSection";
 
-type SettingsSection = "general" | "folders" | "scan" | "browser" | "cookie";
+const RecoverySection = lazy(() => import("./settings/RecoverySection").then((module) => ({ default: module.RecoverySection })));
+type SettingsSection = "general" | "folders" | "scan" | "browser" | "cookie" | "recovery";
 
 export function SettingsView({
   language,
@@ -66,7 +67,8 @@ export function SettingsView({
     { key: "folders", label: t(language, "secFolders"), icon: <Folder size={16} /> },
     { key: "scan", label: t(language, "secScan"), icon: <Search size={16} /> },
     { key: "browser", label: t(language, "secBrowser"), icon: <Globe size={16} /> },
-    { key: "cookie", label: t(language, "secCookie"), icon: <Key size={16} /> }
+    { key: "cookie", label: t(language, "secCookie"), icon: <Key size={16} /> },
+    { key: "recovery", label: t(language, "backupRecovery"), icon: <Archive size={16} /> }
   ];
 
   return (
@@ -86,6 +88,7 @@ export function SettingsView({
         </nav>
 
         <div className="settingsContent">
+          {section === "recovery" ? <Suspense fallback={null}><RecoverySection language={language} /></Suspense> : null}
           {section === "general" ? (
             <GeneralSection
               language={language}

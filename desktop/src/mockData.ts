@@ -58,6 +58,8 @@ function libraryImage(
   const folder = artist.save_paths[0];
   return {
     path: `${folder}\\${filename}`,
+    image_id: `mock-${pid}-${page}`,
+    annotation_revision: page === 0 ? 1 : 0,
     filename,
     folder,
     size_bytes: 2_400_000 + page * 320_000,

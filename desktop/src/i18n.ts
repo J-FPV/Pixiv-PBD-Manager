@@ -4,8 +4,30 @@ import { ja } from "./i18n.ja";
 import { es } from "./i18n.es";
 import { fr } from "./i18n.fr";
 import { de } from "./i18n.de";
+import { recoveryZh } from "./i18n.recovery";
 
 const zh = {
+  ...recoveryZh,
+  annotationRecovery: "待恢复标注",
+  protectAnnotations: "保护图片标注",
+  resumeProtection: "继续保护标注",
+  annotationStatus: "已保护 {protected} · 待保护 {pending} · 待恢复 {unlinked} · 失败 {errors}",
+  annotationMissing: "原文件未找到",
+  annotationChanged: "原文件已变化",
+  annotationUnverified: "尚未验证内容",
+  annotationVerified: "已有内容校验",
+  annotationTarget: "恢复到图片",
+  annotationTargetSearch: "搜索目标文件名或路径",
+  annotationOldSearch: "搜索原路径或标签",
+  annotationChoose: "选择待恢复记录",
+  annotationEmpty: "没有待恢复的标注",
+  annotationNoTargets: "没有符合条件的未标注图片",
+  annotationRecover: "恢复标注",
+  annotationConfirmTitle: "确认恢复到这张图片？",
+  annotationConfirmUnknown: "原文件尚未完成内容校验，无法确认两张图片是否相同。确认后将把这条标注关联到所选图片。",
+  annotationConfirmMismatch: "所选图片与原文件内容不同。确认后将把这条标注关联到所选图片。",
+  annotationRecovered: "标注已恢复",
+  annotationRefreshRequired: "图片身份已变化，请重新扫描图库后再编辑标注。",
   dragOriginalFailed: "原图拖出失败",
   scanResults: "扫描结果",
   quarantine: "隔离区",

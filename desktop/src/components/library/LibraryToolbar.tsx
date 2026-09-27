@@ -1,8 +1,9 @@
 import { PanelLeft, RefreshCw, RotateCcw, Search, Stethoscope, Tags, XCircle } from "lucide-react";
 import { t } from "../../i18n";
-import type { Language, LibraryIndexStatus, LibrarySort } from "../../types";
+import type { AnnotationStatus, Language, LibraryIndexStatus, LibrarySort } from "../../types";
 import { Button } from "../Button";
 import { LibrarySortControls } from "./LibrarySortControls";
+import { LibraryAnnotationMenu } from "./LibraryAnnotationMenu";
 
 export function LibraryToolbar({
   language,
@@ -14,6 +15,9 @@ export function LibraryToolbar({
   busy,
   needsScan,
   indexStatus,
+  annotationStatus,
+  onRecover,
+  onProtect,
   onScan,
   onFetchTags,
   onRefetchTags,
@@ -30,6 +34,9 @@ export function LibraryToolbar({
   busy: boolean;
   needsScan: boolean;
   indexStatus: LibraryIndexStatus | null;
+  annotationStatus: AnnotationStatus | null;
+  onRecover: () => void;
+  onProtect: () => void;
   onScan: () => void;
   onFetchTags: () => void;
   onRefetchTags: () => void;
@@ -82,6 +89,8 @@ export function LibraryToolbar({
       <Button icon={<RefreshCw size={15} />} onClick={onScan} disabled={busy}>
         {t(language, needsScan ? "scanLibrary" : "rescanLibrary")}
       </Button>
+      <LibraryAnnotationMenu language={language} status={annotationStatus} busy={busy}
+        onRecover={onRecover} onProtect={onProtect} />
     </div>
   );
 }

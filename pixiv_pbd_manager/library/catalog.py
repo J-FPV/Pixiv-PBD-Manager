@@ -4,8 +4,9 @@ Unlike the similar-image index (which perceptual-hashes every file), this only
 records cheap, header-readable facts (dimensions) plus name-derived metadata
 (Pixiv work id / page, format) and the resolved artist id. It is persisted to
 ``library_index.json`` and rebuilt by the ``library.scan`` GUI command, reusing
-cached dimensions for files whose size+mtime are unchanged and carrying forward
-any per-image tags the user has set.
+cached dimensions for files whose size+mtime are unchanged. The GUI overlays
+durable user annotations from its independent SQLite store; legacy standalone
+callers can still round-trip annotations in v2 JSON during migration.
 """
 
 from __future__ import annotations
@@ -28,7 +29,7 @@ from .timestamps import file_creation_time_ns
 
 
 LIBRARY_INDEX_MAX_AGE_SECONDS = 6 * 60 * 60
-LIBRARY_INDEX_VERSION = 2
+LIBRARY_INDEX_VERSION = 3
 LIBRARY_MARKERS = frozenset({"high_value", "used", "to_sort"})
 
 
@@ -102,6 +103,8 @@ class LibraryImage:
     rating: int = 0
     markers: list[str] = field(default_factory=list)
     created_ns: int | None = None
+    image_id: str = ""
+    annotation_revision: int = 0
 
     @classmethod
     def from_json(cls, raw: dict[str, Any]) -> "LibraryImage":
@@ -123,6 +126,8 @@ class LibraryImage:
             favorite=bool(raw.get("favorite", False)),
             rating=_clean_rating(raw.get("rating")),
             markers=_clean_markers(raw.get("markers")),
+            image_id=str(raw.get("image_id") or ""),
+            annotation_revision=int(raw.get("annotation_revision") or 0),
         )
 
     def to_json(self) -> dict[str, Any]:
@@ -143,6 +148,8 @@ class LibraryImage:
             "favorite": bool(self.favorite),
             "rating": _clean_rating(self.rating),
             "markers": _clean_markers(self.markers),
+            "image_id": self.image_id,
+            "annotation_revision": self.annotation_revision,
         }
 
     @property
@@ -231,6 +238,7 @@ def build_catalog(
     progress_callback: ProgressCallback | None = None,
     progress_interval: int = 100,
     max_errors: int = 200,
+    should_cancel=None,
 ) -> tuple[list[LibraryImage], CatalogSummary]:
     pid_map = pid_to_artist or {}
     save_index = save_path_index or {}
@@ -244,6 +252,9 @@ def build_catalog(
     emit(progress_callback, PROGRESS_LIBRARY_START, total_files=total)
 
     for path in paths_list:
+        if should_cancel and should_cancel():
+            from .annotation_identity import ProtectionCancelled
+            raise ProtectionCancelled()
         summary.files_seen += 1
         resolved = str(path.resolve())
         try:
@@ -329,10 +340,18 @@ def load_library_index(path: Path = DEFAULT_LIBRARY_INDEX) -> dict[str, LibraryI
     return result
 
 
-def save_library_index(images: Any, path: Path = DEFAULT_LIBRARY_INDEX) -> None:
+def save_library_index(images: Any, path: Path = DEFAULT_LIBRARY_INDEX, *, annotation_store_id: str = "") -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     ordered = sorted(images, key=lambda image: image.path.lower())
-    write_json_atomic(path, {"version": LIBRARY_INDEX_VERSION, "entries": {image.path: image.to_json() for image in ordered}})
+    entries = {image.path: image.to_json() for image in ordered}
+    if annotation_store_id:
+        for entry in entries.values():
+            for field_name in ("tags", "favorite", "rating", "markers", "annotation_revision"):
+                entry.pop(field_name, None)
+    # Standalone callers can still create legacy fixtures/imports; the GUI
+    # switches to v3 only after the independent annotation store is durable.
+    write_json_atomic(path, {"version": LIBRARY_INDEX_VERSION if annotation_store_id else 2,
+                            "annotation_store_id": annotation_store_id, "entries": entries})
 
 
 def library_index_metadata_path(path: Path = DEFAULT_LIBRARY_INDEX) -> Path:
