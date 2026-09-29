@@ -21,7 +21,7 @@ class AnnotationTests(unittest.TestCase):
     def setUp(self):
         self.tmp = TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
-        self.root = Path(self.tmp.name)
+        self.root = Path(self.tmp.name).resolve()
         self.images = self.root / "images"
         self.images.mkdir()
         self.index = self.root / "library_index.json"

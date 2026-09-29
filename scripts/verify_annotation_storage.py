@@ -11,7 +11,7 @@ from tempfile import TemporaryDirectory
 
 def verify_annotation_storage(worker: Path) -> None:
     with TemporaryDirectory(prefix="pbd-annotation-smoke-") as directory:
-        root = Path(directory)
+        root = Path(directory).resolve()
         (root / ".pixiv-pbd-manager").mkdir()
         images = root / "images"
         images.mkdir()

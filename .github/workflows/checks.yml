@@ -27,7 +27,7 @@ jobs:
         run: python -m ruff check .
 
       - name: Python tests
-        run: python -m unittest
+        run: python -m pytest
 
       - name: IPC smoke (gui_api roundtrip)
         run: python scripts/smoke.py --only ipc
