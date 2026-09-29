@@ -2,6 +2,8 @@ import type { Dispatch, SetStateAction } from "react";
 import {
   PROGRESS_ANNOTATIONS,
   PROGRESS_RECOVERY,
+  PROGRESS_SCAN_REVIEW,
+  PROGRESS_COLLECTIONS,
   PROGRESS_CLEANUP_DONE,
   PROGRESS_CLEANUP_ITEM,
   PROGRESS_CLEANUP_START,
@@ -81,6 +83,10 @@ const NOTHING: PipelineDescriptor = { logText: null, progressUpdate: null };
 function describeScan(language: Language, event: ProgressEvent): PipelineDescriptor | null {
   const p = event.payload;
   switch (event.key) {
+    case PROGRESS_SCAN_REVIEW:
+    case PROGRESS_COLLECTIONS:
+      return { logText: `${p.current}/${p.total} ${p.path || p.pid || ""}`,
+        progressUpdate: () => ({ main: { label: t(language, event.key === PROGRESS_SCAN_REVIEW ? "reviewDetails" : "backupCollections"), current: numberValue(p.current), total: numberValue(p.total) } }) };
     case PROGRESS_SCAN_START:
       return {
         logText: `Scan started: ${p.roots} folder(s)`,

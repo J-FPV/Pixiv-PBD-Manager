@@ -47,8 +47,30 @@ def verify_annotation_storage(worker: Path) -> None:
         call("backup.restore", id=backup, categories=["annotations"], token=preview["token"])
         if call("library.list")["images"][0]["rating"] != 5:
             raise RuntimeError("Frozen backup restore failed")
+        collection = call("collections.create", kind="project", name="Smoke project")["id"]
+        store_id = call("collections.list")["store_id"]
+        call("collections.members.add", id=collection, store_id=store_id, image_ids=[saved["image_id"]])
+        call("library.sync", full=True)
+        members = call("collections.list", id=collection)["collections"][0]["members"]
+        if len(members) != 1 or not members[0]["available"]:
+            raise RuntimeError("Frozen project collection failed")
+        snapshot = call("backup.create")["id"]
+        call("collections.delete", id=collection)
+        preview = call("backup.preview", id=snapshot, categories=["collections"])
+        call("backup.restore", id=snapshot, categories=["collections"], token=preview["token"])
+        if call("collections.list", id=collection)["collections"][0]["member_count"] != 1:
+            raise RuntimeError("Frozen collection restore failed")
+        pending = images / "Pending"
+        pending.mkdir()
+        (images / "renamed.png").rename(pending / "original.png")
+        call("scan.preview", roots=[str(images)], resolve_online=False)
+        review = call("scan.review.list")["items"]
+        detail = call("scan.review.detail", path=review[0]["path"]) if review else None
+        if not detail or detail["status"] not in ("no_clues", "pending") or detail["candidates"]:
+            raise RuntimeError(f"Frozen review queue failed: {detail}")
         print("OK: frozen SQLite annotation storage, protection and move recovery")
         print("OK: frozen backup creation, category restore and persistent undo")
+        print("OK: frozen review queue, directory sync and collection backup v2")
 
 
 if __name__ == "__main__":

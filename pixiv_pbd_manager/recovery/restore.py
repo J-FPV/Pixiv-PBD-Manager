@@ -67,7 +67,17 @@ def build_restore(session, path, categories):
     for category in categories:
         session.check_cancel()
         saved = values[category]
-        if category == "annotations":
+        if category == "collections":
+            from .collection_restore import collection_changes
+            records = collection_changes(session, saved)
+            writes.append({"kind": "collections", "path": str(session.collections), "records": records})
+            summaries.append({"category": category, "changed": len(records), "unlinked": sum(
+                member.get("pending", False) for record in records for member in (record["after"] or {}).get("members", []))})
+            def compact(value):
+                return {"name": value["name"], "members": len(value["members"]), "filters": value["filters"]} if value else None
+            details.extend({"category": category, "label": (record["after"] or record["before"])["name"],
+                            "before": compact(record["before"]), "after": compact(record["after"])} for record in records[:50])
+        elif category == "annotations":
             records = annotation_changes(session, saved)
             writes.append({"kind": "annotations", "path": str(session.annotations), "records": records})
             summaries.append({"category": category, "changed": len(records), "unlinked": sum(record.get("before") is None for record in records)})

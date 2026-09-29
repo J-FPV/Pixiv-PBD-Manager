@@ -1,0 +1,36 @@
+.reviewToolbar { flex-wrap: wrap; gap: 8px; }
+.reviewToolbar .searchBox { min-width: 180px; max-width: 360px; flex: 1; }
+.reviewToolbar select { width: auto; max-width: 230px; }
+.reviewRow .unmatchedActions { gap: 4px; }
+.reviewStatus { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.modal.reviewModal { width: min(840px, calc(100vw - 40px)); max-height: calc(100dvh - 56px); display: flex; flex-direction: column; gap: 12px; }
+.reviewPath { overflow-wrap: anywhere; }
+.reviewBody { min-height: 0; overflow: auto; }
+.reviewCandidate { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.reviewSample { display: grid; grid-template-columns: 144px minmax(0, 1fr); gap: 16px; padding: 12px 0; border-top: 1px solid var(--line); }
+.reviewSample p { overflow-wrap: anywhere; }
+.reviewSample .thumbnailButton { width: 144px; height: 110px; }
+.reviewSample img { object-fit: contain; }
+.reviewActions { flex-wrap: wrap; }
+.directorySyncStatus { display: flex; align-items: center; gap: 8px; padding: 2px 12px; font-size: 12px; border-top: 1px solid var(--line); color: var(--muted); }
+.directorySyncStatus span { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.collectionsPane { padding: 8px 10px 14px; border-bottom: 1px solid var(--line); }
+.collectionHeading, .collectionLine, .collectionRow { display: flex; align-items: center; gap: 5px; }
+.collectionHeading { justify-content: space-between; font-size: 13px; padding-top: 8px; }
+.collectionLine .button { flex-shrink: 0; padding: 4px; min-height: 26px; width: 24px; }
+.collectionRow { flex: 1; min-width: 0; border: 0; background: transparent; color: var(--text); text-align: left; padding: 7px 3px; cursor: pointer; }
+.collectionRow span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+.collectionRow.active { color: var(--accent-strong); background: var(--accent-soft); }
+.collectionRow svg { flex-shrink: 0; }
+.collectionConditions { display: grid; gap: 7px; padding: 12px 0; font-size: 13px; }
+.collectionConditions label { display: flex; align-items: center; gap: 7px; }
+.collectionConditions input[type=checkbox] { width: auto; margin: 0; }
+.collectionConditions input[type=number] { width: 90px; }
+.collectionActionBar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px 12px; border-top: 1px solid var(--line); font-size: 12px; }
+.collectionActionBar select { width: 180px; padding: 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--input-bg); color: var(--text); }
+.collectionConditions input[type=number] { padding: 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--input-bg); color: var(--text); }
+.collectionDrag { cursor: grab; }
+.collectionActions > p { margin: 4px 12px; font-size: 13px; }
+.collectionMissing { font-size: 12px; padding: 4px 12px; max-height: 160px; overflow: auto; }
+.collectionMissing > div { display: flex; gap: 8px; align-items: center; padding: 3px 0; }
+.collectionMissing > div > span:first-child { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

@@ -16,6 +16,8 @@ from __future__ import annotations
 
 # Local-scan pipeline
 PROGRESS_SCAN_START = "progress_scan_start"
+PROGRESS_SCAN_REVIEW = "progress_scan_review"
+PROGRESS_COLLECTIONS = "progress_collections"
 PROGRESS_SCAN_FILES = "progress_scan_files"
 PROGRESS_SCAN_DONE = "progress_scan_done"
 PROGRESS_RESOLVE_ARTIST = "progress_resolve_artist"

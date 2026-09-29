@@ -10,6 +10,7 @@ import unicodedata
 import urllib.error
 import urllib.parse
 import urllib.request
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
@@ -322,11 +323,13 @@ def resolve_name_only_artist(
     delay_seconds: float = 0.8,
     cookie: str | None = None,
     allow_insecure_ssl_fallback: bool = True,
+    on_query: Callable[[dict], None] | None = None,
 ) -> ResolvedArtist | None:
     work_ids = select_resolution_work_ids(hit.work_ids, max_work_ids)
     resolved_items: list[ResolvedArtist] = []
     last_error: PixivResolveError | None = None
     for index, work_id in enumerate(work_ids):
+        error = ""
         try:
             resolved = fetch_artwork_author(
                 work_id,
@@ -337,7 +340,12 @@ def resolve_name_only_artist(
             # One inaccessible/deleted/restricted PID should not sink the whole
             # folder if later files can still identify a consistent author.
             last_error = exc
+            error = str(exc)
             resolved = None
+        if on_query:
+            on_query({"pid": work_id, "status": "failed" if error else "resolved" if resolved else "empty",
+                      "artist_id": resolved.id if resolved else "", "name": resolved.name if resolved else "",
+                      "error": error})
         if resolved:
             resolved_items.append(resolved)
         if index != len(work_ids) - 1 and delay_seconds > 0:

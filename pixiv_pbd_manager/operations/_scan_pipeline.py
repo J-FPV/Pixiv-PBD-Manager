@@ -24,7 +24,7 @@ author evidence leaves a folder unmatched and is never sent to fuzzy search.
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 from .. import resolver
@@ -37,6 +37,7 @@ from ..events import (
     PROGRESS_SCAN_START,
 )
 from ..scanner import NameOnlyArtistHit, ScanSummary, scan_roots
+from ..scan_review import snapshot
 from ._shared import (
     ProgressCallback,
     build_artist_save_path_index,
@@ -76,6 +77,7 @@ class ScanPipelineResult:
     ssl_fallback_used: int = 0
     resolve_errors: list[str] = field(default_factory=list)
     cancelled: bool = False
+    review: dict[str, dict] = field(default_factory=dict)
 
 
 def collect_resolved_hits(
@@ -94,6 +96,8 @@ def collect_resolved_hits(
     allow_low_pids: bool = False,
     should_cancel: Callable[[], bool] | None = None,
     progress_callback: ProgressCallback | None = None,
+    capture_review: bool = False,
+    review_history: dict[str, dict] | None = None,
 ) -> ScanPipelineResult:
     cancelled = should_cancel or (lambda: False)
     emit(progress_callback, PROGRESS_SCAN_START, roots=len(roots))
@@ -121,6 +125,43 @@ def collect_resolved_hits(
     filter_assigned_unmatched_folders(summary, existing_db)
 
     result = ScanPipelineResult(summary=summary)
+    if capture_review:
+        for folder, count in summary.folder_file_counts.items():
+            owning_root = next((root.resolve() for root in roots if Path(folder).is_relative_to(root.resolve())), Path(folder))
+            depth = None if max_depth is None else max(0, max_depth - len(Path(folder).relative_to(owning_root).parts))
+            result.review[folder] = {"path": folder, "count": count, **snapshot(folder, exclude_roots or [], depth),
+                                     "excludes": [str(path) for path in exclude_roots or []], "max_depth": depth,
+                                     "root": str(owning_root), "queries": [], "candidates": [], "name_hint": "", "stale": False}
+            old = (review_history or {}).get(folder, {})
+            item = result.review[folder]
+            unchanged = old.get("fingerprint") == item["fingerprint"]
+            item["queries"] = [dict(query) if unchanged else {**query, "status": "stale"} for query in old.get("queries", [])]
+            item["candidates"] = [{"artist_id": query["artist_id"], "name": query["name"], "source": "online_pid"}
+                                  for query in item["queries"] if query["status"] == "resolved"]
+        for hit in summary.name_only_artists.values():
+            result.review[str(hit.folder)]["name_hint"] = hit.artist_name
+
+    def resolve_hit(hit):
+        item = result.review.get(str(hit.folder))
+        def remember(query):
+            item["queries"] = [old for old in item["queries"] if old["pid"] != query["pid"]] + [query]
+            item["queried_now"] = True
+        kwargs = {"on_query": remember} if item is not None else {}
+        if item is not None:
+            used = {query["pid"] for query in item["queries"]}
+            additional = resolver.select_resolution_work_ids(hit.work_ids - used, max(0, 30 - len(used)))
+            hit = replace(hit, work_ids=(hit.work_ids & used) | set(additional))
+            if not hit.work_ids:
+                return None
+        try:
+            return resolver.resolve_name_only_artist(
+                hit, max_work_ids=min(30, max(1, resolve_limit)), delay_seconds=max(0.0, resolve_delay),
+                cookie=pixiv_cookie, allow_insecure_ssl_fallback=allow_insecure_ssl_fallback, **kwargs)
+        except resolver.PixivResolveError as exc:
+            if item is not None:
+                item["error"] = str(exc)
+                item["conflict"] = isinstance(exc, resolver.PixivAuthorConflict)
+            raise
     if cancelled():
         result.cancelled = True
         return result
@@ -142,6 +183,18 @@ def collect_resolved_hits(
     name_only_hits = list(summary.name_only_artists.values())
     save_path_index = build_artist_save_path_index(existing_db)
     work_id_index = build_artist_work_id_index(existing_db)
+    all_owners = {}
+    for artist in existing_db.artists.values():
+        for pid in artist.work_ids:
+            all_owners.setdefault(pid, []).append(artist)
+    for item in result.review.values():
+        owners = {}
+        for pid in item["samples"]:
+            for artist in all_owners.get(pid, []):
+                owners[artist.id] = {"artist_id": artist.id, "name": artist.name or "", "source": "local_work_id"}
+        if len(owners) > 1:
+            item["conflict"] = True
+            item["candidates"] = list(owners.values())
     name_index: dict[str, list[str]] = {}
     for artist in existing_db.artists.values():
         name = resolver.normalize_artist_display_name(artist.name or "")
@@ -226,13 +279,7 @@ def collect_resolved_hits(
             name=hit.artist_name,
         )
         try:
-            resolved = resolver.resolve_name_only_artist(
-                hit,
-                max_work_ids=max(1, resolve_limit),
-                delay_seconds=max(0.0, resolve_delay),
-                cookie=pixiv_cookie,
-                allow_insecure_ssl_fallback=allow_insecure_ssl_fallback,
-            )
+            resolved = resolve_hit(hit)
         except resolver.PixivAuthorConflict as exc:
             conflicted_hit_keys.add(hit.artist_key)
             result.resolve_errors.append(str(exc))
@@ -291,13 +338,7 @@ def collect_resolved_hits(
             work_ids=set(work_ids),
         )
         try:
-            resolved = resolver.resolve_name_only_artist(
-                synthetic,
-                max_work_ids=max(1, resolve_limit),
-                delay_seconds=max(0.0, resolve_delay),
-                cookie=pixiv_cookie,
-                allow_insecure_ssl_fallback=allow_insecure_ssl_fallback,
-            )
+            resolved = resolve_hit(synthetic)
         except resolver.PixivAuthorConflict as exc:
             result.resolve_errors.append(str(exc))
             consecutive_errors = 0

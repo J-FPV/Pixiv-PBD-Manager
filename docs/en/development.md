@@ -6,6 +6,10 @@ This document is for people who want to modify, test, package, or release the pr
 
 ## Current GUI Direction
 
+### Library Organization (Unreleased)
+
+Review evidence, native directory synchronization and collection identity/backup contracts are described in [Library organization](library-organization.md). New focused tests: `test_scan_review.py`, `test_library_sync.py`, `test_collections.py`, `scan-review.spec.ts` and `collections.spec.ts`. The Rust tests exercise real recursive Windows notifications; `scripts/benchmark_library_sync.py` checks 30,000 local records and large-project backup/undo.
+
 ### Recovery Transactions (Unreleased)
 
 `pixiv_pbd_manager/recovery/` owns cross-process guards, allowlisted archives, consistent SQLite snapshots and prepared-write journals. Each GUI IPC process has a recovery session: slow discovery stays outside locks, while commits check the restore epoch. Replaying a journal is idempotent and annotation restoration never rewinds media bindings. The frontend suspends autosave during restore and reloads afterward.

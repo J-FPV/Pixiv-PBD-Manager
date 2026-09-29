@@ -7,6 +7,7 @@ import json
 import os
 from pathlib import Path
 import sqlite3
+import time
 from tempfile import NamedTemporaryFile
 from uuid import uuid4
 
@@ -96,6 +97,8 @@ class AnnotationStore:
                                                 [("version", "1"), ("store_id", uuid4().hex)])
                 if self.get_meta("version") != "1":
                     raise RuntimeError("Unsupported annotation database version")
+                if "first_seen_ns" not in {row[1] for row in self.connection.execute("PRAGMA table_info(images)")}:
+                    self.connection.execute("ALTER TABLE images ADD COLUMN first_seen_ns INTEGER")
                 self.store_id = self.get_meta("store_id")
                 if raw and raw.get("annotation_store_id") not in (None, "", self.store_id):
                     raise RuntimeError("Library index belongs to another annotation database")
@@ -163,15 +166,15 @@ class AnnotationStore:
     def at_path(self, path: str) -> dict | None:
         return self.decode(self.connection.execute("SELECT * FROM images WHERE binding_key=?", (path_key(path),)).fetchone())
 
-    def insert(self, image: LibraryImage, *, body: dict | None = None, sig: list | None = None, root: str = "") -> str:
+    def insert(self, image: LibraryImage, *, body: dict | None = None, sig: list | None = None, root: str = "", discovered=False) -> str:
         body = body or dict(EMPTY)
         image_id = uuid4().hex
         self.connection.execute(
-            """INSERT OR IGNORE INTO images(id,path,binding_key,signature,body,revision,root)
-               VALUES (?,?,?,?,?,?,?)""",
+            """INSERT OR IGNORE INTO images(id,path,binding_key,signature,body,revision,root,first_seen_ns)
+               VALUES (?,?,?,?,?,?,?,?)""",
             (image_id, image.path, path_key(image.path),
              json.dumps(sig or [image.size_bytes, image.mtime_ns, "", ""]),
-             json.dumps(body, ensure_ascii=True), int(body != EMPTY), root),
+             json.dumps(body, ensure_ascii=True), int(body != EMPTY), root, time.time_ns() if discovered else None),
         )
         return self.at_path(image.path)["id"]
 
@@ -199,6 +202,7 @@ class AnnotationStore:
             row = by_path.get(path_key(image.path))
             image.image_id = row["id"] if row else ""
             image.annotation_revision = row["revision"] if row else 0
+            image.first_seen_ns = row["first_seen_ns"] if row else None
             body = row["body"] if row else EMPTY
             image.tags = list(body["tags"])
             image.favorite = body["favorite"]

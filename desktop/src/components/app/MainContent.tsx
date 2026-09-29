@@ -64,8 +64,8 @@ export function MainContent({
       ) : null}
       {s.activeTab === "unmatched" ? (
         <UnmatchedView
-          language={s.language}
-          folders={s.unmatchedFolders}
+          language={s.language} folders={s.unmatchedFolders}
+          settings={s.settings} onArtists={s.setArtists}
           pendingExclude={s.pendingExcludeFolders}
           excludeFolder={artistActions.excludeFolder}
           assignFolder={artistActions.assignUnmatchedFolder}

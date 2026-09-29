@@ -17,6 +17,7 @@ class RecoverySession:
     def __init__(self, payload, command, emit):
         from ..gui_api.payload import base_dir, db_path, resolve_path, settings_path
         from ..library.annotation_store import annotation_path
+        from ..library.collections import collection_path
         from ..paths import DEFAULT_LIBRARY_INDEX, DATA_DIR
         self.payload, self.command, self.emit = payload, command, emit
         self.directory = base_dir(payload) / DATA_DIR
@@ -29,8 +30,9 @@ class RecoverySession:
         self.artists = db_path(payload, settings).resolve()
         self.index = resolve_path(payload.get("library_index") or DEFAULT_LIBRARY_INDEX, base_dir(payload)).resolve()
         self.annotations = annotation_path(self.index)
+        self.collections = collection_path(self.index)
         self.dataset = hashlib.sha256(canonical([str(self.artists).casefold(), str(self.annotations).casefold()]).encode()).hexdigest()
-        self.resources = [self.directory, self.artists, self.annotations, self.settings]
+        self.resources = [self.directory, self.artists, self.annotations, self.settings, self.collections]
         self.baselines = {}
         self.prepared_categories = set()
         self.committing = False

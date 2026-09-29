@@ -44,7 +44,7 @@ async function openScan(page: Page) {
 }
 
 async function expectUnmatched(page: Page, paths: string[]) {
-  await page.getByRole("button", { name: "未识别文件夹", exact: true }).click();
+  await page.getByRole("button", { name: "待处理", exact: true }).click();
   await expect(page.locator(".unmatchedRow .pathText")).toHaveText(paths);
 }
 

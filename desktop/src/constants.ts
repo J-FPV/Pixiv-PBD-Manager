@@ -43,7 +43,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   update_check_depth: 0,
   update_check_pages: 0,
   separate_r18: false,
-  show_progress_percent: true
+  show_progress_percent: true,
+  auto_sync: true
 };
 
 // LocalStorage keys. Versioned so we can change shapes without crashing old installs.

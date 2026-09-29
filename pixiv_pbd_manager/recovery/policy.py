@@ -9,6 +9,9 @@ UNDO_ARTISTS = {"artists.assign_folder", "artists.rename", "artists.set_save_pat
 UNDO_IMAGES = {"library.set_tags", "library.update_metadata"}
 CHECKPOINTS = {"scan.apply", "scan.run", "artists.remove", "artists.add_tag", "artists.set_tags", "artists.rename_tag", "artists.delete_tag", "artists.assign_tag", "artists.rebuild_work_index.apply", "artists.refresh_names", "artists.rename"}
 BOOLEAN_KEYS = set("resolve_online fuzzy_search ssl_fallback similar_skip_pixiv_pages scan_local_subfolders scan_recognize_low_pids separate_r18 show_progress_percent".split())
+CHECKPOINTS.add("scan.review.apply")
+SETTINGS_KEYS.add("auto_sync")
+BOOLEAN_KEYS.add("auto_sync")
 TEXT_KEYS = {"language", "theme", "quarantine_dir", "browser", "user_data_dir", "similar_threshold"}
 PATH_LIST_KEYS = {"download_roots", "exclude_roots"}
 
@@ -58,7 +61,7 @@ def clean_settings(value):
             valid = item is None or finite_number(item)
         if not valid:
             raise ValueError(f"Invalid setting in backup: {key}")
-    for key, allowed in {"theme": ("light", "dark", "system"), "language": ("zh", "en"), "similar_threshold": ("likely", "possible")}.items():
+    for key, allowed in {"theme": ("light", "dark", "system"), "language": ("zh", "en", "ja", "es", "fr", "de"), "similar_threshold": ("likely", "possible")}.items():
         if result.get(key) is not None and result[key] not in allowed:
             raise ValueError(f"Unsupported setting in backup: {key}")
     prefs = result.get("ui_preferences")

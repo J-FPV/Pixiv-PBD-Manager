@@ -105,6 +105,7 @@ class LibraryImage:
     created_ns: int | None = None
     image_id: str = ""
     annotation_revision: int = 0
+    first_seen_ns: int | None = None
 
     @classmethod
     def from_json(cls, raw: dict[str, Any]) -> "LibraryImage":
@@ -128,6 +129,7 @@ class LibraryImage:
             markers=_clean_markers(raw.get("markers")),
             image_id=str(raw.get("image_id") or ""),
             annotation_revision=int(raw.get("annotation_revision") or 0),
+            first_seen_ns=int(raw["first_seen_ns"]) if raw.get("first_seen_ns") is not None else None,
         )
 
     def to_json(self) -> dict[str, Any]:
@@ -150,6 +152,7 @@ class LibraryImage:
             "markers": _clean_markers(self.markers),
             "image_id": self.image_id,
             "annotation_revision": self.annotation_revision,
+            "first_seen_ns": self.first_seen_ns,
         }
 
     @property
@@ -239,6 +242,7 @@ def build_catalog(
     progress_interval: int = 100,
     max_errors: int = 200,
     should_cancel=None,
+    file_paths: list[Path] | None = None,
 ) -> tuple[list[LibraryImage], CatalogSummary]:
     pid_map = pid_to_artist or {}
     save_index = save_path_index or {}
@@ -246,7 +250,7 @@ def build_catalog(
     old = old_catalog or {}
     images: list[LibraryImage] = []
     summary = CatalogSummary()
-    paths_list = list(iter_image_files(roots, exclude_roots))
+    paths_list = list(iter_image_files(roots, exclude_roots)) if file_paths is None else file_paths
     total = len(paths_list)
     step = _progress_step(total, progress_interval)
     emit(progress_callback, PROGRESS_LIBRARY_START, total_files=total)

@@ -137,7 +137,16 @@ def undo(payload, _emit):
         operation = _latest(session, payload.get("id"))
         body = json.loads(operation["body"])
         write = body["writes"][0]
-        if operation["category"] == "annotations":
+        if operation["category"] == "collections":
+            from ...library.collections import CollectionStore
+            records = []
+            with CollectionStore(session.collections) as store:
+                for record in write["records"]:
+                    if store.get(record["id"]) != record["after"]:
+                        raise ValueError("Undo conflict: collection has changed")
+                    records.append({"id": record["id"], "before": record["after"], "after": record["before"]})
+            writes = [{"kind": "collections", "path": str(session.collections), "records": records}]
+        elif operation["category"] == "annotations":
             from ...library.annotation_store import AnnotationStore
             with session.suspended(), AnnotationStore(session.index) as store:
                 records = []

@@ -8,6 +8,8 @@ This README is written for people who just want to use the app. Development note
 
 The unreleased development version adds Settings → Backup & recovery: automatic organization-data backups, category restores, and persistent undo for the last 20 image-annotation or manual artist-assignment edits. See [Backup and undo](docs/en/backup-recovery.md).
 
+Development also adds a persistent review queue, runtime incremental folder synchronization, smart collections and project collections. See [Folder sync and collections](docs/en/library-organization.md). These changes are not published yet.
+
 ## Download And Install
 
 Windows x64 installers are available:

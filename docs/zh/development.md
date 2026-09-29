@@ -6,6 +6,10 @@
 
 ## 当前 GUI 路线
 
+### 图库整理（开发版）
+
+待处理证据、原生目录监听、合集身份及备份协议见[目录同步与合集](library-organization.md)。重点测试为 `test_scan_review.py`、`test_library_sync.py`、`test_collections.py`、`scan-review.spec.ts`、`collections.spec.ts`；Rust 测试覆盖真实 Windows 深层目录事件，`scripts/benchmark_library_sync.py` 验证三万图片局部合并及大项目备份、撤销。
+
 ### 备份事务（开发版）
 
 `pixiv_pbd_manager/recovery/` 管理跨进程锁、白名单 ZIP、SQLite 一致性快照和持久化提交日志。GUI IPC 每个进程拥有恢复会话；耗时查询在锁外运行，JSON/标注提交受短锁和恢复代次保护。恢复日志可重复执行，更新标注时不回退身份绑定。前端恢复入口暂停自动保存并在完成后重载，禁止旧状态写回。

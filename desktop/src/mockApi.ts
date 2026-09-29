@@ -21,6 +21,8 @@ import type { ApiEvent, ImageThumbnailPayload, LibraryImage, LibraryIndexStatus,
 import { mockAnnotationCommand, mockAnnotationStatus } from "./mockAnnotations";
 import { applyLibraryMetadataPatch } from "./hooks/useLibraryMetadata";
 import { mockRecoveryCommand, recordMockEdit } from "./mockRecovery";
+import { mockReviewCommand } from "./mockReview";
+import { mockCollectionsCommand } from "./mockCollections";
 
 const MOCK_INDEX_STATUS: LibraryIndexStatus = {
   index_exists: true,
@@ -52,6 +54,8 @@ function imageForPath(path: string): LibraryImage {
 
 function mockCommand(commandName: string, payload: object, onEvent?: (event: ApiEvent) => void): unknown {
   const values = payload as Record<string, unknown>;
+  if (commandName.startsWith("scan.review.")) return mockReviewCommand(commandName, values);
+  if (commandName.startsWith("collections.")) return mockCollectionsCommand(commandName, values);
   if (commandName.startsWith("backup.") || commandName.startsWith("history.")) return mockRecoveryCommand(commandName, values);
   switch (commandName) {
     case "settings.get":

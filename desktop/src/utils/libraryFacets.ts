@@ -90,7 +90,8 @@ export function buildLibraryFilterIndex(images: LibraryImage[]): LibraryFilterIn
 export function filterAndComputeFacets(
   index: LibraryFilterIndexEntry[],
   filters: LibraryFilters,
-  labelFor: (dim: FacetDimension, value: string) => string
+  labelFor: (dim: FacetDimension, value: string) => string,
+  now = Date.now()
 ): { visibleImages: LibraryImage[]; facets: LibraryFacets } {
   const selected = {} as Record<FacetDimension, Set<string>>;
   const counts = {} as Record<FacetDimension, Map<string, number>>;
@@ -102,6 +103,8 @@ export function filterAndComputeFacets(
   const visibleImages: LibraryImage[] = [];
 
   for (const entry of index) {
+    if (filters.not_used && entry.image.markers.includes("used")) continue;
+    if (filters.added_within_days && (!entry.image.first_seen_ns || entry.image.first_seen_ns / 1_000_000 < now - filters.added_within_days * 86_400_000)) continue;
     if (keyword && !entry.keywordText.includes(keyword)) {
       continue;
     }

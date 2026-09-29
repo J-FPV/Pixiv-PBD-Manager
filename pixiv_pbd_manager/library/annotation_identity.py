@@ -63,7 +63,7 @@ def path_missing(path: str) -> bool:
     return False
 
 
-def reconcile(store: AnnotationStore, images: list, roots: list[Path], should_cancel=None) -> list:
+def reconcile(store: AnnotationStore, images: list, roots: list[Path], should_cancel=None, *, missing_paths=None) -> list:
     """Only publish bindings after completing discovery and validating both sides."""
     old = store.records()
     by_path = {row["binding_key"]: row for row in old if row["binding_key"]}
@@ -100,15 +100,32 @@ def reconcile(store: AnnotationStore, images: list, roots: list[Path], should_ca
                 detached[row["id"]] = (row, "changed")
 
     for row in old:
-        if row["status"] == "linked" and row["binding_key"] not in current and is_absent(row):
+        if row["status"] == "linked" and row["binding_key"] not in current and (missing_paths is None or row["path"] in missing_paths) and is_absent(row):
             detached[row["id"]] = (row, "missing")
+
+    # A unique physical file identity survives an in-volume move even before a
+    # user has annotated it. Never use an existing duplicate as a donor.
+    physical_old, physical_new = defaultdict(list), defaultdict(list)
+    for row, _state in detached.values():
+        if not row["revision"] and not row["sha256"] and row["signature"][3] not in ("", "0"):
+            physical_old[tuple(row["signature"])].append(row)
+    for key, (_image, sig) in current.items():
+        if key not in assignments:
+            physical_new[tuple(sig)].append(key)
+    for sig, rows in physical_old.items():
+        keys = physical_new[sig]
+        if len(rows) == len(keys) == 1:
+            assignments[keys[0]] = rows[0]
+            detached.pop(rows[0]["id"], None)
 
     # Existing copies that still have a location are never donors. A file-id
     # match can establish a directory rename even when the old root vanished.
     donors = []
     assigned_ids = {value["id"] for value in assignments.values()}
     for row in old:
-        if not row["revision"] or not row["sha256"] or row["status"] not in ("linked", "missing", "changed"):
+        if not row["sha256"] or row["status"] not in ("linked", "missing", "changed"):
+            continue
+        if missing_paths is not None and row["status"] == "linked" and row["path"] not in missing_paths and row["id"] not in detached:
             continue
         if row["id"] in assigned_ids:
             continue
@@ -174,9 +191,11 @@ def reconcile(store: AnnotationStore, images: list, roots: list[Path], should_ca
                 # hashing; never overwrite that more recent identity decision.
                 fresh = store.get(row["id"])
                 if fresh["binding_revision"] == row["binding_revision"]:
-                    store.bind(row, image.path, sig, root_for(image.path, roots))
+                    root = root_for(image.path, roots)
+                    if (row["path"], row["signature"], row["root"], row["status"], row["error"]) != (image.path, sig, root, "linked", ""):
+                        store.bind(row, image.path, sig, root)
             elif not store.at_path(image.path):
-                store.insert(image, sig=sig, root=root_for(image.path, roots))
+                store.insert(image, sig=sig, root=root_for(image.path, roots), discovered=True)
     bound = {row[0] for row in store.connection.execute("SELECT binding_key FROM images WHERE binding_key IS NOT NULL")}
     result = [image for key, (image, _) in current.items() if key in bound]
     store.overlay(result)

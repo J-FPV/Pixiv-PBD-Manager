@@ -128,6 +128,7 @@ export interface AppSettings {
   update_check_pages?: number;
   separate_r18?: boolean;
   show_progress_percent?: boolean;
+  auto_sync?: boolean;
 }
 
 export interface SettingsPayload {

@@ -1,8 +1,10 @@
 import type { Dictionary } from "./i18n";
 import { recoveryEn } from "./i18n.recovery";
+import { reviewEn } from "./i18n.review";
 
 export const en: Dictionary = {
   ...recoveryEn,
+  ...reviewEn,
   annotationRecovery: "Unlinked annotations",
   protectAnnotations: "Protecting annotations",
   resumeProtection: "Resume annotation protection",
@@ -123,8 +125,8 @@ export const en: Dictionary = {
   clearAll: "Clear all",
   search: "Search",
   clearSearch: "Clear search",
-  unmatched: "Unmatched",
-  unmatchedHint: "Folders the scanner could not attribute to any artist. Exclude them, or use Add with the folder as its save path.",
+  unmatched: "Review queue",
+  unmatchedHint: "No folders to review",
   unmatchedCount: "Files",
   excludeFolder: "Exclude",
   assignArtist: "Assign artist",

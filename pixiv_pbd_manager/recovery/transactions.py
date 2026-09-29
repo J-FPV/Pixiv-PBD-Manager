@@ -37,6 +37,10 @@ def apply_writes(writes, reverse=False):
     from ..paths import write_json_atomic
     source, destination = ("after", "before") if reverse else ("before", "after")
     for write in reversed(writes) if reverse else writes:
+        if write["kind"] == "collections":
+            from ..library.collections import apply_records
+            apply_records(write, reverse)
+            continue
         if write["kind"] == "annotations":
             _annotations(write, reverse)
             continue

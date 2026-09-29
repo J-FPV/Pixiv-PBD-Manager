@@ -1,17 +1,21 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { LibraryImage } from "../types";
 
 export function useLibrarySelection(images: LibraryImage[], visibleImages: LibraryImage[]) {
   const [selectedPaths, setSelectedPaths] = useState<Set<string>>(() => new Set());
   const [batchOpen, setBatchOpen] = useState(false);
+  const previousImages = useRef(images);
   const selectedImages = useMemo(() => images.filter((image) => selectedPaths.has(image.path)), [images, selectedPaths]);
   const allVisibleSelected = visibleImages.length > 0 && visibleImages.every((image) => selectedPaths.has(image.path));
 
   useEffect(() => {
     const available = new Set(images.map((image) => image.path));
+    const byId = new Map(images.filter((image) => image.image_id).map((image) => [image.image_id, image.path]));
+    const previousIds = new Map(previousImages.current.map((image) => [image.path, image.image_id]));
+    previousImages.current = images;
     setSelectedPaths((current) => {
-      const next = new Set([...current].filter((path) => available.has(path)));
-      return next.size === current.size ? current : next;
+      const next = new Set([...current].map((path) => byId.get(previousIds.get(path) || "") || path).filter((path) => available.has(path)));
+      return next.size === current.size && [...next].every((path) => current.has(path)) ? current : next;
     });
   }, [images]);
 

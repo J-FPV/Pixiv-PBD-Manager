@@ -16,15 +16,31 @@ import json
 import os
 import sys
 import traceback
+from contextlib import nullcontext
 from pathlib import Path
 from typing import Callable
 
 from .commands import app_info, artists, cleanup, doctor, files, library, library_annotations, recovery, scan, settings, similar, updates
 from .payload import resolve_base_dir
+from .commands import scan_review
+from .commands import library_sync
+from .commands import collections
 from .runtime import CONTROL, Emitter, JsonDict, emit_event, start_control_reader
 
 
 COMMANDS: dict[str, Callable[[JsonDict, Emitter], JsonDict]] = {
+    "library.sync": library_sync.sync,
+    "collections.list": collections.list_collections,
+    "collections.create": collections.create,
+    "collections.update": collections.update,
+    "collections.delete": collections.delete,
+    "collections.members.add": collections.add_members,
+    "collections.members.remove": collections.remove_members,
+    "scan.review.list": scan_review.list_items,
+    "scan.review.detail": scan_review.detail,
+    "scan.review.retry": scan_review.retry,
+    "scan.review.sample": scan_review.sample,
+    "scan.review.apply": scan_review.apply,
     "backup.list": recovery.list_backups,
     "backup.create": recovery.create,
     "backup.preview": recovery.preview,
@@ -100,8 +116,11 @@ def run_command(command: str, payload: JsonDict | None = None, *, emit: Emitter 
             result = handler(payload, emit)
         else:
             from ..recovery.session import RecoverySession
+            from ..recovery.locking import data_lock
             with RecoverySession(payload, command, emit) as session:
-                result = handler(payload, emit)
+                pause_sync = command.startswith(("scan.", "cleanup.")) or command in ("library.scan", "backup.restore", "history.undo")
+                with data_lock([session.directory / "sync-commit"]) if pause_sync else nullcontext():
+                    result = handler(payload, emit)
                 if isinstance(result, dict) and session.last_undo:
                     result["undo_operation"] = {"id": session.last_undo, "command": command}
     except Exception as exc:  # noqa: BLE001 -- this is the top-level handler boundary

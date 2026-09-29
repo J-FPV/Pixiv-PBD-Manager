@@ -13,9 +13,11 @@ import type {
 import type { AppState } from "./useAppState";
 import { useLibraryMetadata } from "./useLibraryMetadata";
 import { useAnnotationProtection } from "./useAnnotationProtection";
+import { useDirectorySync, type DirectorySyncController } from "./useDirectorySync";
 export { applyLibraryMetadataPatch } from "./useLibraryMetadata";
 
 export interface LibraryActions {
+  directorySync: DirectorySyncController;
   protectAnnotations: () => void;
   loadLibrary: () => Promise<void>;
   scanLibrary: () => void;
@@ -39,6 +41,7 @@ export function useLibraryActions(s: AppState): LibraryActions {
     s.setLibraryLoaded(true);
   };
   const metadata = useLibraryMetadata(s, loadLibrary);
+  const directorySync = useDirectorySync(s, metadata.mergeDelta);
   const protectAnnotations = useAnnotationProtection(s, loadLibrary);
 
   const scanCatalog = (settings: AppSettings, label: string, reload: boolean) =>
@@ -62,6 +65,7 @@ export function useLibraryActions(s: AppState): LibraryActions {
   const scanLibrary = () => void scanCatalog(s.settings, t(s.language, "scanLibrary"), true);
 
   const refreshIndexIfStale = async (settings: AppSettings) => {
+    if (settings.auto_sync !== false && !(import.meta.env.DEV && import.meta.env.VITE_GUI_API_MODE === "mock")) return;
     try {
       const status = await runGuiApi<LibraryIndexStatus>("library.status", settings, s.handleEvent);
       s.setLibraryIndexStatus(status);
@@ -148,6 +152,7 @@ export function useLibraryActions(s: AppState): LibraryActions {
   };
 
   return {
+    directorySync,
     protectAnnotations,
     loadLibrary,
     scanLibrary,

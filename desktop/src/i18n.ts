@@ -5,9 +5,11 @@ import { es } from "./i18n.es";
 import { fr } from "./i18n.fr";
 import { de } from "./i18n.de";
 import { recoveryZh } from "./i18n.recovery";
+import { reviewZh } from "./i18n.review";
 
 const zh = {
   ...recoveryZh,
+  ...reviewZh,
   annotationRecovery: "待恢复标注",
   protectAnnotations: "保护图片标注",
   resumeProtection: "继续保护标注",
@@ -128,8 +130,8 @@ const zh = {
   clearAll: "取消全选",
   search: "搜索",
   clearSearch: "清空搜索",
-  unmatched: "未识别文件夹",
-  unmatchedHint: "扫描时无法归属到任何艺术家的文件夹。可逐个排除，或回到此目录使用「添加」手动归属。",
+  unmatched: "待处理",
+  unmatchedHint: "没有待处理的文件夹",
   unmatchedCount: "文件数",
   excludeFolder: "排除",
   assignArtist: "指定作者",

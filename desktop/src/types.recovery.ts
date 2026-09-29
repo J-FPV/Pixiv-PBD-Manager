@@ -1,4 +1,4 @@
-export type BackupCategory = "artists" | "annotations" | "settings";
+export type BackupCategory = "artists" | "annotations" | "settings" | "collections";
 export interface BackupEntry {
   id: string; created: string; kind: string; reason: string; size: number;
   categories: BackupCategory[]; available: boolean;

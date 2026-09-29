@@ -32,6 +32,7 @@ export interface LibraryImage {
   size_bytes: number;
   mtime_ns: number;
   created_ns: number | null;
+  first_seen_ns?: number | null;
   width: number;
   height: number;
   resolution: string;
@@ -54,6 +55,8 @@ export interface LibraryImage {
 // Every filter dimension is a multi-select set (OR within a dimension, AND
 // across dimensions); `keyword` is a free-text path/name search.
 export interface LibraryFilters {
+  not_used?: boolean;
+  added_within_days?: number | null;
   keyword: string;
   artists: string[];
   folders: string[];

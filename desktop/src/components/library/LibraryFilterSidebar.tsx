@@ -2,6 +2,7 @@ import { t } from "../../i18n";
 import type { Language, LibraryFacets, LibraryFilters } from "../../types";
 import type { FacetDimension } from "../../utils/libraryFacets";
 import { LibraryFilterSection } from "./LibraryFilterSection";
+import type { ReactNode } from "react";
 
 const SECTIONS: { dim: FacetDimension; labelKey: Parameters<typeof t>[1] }[] = [
   { dim: "artists", labelKey: "artist" },
@@ -22,7 +23,8 @@ export function LibraryFilterSidebar({
   filters,
   width,
   onToggle,
-  onClear
+  onClear,
+  children
 }: {
   language: Language;
   facets: LibraryFacets;
@@ -30,10 +32,12 @@ export function LibraryFilterSidebar({
   width: number;
   onToggle: (dim: FacetDimension, value: string) => void;
   onClear: () => void;
+  children?: ReactNode;
 }) {
   const hasActive = SECTIONS.some((section) => filters[section.dim].length);
   return (
     <aside className="libraryFilterSidebar" style={{ width, flexBasis: width }}>
+      {children}
       <div className="filterSidebarHead">
         <span>{t(language, "libraryFilters")}</span>
         {hasActive ? (

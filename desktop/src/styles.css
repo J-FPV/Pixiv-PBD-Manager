@@ -1,5 +1,6 @@
 @import "./annotations.css";
 @import "./recovery.css";
+@import "./review.css";
 
 :root {
   color-scheme: light;
@@ -2379,7 +2380,7 @@ body.col-resizing .colHandle::after {
 
 /* Image Library */
 .libraryManagerPanel {
-  grid-template-rows: auto auto 1fr;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
 }
 
 .libraryCount {

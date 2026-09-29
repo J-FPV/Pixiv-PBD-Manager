@@ -15,7 +15,7 @@ from .policy import canonical, clean_settings
 from .store import now
 
 MAX_BYTES = 1024 ** 3
-MEMBERS = {"manifest.json", "artists.json", "settings.json", "annotations.sqlite3"}
+MEMBERS = {"manifest.json", "artists.json", "settings.json", "annotations.sqlite3", "collections.sqlite3"}
 
 
 def digest(data):
@@ -80,34 +80,36 @@ def annotation_data(path):
 
 
 def create_archive(session, kind, reason, categories=None):
-    categories = categories or ["artists", "annotations", "settings"]
+    categories = categories or ["artists", "annotations", "settings", "collections"]
     identity = uuid4().hex
     folder = session.directory / "backups"
     folder.mkdir(exist_ok=True)
     target = folder / f"{identity}.zip"
     temp = target.with_suffix(".tmp")
-    manifest = {"version": 1, "id": identity, "created": now(), "source": session.dataset,
+    manifest = {"version": 2, "id": identity, "created": now(), "source": session.dataset,
                 "kind": kind, "reason": reason, "files": {}}
     fingerprints = {}
     try:
         with TemporaryDirectory(prefix="pbd-backup-") as staging, ZipFile(temp, "w", ZIP_DEFLATED) as archive:
             for category in categories:
                 session.check_cancel()
-                if category == "annotations":
-                    if not session.annotations.exists() and session.index.exists():
+                if category in ("annotations", "collections"):
+                    source_path = getattr(session, category)
+                    if category == "annotations" and not session.annotations.exists() and session.index.exists():
                         from ..library.annotation_store import AnnotationStore
                         with session.suspended(), AnnotationStore(session.index):
                             pass
-                    if not session.annotations.exists():
+                    if not source_path.exists():
                         continue
-                    path = Path(staging) / "annotations.sqlite3"
-                    with closing(sqlite3.connect(session.annotations.resolve().as_uri() + "?mode=ro", uri=True)) as source:
+                    path = Path(staging) / f"{category}.sqlite3"
+                    with closing(sqlite3.connect(source_path.resolve().as_uri() + "?mode=ro", uri=True)) as source:
                         with closing(sqlite3.connect(path)) as destination:
                             source.backup(destination, pages=256, progress=lambda *_: session.check_cancel())
-                    value = annotation_data(path)
+                    from ..library.collections import read_backup
+                    value = annotation_data(path) if category == "annotations" else read_backup(path)
                     # Only user values and identity affect backup deduplication.
                     fingerprints[category] = digest(canonical(value).encode())
-                    data, name = path.read_bytes(), "annotations.sqlite3"
+                    data, name = path.read_bytes(), path.name
                 else:
                     value = read_json(getattr(session, category))
                     value = artist_data(value) if category == "artists" else clean_settings(value)
@@ -177,8 +179,10 @@ def inspect_archive(path):
             if stat.S_ISLNK(mode) or entry.flag_bits & 1 or entry.file_size > max(1024 * 1024, entry.compress_size * 1000):
                 raise ValueError("Unsafe compressed backup member")
         manifest = json.loads(archive.read("manifest.json"))
-        if not isinstance(manifest, dict) or manifest.get("version") != 1 or not isinstance(manifest.get("files"), dict):
+        if not isinstance(manifest, dict) or manifest.get("version") not in (1, 2) or not isinstance(manifest.get("files"), dict):
             raise ValueError("Unsupported backup version")
+        if manifest["version"] == 1 and "collections.sqlite3" in names:
+            raise ValueError("Collections require backup format v2")
         if set(manifest["files"]) != set(names) - {"manifest.json"}:
             raise ValueError("Backup manifest does not match package")
         values = {}
@@ -186,13 +190,14 @@ def inspect_archive(path):
             if not isinstance(expected, dict):
                 raise ValueError("Invalid backup manifest entry")
             data = archive.read(name)
-            category = {"artists.json": "artists", "settings.json": "settings", "annotations.sqlite3": "annotations"}[name]
+            category = {"artists.json": "artists", "settings.json": "settings", "annotations.sqlite3": "annotations", "collections.sqlite3": "collections"}[name]
             if expected.get("category") != category or expected.get("size") != len(data) or expected.get("sha256") != digest(data):
                 raise ValueError("Backup checksum mismatch")
-            if category == "annotations":
+            if category in ("annotations", "collections"):
                 temporary = Path(staging) / name
                 temporary.write_bytes(data)
-                values[category] = annotation_data(temporary)
+                from ..library.collections import read_backup
+                values[category] = annotation_data(temporary) if category == "annotations" else read_backup(temporary)
             else:
                 value = json.loads(data)
                 values[category] = artist_data(value) if category == "artists" else clean_settings(value)

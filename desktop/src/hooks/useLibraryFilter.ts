@@ -1,4 +1,5 @@
 import { useCallback, useMemo } from "react";
+import { useLibraryClock } from "./useLibraryClock";
 import { t } from "../i18n";
 import type { Language, LibraryFilters, LibraryImage } from "../types";
 import {
@@ -24,6 +25,7 @@ function basename(path: string): string {
 // `visibleImages` applies every active filter; `facets` counts each dimension
 // over the set matching all *other* filters so sibling options stay visible.
 export function useLibraryFilter(images: LibraryImage[], filters: LibraryFilters, language: Language) {
+  const now = useLibraryClock(Boolean(filters.added_within_days));
   const index = useMemo(() => buildLibraryFilterIndex(images), [images]);
   const artistNames = useMemo(() => {
     const map = new Map<string, string>();
@@ -72,5 +74,5 @@ export function useLibraryFilter(images: LibraryImage[], filters: LibraryFilters
     [artistNames, language]
   );
 
-  return useMemo(() => filterAndComputeFacets(index, filters, labelFor), [filters, index, labelFor]);
+  return useMemo(() => filterAndComputeFacets(index, filters, labelFor, now), [filters, index, labelFor, now]);
 }

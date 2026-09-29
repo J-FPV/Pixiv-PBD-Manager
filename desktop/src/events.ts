@@ -7,6 +7,8 @@
 // Local-scan pipeline
 export const PROGRESS_RECOVERY = "progress_recovery";
 export const PROGRESS_SCAN_START = "progress_scan_start";
+export const PROGRESS_SCAN_REVIEW = "progress_scan_review";
+export const PROGRESS_COLLECTIONS = "progress_collections";
 export const PROGRESS_SCAN_FILES = "progress_scan_files";
 export const PROGRESS_SCAN_DONE = "progress_scan_done";
 export const PROGRESS_RESOLVE_ARTIST = "progress_resolve_artist";

@@ -3,6 +3,7 @@ import { runGuiApi } from "../api";
 import { t } from "../i18n";
 import type { LibraryImage, LibraryMetadataPatch, LibraryMetadataResult } from "../types";
 import type { AppState } from "./useAppState";
+import type { SyncDelta } from "../types.sync";
 
 export function applyLibraryMetadataPatch(image: LibraryImage, patch: LibraryMetadataPatch): LibraryImage {
   const markers = new Set(patch.markers ?? image.markers);
@@ -82,5 +83,17 @@ export function useLibraryMetadata(s: AppState, reload: () => Promise<void>) {
       throw reason;
     }
   };
-  return { update, mergeSnapshot };
+  const mergeDelta = (delta: SyncDelta) => s.setLibraryImages((current) => {
+    const removed = new Set(delta.removed), incoming = new Map(delta.upserts.map((image) => [image.path, image]));
+    const byId = new Map(current.map((image) => [image.image_id, image]));
+    const next = current.filter((image) => !removed.has(image.path)).map((image) => {
+      const value = incoming.get(image.path);
+      if (!value) return image;
+      incoming.delete(image.path);
+      return reapply(mergeAnnotationResponse(image, value));
+    });
+    for (const image of incoming.values()) next.push(reapply(byId.has(image.image_id) ? mergeAnnotationResponse(byId.get(image.image_id)!, image) : image));
+    return next;
+  });
+  return { update, mergeSnapshot, mergeDelta };
 }

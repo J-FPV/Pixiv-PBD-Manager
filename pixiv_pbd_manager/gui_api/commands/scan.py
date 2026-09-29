@@ -7,6 +7,10 @@ from typing import Any
 from ...cookie_store import load_cookie
 from ...database import ArtistDatabase
 from ...operations import apply_scan_changes, preview_scan_changes, scan_into_database
+from ...scan_review import database_signature, open_reviews
+from ...scan_review import snapshot
+from ...recovery import ACTIVE
+from contextlib import nullcontext
 from ..payload import as_bool, as_float, as_int, base_dir, db_path, paths
 from ..runtime import CONTROL, Emitter, JsonDict, make_progress_callback
 from ..serializers import artist_to_json, scan_result_to_json
@@ -58,6 +62,9 @@ def preview(payload: JsonDict, emit_event: Emitter) -> JsonDict:
     base = base_dir(payload)
     roots = paths(payload.get("roots") or settings.get("download_roots"), base)
     exclude_roots = paths(payload.get("exclude_roots") or settings.get("exclude_roots"), base)
+    baseline = database_signature(db_path(payload, settings))
+    with open_reviews(payload, settings) as store:
+        history = {item["path"]: item for item in store.rows()}
     result = preview_scan_changes(
         roots,
         db_path(payload, settings),
@@ -73,7 +80,24 @@ def preview(payload: JsonDict, emit_event: Emitter) -> JsonDict:
         allow_low_pids=as_bool(payload, "scan_recognize_low_pids", bool(settings.get("scan_recognize_low_pids", False))),
         should_cancel=CONTROL.is_cancelled,
         progress_callback=make_progress_callback(emit_event),
+        capture_review=True,
+        review_history=history,
     )
+    with open_reviews(payload, settings) as store:
+        for item in result.review:
+            queried = item.pop("queried_now", False)
+            previous = history.get(item["path"])
+            if result.cancelled and previous and not queried:
+                if item["fingerprint"] != previous.get("fingerprint"):
+                    store.save({**previous, "stale": True}, previous["revision"])
+                continue
+            for query in item["queries"]:
+                if query.get("artist_id") and query["status"] == "resolved":
+                    item["candidates"].append({"artist_id": query["artist_id"], "name": query["name"], "source": "online_pid"})
+            item["database_signature"] = baseline
+            item["stale"] = baseline != database_signature(db_path(payload, settings))
+            store.save(item)
+        store.discard_assigned(ArtistDatabase.load(db_path(payload, settings)), settings.get("exclude_roots", []))
     summary = result.summary
     unmatched: list[dict] = []
     if summary is not None:
@@ -97,6 +121,21 @@ def preview(payload: JsonDict, emit_event: Emitter) -> JsonDict:
 
 
 def apply(payload: JsonDict, _emit_event: Emitter) -> JsonDict:
+    settings = load_settings_for_payload(payload)
+    session = ACTIVE.get()
+    with session.guard() if session else nullcontext():
+        ids = {str(op.get("artist_id")) for op in payload.get("operations", []) if isinstance(op, dict)}
+        with open_reviews(payload, settings) as store:
+            for item in store.rows():
+                if not any(candidate["artist_id"] in ids for candidate in item["candidates"]):
+                    continue
+                now = snapshot(item["path"], item.get("excludes", []), item.get("max_depth"))
+                if item.get("stale") or now["unavailable"] or now["fingerprint"] != item.get("fingerprint") or item.get("database_signature") != database_signature(db_path(payload, settings)):
+                    raise ValueError("Scan result is stale; verify the folder before applying")
+            return _apply(payload, _emit_event)
+
+
+def _apply(payload: JsonDict, _emit_event: Emitter) -> JsonDict:
     settings = load_settings_for_payload(payload)
     operations = payload.get("operations")
     if not isinstance(operations, list):

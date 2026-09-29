@@ -53,6 +53,7 @@ class ScanPreviewResult:
     ssl_fallback_used: int = 0
     resolve_errors: list[str] = field(default_factory=list)
     cancelled: bool = False
+    review: list[dict] = field(default_factory=list)
 
 
 @dataclass
@@ -295,6 +296,8 @@ def preview_scan_changes(
     allow_low_pids: bool = False,
     should_cancel: Callable[[], bool] | None = None,
     progress_callback: ProgressCallback | None = None,
+    capture_review: bool = False,
+    review_history: dict[str, dict] | None = None,
 ) -> ScanPreviewResult:
     """Run the scan but produce a diff of proposed changes instead of writing.
 
@@ -319,10 +322,24 @@ def preview_scan_changes(
         allow_low_pids=allow_low_pids,
         should_cancel=should_cancel,
         progress_callback=progress_callback,
+        capture_review=capture_review,
+        review_history=review_history,
     )
     proposed: dict[str, dict] = {}
     for hit in pipeline.hits:
-        _accumulate_hit(proposed, hit)
+        item = pipeline.review.get(str(hit.folder))
+        if item is not None:
+            item["candidates"].append({"artist_id": hit.artist_id, "name": hit.artist_name or "", "source": hit.source})
+            item.setdefault("work_ids", []).extend(sorted(hit.work_ids))
+    folder_authors: dict[str, set[str]] = {}
+    for hit in pipeline.hits:
+        folder_authors.setdefault(str(hit.folder), set()).add(hit.artist_id)
+    for hit in pipeline.hits:
+        item = pipeline.review.get(str(hit.folder), {})
+        ids = {candidate["artist_id"] for candidate in item.get("candidates", [])}
+        ids.update(query["artist_id"] for query in item.get("queries", []) if query["status"] == "resolved")
+        if len(folder_authors[str(hit.folder)]) == 1 and len(ids) <= 1 and not item.get("conflict"):
+            _accumulate_hit(proposed, hit)
     # A suggested match is not an assignment until the user applies its path.
     # Include every scanned candidate not covered by the persisted database.
     save_roots = known_save_roots(db)
@@ -340,6 +357,7 @@ def preview_scan_changes(
         ssl_fallback_used=pipeline.ssl_fallback_used,
         resolve_errors=pipeline.resolve_errors,
         cancelled=pipeline.cancelled,
+        review=list(pipeline.review.values()),
     )
 
 

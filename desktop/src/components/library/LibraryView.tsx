@@ -25,6 +25,10 @@ import { LibraryFilterSidebar } from "./LibraryFilterSidebar";
 import { LibraryGrid } from "./LibraryGrid";
 import { LibrarySelectionBar } from "./LibrarySelectionBar";
 import { LibraryToolbar } from "./LibraryToolbar";
+import { useCollections } from "../../hooks/useCollections";
+import { CollectionsPane } from "./CollectionsPane";
+import { CollectionActions } from "./CollectionActions";
+import type { ReactNode } from "react";
 
 const AnnotationRecoveryModal = lazy(() => import("./AnnotationRecoveryModal")
   .then((module) => ({ default: module.AnnotationRecoveryModal })));
@@ -69,6 +73,8 @@ function useDeferredLibraryFilters(filters: LibraryFilters): LibraryFilters {
   const effectiveFilters = useMemo<LibraryFilters>(
     () => ({
       keyword: debouncedKeyword,
+      not_used: filters.not_used,
+      added_within_days: filters.added_within_days,
       artists: filters.artists,
       folders: filters.folders,
       tags: filters.tags,
@@ -82,6 +88,7 @@ function useDeferredLibraryFilters(filters: LibraryFilters): LibraryFilters {
     }),
     [
       debouncedKeyword,
+      filters.not_used, filters.added_within_days,
       filters.artists,
       filters.folders,
       filters.tags,
@@ -126,7 +133,8 @@ function LibraryFilterPane({
   filters,
   sidebar,
   onToggle,
-  onClear
+  onClear,
+  children
 }: {
   language: Language;
   facets: ReturnType<typeof useLibraryFilter>["facets"];
@@ -134,6 +142,7 @@ function LibraryFilterPane({
   sidebar: ReturnType<typeof useResizablePanel>;
   onToggle: (dim: FacetDimension, value: string) => void;
   onClear: () => void;
+  children: ReactNode;
 }) {
   return (
     <>
@@ -144,6 +153,7 @@ function LibraryFilterPane({
         width={sidebar.width}
         onToggle={onToggle}
         onClear={onClear}
+        children={children}
       />
       <div
         className="librarySidebarResizeHandle"
@@ -206,6 +216,7 @@ function LibraryOverlays({
 export function LibraryView(props: LibraryViewProps) {
   const { language, images, loaded, needsScan, busy, selectedPath, setSelectedPath, loadLibrary } = props;
   const [filters, setFilters] = useState<LibraryFilters>(EMPTY_LIBRARY_FILTERS);
+  const collections = useCollections(images, setFilters, props.setSort);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [view, setView] = useState<"gallery" | "doctor">("gallery");
   const [recoveryOpen, setRecoveryOpen] = useState(false);
@@ -214,16 +225,13 @@ export function LibraryView(props: LibraryViewProps) {
   const sidebar = useResizablePanel({
     storageKey: LIBRARY_SIDEBAR_WIDTH_KEY,
     containerRef: libraryBodyRef,
-    defaultWidth: 240,
-    minWidth: 180,
-    maxWidth: 520,
-    reservedWidth: 300
+    defaultWidth: 240, minWidth: 180, maxWidth: 520, reservedWidth: 300
   });
   // Keyword changes are deferred so large catalogs do not refilter per keypress.
   const deferredFilters = useDeferredLibraryFilters(filters);
   // Per-image metadata changes should paint in the detail panel immediately.
   // Defer the expensive whole-catalog facet rebuild so it cannot block clicks.
-  const deferredImages = useDeferredValue(images);
+  const deferredImages = useDeferredValue(collections.collectionImages);
   const { visibleImages: filteredImages, facets } = useLibraryFilter(deferredImages, deferredFilters, language);
   const { sortedImages: visibleImages, sortResetKey } = useLibrarySort(filteredImages, props.sort, language);
   const selection = useLibrarySelection(images, visibleImages);
@@ -295,7 +303,7 @@ export function LibraryView(props: LibraryViewProps) {
         )}
       />
       <div className="libraryBody" ref={libraryBodyRef}>
-        {sidebarOpen && images.length ? (
+        {sidebarOpen ? (
           <LibraryFilterPane
             language={language}
             facets={facets}
@@ -303,6 +311,7 @@ export function LibraryView(props: LibraryViewProps) {
             sidebar={sidebar}
             onToggle={toggleFilter}
             onClear={() => setFilters((current) => ({ ...EMPTY_LIBRARY_FILTERS, keyword: current.keyword }))}
+            children={<CollectionsPane language={language} controller={collections} filters={filters} sort={props.sort} setFilters={setFilters} />}
           />
         ) : null}
         {loaded && needsScan && !images.length ? <LibraryEmptyState
@@ -317,6 +326,7 @@ export function LibraryView(props: LibraryViewProps) {
           onToggleSelected={selection.togglePath}
         />}
       </div>
+      <CollectionActions language={language} controller={collections} selected={selection.selectedImages} images={images} sort={props.sort} />
       {sidebar.resizing ? <div className="panelResizeOverlay" /> : null}
       <LibraryOverlays
         props={props}

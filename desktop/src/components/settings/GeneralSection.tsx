@@ -220,6 +220,7 @@ export function GeneralSection({
         </label>
       </div>
       <div className="checkColumn">
+        <label><input type="checkbox" checked={settings.auto_sync !== false} onChange={(event) => update("auto_sync", event.target.checked)} /><span>{t(language, "autoSync")}</span></label>
         <label>
           <input
             type="checkbox"

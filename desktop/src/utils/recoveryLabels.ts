@@ -3,8 +3,9 @@ import type { Language } from "../types";
 import type { BackupCategory } from "../types.recovery";
 
 export const categoryLabel = (language: Language, category: BackupCategory) =>
-  t(language, category === "artists" ? "backupArtists" : category === "annotations" ? "backupAnnotations" : "backupSettings");
+  t(language, category === "artists" ? "backupArtists" : category === "annotations" ? "backupAnnotations" : category === "collections" ? "backupCollections" : "backupSettings");
 export function operationLabel(language: Language, command: string) {
+  if (command.startsWith("collections.")) return t(language, "backupCollections");
   switch (command) {
     case "artists.assign_folder": return t(language, "historyAssign");
     case "artists.rename": return t(language, "historyRename");
