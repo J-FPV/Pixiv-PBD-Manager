@@ -92,10 +92,11 @@ def read_backup(path):
         for kind, name in connection.execute("SELECT type,name FROM sqlite_master WHERE name NOT LIKE 'sqlite_%'"):
             if kind not in ("table", "index") or kind == "table" and name not in ("meta", "collections"):
                 raise ValueError("Unsupported collection backup schema")
-        if dict(connection.execute("SELECT key,value FROM meta")).get("version") != "1":
-            raise ValueError("Unsupported collection backup version")
+        # Check integrity before reading any table, as annotation backups do.
         if connection.execute("PRAGMA quick_check").fetchone()[0] != "ok":
             raise ValueError("Damaged collection backup")
+        if dict(connection.execute("SELECT key,value FROM meta")).get("version") != "1":
+            raise ValueError("Unsupported collection backup version")
         rows = []
         for identity, text in connection.execute("SELECT id,body FROM collections"):
             body = validate(json.loads(text))

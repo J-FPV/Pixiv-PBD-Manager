@@ -65,11 +65,14 @@ export function useLibraryActions(s: AppState): LibraryActions {
   const scanLibrary = () => void scanCatalog(s.settings, t(s.language, "scanLibrary"), true);
 
   const refreshIndexIfStale = async (settings: AppSettings) => {
-    if (settings.auto_sync !== false && !(import.meta.env.DEV && import.meta.env.VITE_GUI_API_MODE === "mock")) return;
+    // Auto sync's startup audit refreshes a stale index itself, but the status
+    // still resumes annotation protection that an earlier session left unfinished.
+    const synced = settings.auto_sync !== false && !(import.meta.env.DEV && import.meta.env.VITE_GUI_API_MODE === "mock");
     try {
       const status = await runGuiApi<LibraryIndexStatus>("library.status", settings, s.handleEvent);
-      s.setLibraryIndexStatus(status);
       if (status.annotation_status) s.setAnnotationStatus(status.annotation_status);
+      if (synced) return;
+      s.setLibraryIndexStatus(status);
       if (!status.stale || !settings.download_roots?.length) {
         return;
       }

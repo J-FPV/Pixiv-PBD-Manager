@@ -232,7 +232,12 @@ def normalize_scan_roots(roots: list[Path], *, max_depth: int | None = None) -> 
     """Collapse covered roots only when the ancestor walk has unlimited depth."""
     unique: dict[str, tuple[int, Path]] = {}
     for index, path in enumerate(roots):
-        resolved = path.expanduser().resolve()
+        try:
+            resolved = path.expanduser().resolve()
+        except OSError:
+            # Python 3.9 raises for some offline network volumes; keep the root
+            # so callers can report it unavailable instead of failing outright.
+            resolved = path.expanduser()
         unique.setdefault(os.path.normcase(str(resolved)), (index, resolved))
 
     ordered = sorted(unique.values(), key=lambda item: (len(item[1].parts), item[0]))

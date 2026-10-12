@@ -3,8 +3,14 @@ import { invoke } from "@tauri-apps/api/core";
 import { resolve } from "@tauri-apps/api/path";
 import { runGuiApi } from "../api";
 import { isRecoveryLocked } from "../utils/recoveryGate";
+import { useDebouncedValue } from "./useDebouncedValue";
 import type { NativeSyncStatus, SyncDelta } from "../types.sync";
 import type { AppState } from "./useAppState";
+
+// Polling runs every second; keep the previous array when nothing changed so
+// App does not re-render on every tick.
+const sameList = (next: string[]) => (current: string[]) =>
+  current.length === next.length && current.every((value, index) => value === next[index]) ? current : next;
 
 export function useDirectorySync(s: AppState, mergeDelta: (delta: SyncDelta) => void) {
   const [paused, setPaused] = useState(false);
@@ -15,12 +21,15 @@ export function useDirectorySync(s: AppState, mergeDelta: (delta: SyncDelta) => 
   const [pending, setPending] = useState(0);
   const latest = useRef({ s, paused, mergeDelta });
   useEffect(() => { latest.current = { s, paused, mergeDelta }; });
-  const roots = JSON.stringify(s.settings.download_roots || []);
-  const excludes = JSON.stringify([...new Set([...(s.settings.exclude_roots || []), s.settings.quarantine_dir,
+  const liveRoots = JSON.stringify(s.settings.download_roots || []);
+  const liveExcludes = JSON.stringify([...new Set([...(s.settings.exclude_roots || []), s.settings.quarantine_dir,
     ...s.cleanupSummary.operations.map((operation) => operation.quarantine_root),
     /^[A-Za-z]:[\\/]|^\//.test(s.projectRootValue) ? `${s.projectRootValue}/.pixiv-pbd-manager` : ""].filter(Boolean))]);
-  const enabled = s.settings.auto_sync !== false && roots !== "[]";
-  const base = s.projectRootValue;
+  const liveEnabled = s.settings.auto_sync !== false && liveRoots !== "[]";
+  // Settings autosave 800 ms after the last edit. Reconfigure only once editing
+  // has settled, so a half-typed root never restarts the watcher and a full audit.
+  const settled = useDebouncedValue(JSON.stringify([liveRoots, liveExcludes, liveEnabled, s.projectRootValue]), 1500);
+  const [roots, excludes, enabled, base] = JSON.parse(settled) as [string, string, boolean, string];
   useEffect(() => {
     if (import.meta.env.DEV && import.meta.env.VITE_GUI_API_MODE === "mock") return;
     let disposed = false, polling = false, retryAfter = 0;
@@ -38,24 +47,30 @@ export function useDirectorySync(s: AppState, mergeDelta: (delta: SyncDelta) => 
         const status = await invoke<NativeSyncStatus>("poll_directory_sync", { paused: state.paused || state.s.anyBusy || isRecoveryLocked() });
         if (disposed) return;
         setError(status.error);
-        setUnavailable(status.unavailable);
+        setUnavailable(sameList(status.unavailable));
         const batch = status.batch;
         if (!batch) return;
         setRunning(true);
         let success = false, retryPaths: string[] = [], unavailablePaths: string[] = [];
         try {
-          const result = await runGuiApi<SyncDelta>("library.sync", { ...state.s.settings, changed_paths: batch.paths, full: batch.full }, (event) => {
+          // No settings in the payload: Python syncs the saved roots and excludes,
+          // never in-progress edits, and rejects the batch if they change mid-run.
+          const result = await runGuiApi<SyncDelta>("library.sync", { changed_paths: batch.paths, full: batch.full }, (event) => {
             if (event.type === "progress" && !disposed) {
               const payload = event.payload as { files?: number; total_files?: number };
               if (payload?.files !== undefined) setProgress(`${payload.files} / ${payload.total_files ?? ""}`);
             }
           }, { signal: abort.signal, gracefulCancel: true });
           success = !result.cancelled;
-          if (!success || disposed) return;
+          if (!success) return;
           retryPaths = result.pending;
-          setPending(retryPaths.length);
           unavailablePaths = result.unavailable.map((item) => item.path);
-          setUnavailable([...new Set([...status.unavailable, ...result.unavailable.map((item) => item.path)])]);
+          if (!disposed) {
+            setPending(retryPaths.length);
+            setUnavailable(sameList([...new Set([...status.unavailable, ...unavailablePaths])]));
+          }
+          // The batch is committed even when a reconfigure disposed this run
+          // meanwhile; the next audit will not report these changes again.
           const current = latest.current.s;
           const selectedId = current.libraryImages.find((image) => image.path === current.librarySelectedPath)?.image_id;
           const moved = selectedId && result.upserts.find((image) => image.image_id === selectedId);

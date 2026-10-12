@@ -328,9 +328,19 @@ def load_library_index(path: Path = DEFAULT_LIBRARY_INDEX) -> dict[str, LibraryI
     if not path.exists():
         return {}
     try:
-        raw = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
+        data = path.read_bytes()
+    except OSError:
         return {}
+    return read_library_index(data)[0]
+
+
+def read_library_index(data: bytes) -> tuple[dict[str, LibraryImage], str]:
+    """Parse index bytes into its entries and annotation store id. Callers that
+    fingerprint the same bytes know exactly which version they parsed."""
+    try:
+        raw = json.loads(data.decode("utf-8"))
+    except json.JSONDecodeError:
+        return {}, ""
     entries = raw.get("entries") or {}
     result: dict[str, LibraryImage] = {}
     for item_path, item in entries.items():
@@ -341,7 +351,7 @@ def load_library_index(path: Path = DEFAULT_LIBRARY_INDEX) -> dict[str, LibraryI
         except (KeyError, TypeError, ValueError):
             continue
         result[image.path] = image
-    return result
+    return result, str(raw.get("annotation_store_id") or "")
 
 
 def save_library_index(images: Any, path: Path = DEFAULT_LIBRARY_INDEX, *, annotation_store_id: str = "") -> None:

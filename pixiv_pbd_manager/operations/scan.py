@@ -15,7 +15,7 @@ thin: each calls the pipeline, then walks the resulting hits in its own way.
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 from ..database import ArtistDatabase
@@ -338,8 +338,10 @@ def preview_scan_changes(
         item = pipeline.review.get(str(hit.folder), {})
         ids = {candidate["artist_id"] for candidate in item.get("candidates", [])}
         ids.update(query["artist_id"] for query in item.get("queries", []) if query["status"] == "resolved")
-        if len(folder_authors[str(hit.folder)]) == 1 and len(ids) <= 1 and not item.get("conflict"):
-            _accumulate_hit(proposed, hit)
+        attributable = len(folder_authors[str(hit.folder)]) == 1 and len(ids) <= 1 and not item.get("conflict")
+        # An ambiguous folder still proves each author's work ids; it just cannot
+        # become one author's save path, so it stays in review instead.
+        _accumulate_hit(proposed, hit if attributable else replace(hit, folder=None))
     # A suggested match is not an assignment until the user applies its path.
     # Include every scanned candidate not covered by the persisted database.
     save_roots = known_save_roots(db)

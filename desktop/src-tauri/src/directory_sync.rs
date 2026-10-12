@@ -2,7 +2,7 @@ use notify::{Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use serde::Serialize;
 use std::{
     collections::BTreeSet,
-    path::PathBuf,
+    path::{Path, PathBuf},
     sync::{Arc, Mutex},
     time::{Duration, Instant},
 };
@@ -11,7 +11,7 @@ use std::{
 pub struct Batch {
     token: u64,
     generation: u64,
-    paths: Vec<PathBuf>,
+    paths: Vec<String>,
     full: bool,
 }
 
@@ -97,7 +97,7 @@ impl Queue {
         if !self.enabled || paused || self.flight.is_some() {
             return None;
         }
-        if self.audit.elapsed() >= Duration::from_secs(900) {
+        if self.audit.elapsed() >= AUDIT_INTERVAL {
             self.full = true;
         }
         let ready = self.last.elapsed() >= Duration::from_secs(1)
@@ -105,11 +105,19 @@ impl Queue {
         if !self.full && (self.pending.is_empty() || !ready) {
             return None;
         }
+        // Paths reach Python as JSON text. A name that is not valid Unicode (an
+        // unpaired UTF-16 surrogate on Windows) would fail serialization after
+        // the batch is claimed and wedge the queue; rescan its folder instead.
+        let paths: BTreeSet<&str> = self
+            .pending
+            .iter()
+            .filter_map(|path| path.ancestors().find_map(Path::to_str))
+            .collect();
         self.token += 1;
         let batch = Batch {
             token: self.token,
             generation: self.generation,
-            paths: self.pending.iter().cloned().collect(),
+            paths: paths.into_iter().map(str::to_owned).collect(),
             full: self.full,
         };
         self.pending.clear();
@@ -120,7 +128,25 @@ impl Queue {
         self.flight = Some(batch.clone());
         Some(batch)
     }
+
+    // Python reports the scope it could not walk. Re-arm the configured roots
+    // that contain it; a scope folder must never become a watched root.
+    fn report_unavailable(&mut self, paths: &[PathBuf]) {
+        let roots: Vec<PathBuf> = self
+            .roots
+            .iter()
+            .filter(|root| paths.iter().any(|path| path.starts_with(root)))
+            .cloned()
+            .collect();
+        for root in roots {
+            if !self.unavailable.contains(&root) {
+                self.unavailable.push(root);
+            }
+        }
+    }
 }
+
+const AUDIT_INTERVAL: Duration = Duration::from_secs(900);
 
 #[derive(Default)]
 pub struct DirectorySync {
@@ -152,7 +178,9 @@ pub struct SyncStatus {
     batch: Option<Batch>,
 }
 
-#[tauri::command]
+// `async` runs these on the async runtime's threads, not the UI thread:
+// watch() and is_dir() on an offline network root block for the SMB timeout.
+#[tauri::command(async)]
 pub fn configure_directory_sync(
     state: tauri::State<'_, DirectorySync>,
     roots: Vec<PathBuf>,
@@ -203,34 +231,64 @@ pub fn configure_directory_sync(
             queue.unavailable.push(root);
         }
     }
-    *state.watcher.lock().map_err(|e| e.to_string())? = Some(watcher);
+    // A newer configure may have finished first; its watcher must win.
+    let mut slot = state.watcher.lock().map_err(|e| e.to_string())?;
+    if state.queue.lock().map_err(|e| e.to_string())?.generation == generation {
+        *slot = Some(watcher);
+    }
     Ok(generation)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn poll_directory_sync(
     state: tauri::State<'_, DirectorySync>,
     paused: bool,
 ) -> Result<SyncStatus, String> {
-    let retry = {
+    let (generation, roots) = {
         let mut queue = state.queue.lock().map_err(|e| e.to_string())?;
-        if queue.enabled && queue.reconnect.elapsed() >= Duration::from_secs(60) {
+        let due = queue.enabled && queue.reconnect.elapsed() >= Duration::from_secs(60);
+        if due {
             queue.reconnect = Instant::now();
-            let roots = queue.roots.clone();
-            for root in roots {
-                if !root.is_dir() && !queue.unavailable.contains(&root) {
+        }
+        (
+            queue.generation,
+            if due { queue.roots.clone() } else { vec![] },
+        )
+    };
+    // Probe without the queue lock so a slow network root never stalls the
+    // watcher callback or acknowledge.
+    let offline: Vec<PathBuf> = roots
+        .iter()
+        .filter(|root| !root.is_dir())
+        .cloned()
+        .collect();
+    let retry = if roots.is_empty() {
+        vec![]
+    } else {
+        let mut queue = state.queue.lock().map_err(|e| e.to_string())?;
+        if queue.generation != generation {
+            vec![]
+        } else {
+            for root in offline {
+                if !queue.unavailable.contains(&root) {
                     queue.unavailable.push(root);
                 }
             }
-            queue.unavailable.clone()
-        } else {
-            vec![]
+            // On Windows notify drops a watch silently after a network error or
+            // overflow. Re-arm every root right before the periodic audit, whose
+            // full walk covers anything the dropped watch missed.
+            if queue.audit.elapsed() >= AUDIT_INTERVAL {
+                queue.roots.clone()
+            } else {
+                queue.unavailable.clone()
+            }
         }
     };
     if !retry.is_empty() {
         let mut slot = state.watcher.lock().map_err(|e| e.to_string())?;
-        if slot.is_none() {
-            let generation = state.queue.lock().map_err(|e| e.to_string())?.generation;
+        // A configure that ran meanwhile owns the watcher; leave it alone.
+        let current = state.queue.lock().map_err(|e| e.to_string())?.generation == generation;
+        if current && slot.is_none() {
             match make_watcher(&state.queue, generation) {
                 Ok(watcher) => *slot = Some(watcher),
                 Err(error) => {
@@ -238,11 +296,14 @@ pub fn poll_directory_sync(
                 }
             }
         }
-        if let Some(watcher) = slot.as_mut() {
+        if let Some(watcher) = slot.as_mut().filter(|_| current) {
             for root in retry {
                 let _ = watcher.unwatch(&root);
                 if watcher.watch(&root, RecursiveMode::Recursive).is_ok() {
                     let mut queue = state.queue.lock().map_err(|e| e.to_string())?;
+                    if queue.generation != generation {
+                        break;
+                    }
                     queue.unavailable.retain(|path| path != &root);
                     queue.pending.insert(root);
                     queue.first = Instant::now();
@@ -283,14 +344,12 @@ pub fn acknowledge_directory_sync(
     let batch = queue.flight.take().unwrap();
     if !success {
         queue.full |= batch.full;
-        queue.pending.extend(batch.paths);
+        queue
+            .pending
+            .extend(batch.paths.into_iter().map(PathBuf::from));
     }
     queue.pending.extend(retry_paths);
-    for path in unavailable_paths {
-        if !queue.unavailable.contains(&path) {
-            queue.unavailable.push(path);
-        }
-    }
+    queue.report_unavailable(&unavailable_paths);
     queue.first = Instant::now();
     queue.last = queue.first;
     Ok(())
@@ -311,8 +370,40 @@ mod tests {
         let first = queue.claim(false).unwrap();
         queue.pending.insert(PathBuf::from("b"));
         assert!(queue.claim(false).is_none());
-        assert_eq!(first.paths, vec![PathBuf::from("a")]);
+        assert_eq!(first.paths, vec!["a".to_string()]);
         assert_eq!(queue.pending.len(), 1);
+    }
+    #[test]
+    fn unavailable_scopes_map_to_their_root() {
+        let mut queue = Queue {
+            roots: vec![PathBuf::from("/library")],
+            ..Queue::default()
+        };
+        queue.report_unavailable(&[PathBuf::from("/library/a/b"), PathBuf::from("/elsewhere")]);
+        queue.report_unavailable(&[PathBuf::from("/library")]);
+        assert_eq!(queue.unavailable, vec![PathBuf::from("/library")]);
+    }
+    #[test]
+    fn unrepresentable_names_fall_back_to_their_folder() {
+        #[cfg(windows)]
+        let name = {
+            use std::os::windows::ffi::OsStringExt;
+            std::ffi::OsString::from_wide(&[0xD800])
+        };
+        #[cfg(unix)]
+        let name = {
+            use std::os::unix::ffi::OsStrExt;
+            std::ffi::OsStr::from_bytes(&[0xFF]).to_owned()
+        };
+        let mut queue = Queue {
+            enabled: true,
+            full: true,
+            ..Queue::default()
+        };
+        queue.pending.insert(PathBuf::from("/library/a").join(name));
+        let batch = queue.claim(false).unwrap();
+        assert_eq!(batch.paths, vec!["/library/a".to_string()]);
+        assert!(serde_json::to_string(&batch).is_ok());
     }
     #[test]
     fn paused_audits_remain_pending() {

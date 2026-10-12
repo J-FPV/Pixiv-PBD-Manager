@@ -162,8 +162,10 @@ export async function runMockGuiApi<T>(
     throw new Error(`${commandName} cancelled`);
   }
   options.onStart?.({ pause: () => undefined, resume: () => undefined });
-  if (commandName === "library.update_metadata") {
-    await new Promise((resolve) => window.setTimeout(resolve, 250));
+  // Tests set `pbd-mock-delay` to act while a command is still running.
+  const delay = commandName === "library.update_metadata" ? 250 : Number(sessionStorage.getItem("pbd-mock-delay") || 0);
+  if (delay) {
+    await new Promise((resolve) => window.setTimeout(resolve, delay));
   } else {
     await Promise.resolve();
   }

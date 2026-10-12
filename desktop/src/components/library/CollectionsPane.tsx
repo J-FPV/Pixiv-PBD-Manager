@@ -12,6 +12,7 @@ export function CollectionsPane({ language, controller: c, filters, sort, setFil
 }) {
   const [dialog, setDialog] = useState<{ mode: "create" | "rename" | "delete"; kind: ImageCollection["kind"]; id?: string; revision?: string } | null>(null);
   const [name, setName] = useState("");
+  const [daysDraft, setDaysDraft] = useState<string | null>(null);
   const open = (mode: "rename" | "delete", item: ImageCollection) => { setName(item.name); setDialog({ mode, kind: item.kind, id: item.id, revision: item.revision }); };
   const submit = async () => {
     if (!dialog) return;
@@ -32,7 +33,13 @@ export function CollectionsPane({ language, controller: c, filters, sort, setFil
     <div className="collectionConditions">
       <label><input type="checkbox" checked={Boolean(filters.not_used)} onChange={(event) => setFilters({ ...filters, not_used: event.target.checked })} />{t(language, "collectionNotUsed")}</label>
       <label><input type="checkbox" checked={Boolean(filters.added_within_days)} onChange={(event) => setFilters({ ...filters, added_within_days: event.target.checked ? 30 : null })} />{t(language, "collectionRecent")}</label>
-      {filters.added_within_days && <label><input aria-label={t(language, "collectionDays")} type="number" min={1} max={36500} value={filters.added_within_days} onChange={(event) => setFilters({ ...filters, added_within_days: Math.max(1, Math.min(36500, Number(event.target.value) || 30)) })} />{t(language, "collectionDays")}</label>}
+      {filters.added_within_days && <label><input aria-label={t(language, "collectionDays")} type="number" min={1} max={36500} step={1} value={daysDraft ?? filters.added_within_days} onBlur={() => setDaysDraft(null)} onChange={(event) => {
+        // Keep the typed text and apply only whole days in range, so clearing the
+        // field to type a new number never snaps back or saves a fraction.
+        const days = Number(event.target.value);
+        setDaysDraft(event.target.value);
+        if (Number.isInteger(days) && days >= 1 && days <= 36500) setFilters({ ...filters, added_within_days: days });
+      }} />{t(language, "collectionDays")}</label>}
     </div>
     {c.chosen?.kind === "smart" && <Button disabled={c.busy} onClick={() => void c.update(filters, sort)}>{t(language, "collectionUpdate")}</Button>}
     {c.error && <p role="alert">{c.error}</p>}

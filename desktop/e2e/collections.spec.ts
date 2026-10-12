@@ -39,6 +39,19 @@ test("smart rules remain explicit, survive restart, and refresh date conditions"
   await expect(page.locator(".libraryTileOpen")).toHaveCount(1);
 });
 
+test("the recent-days field takes a new whole number without snapping back", async ({ page }) => {
+  await openLibrary(page);
+  await page.getByLabel("最近加入图库", { exact: true }).check();
+  const days = page.getByRole("spinbutton", { name: "天", exact: true });
+  await days.fill("");
+  await expect(days).toHaveValue("");
+  await days.pressSequentially("7");
+  await expect(days).toHaveValue("7");
+  await days.fill("1.5");
+  await days.blur();
+  await expect(days).toHaveValue("7");
+});
+
 test("projects retain selections, export all original members despite search, and delete only after confirmation", async ({ page }) => {
   await page.addInitScript(() => Object.assign(window, {
     dragCalls: [],

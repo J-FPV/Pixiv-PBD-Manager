@@ -1,8 +1,8 @@
 from pathlib import Path
 from uuid import uuid4
 
-from ...library.annotation_store import AnnotationStore, same_signature
-from ...library.annotation_identity import verified_hash
+from ...library.annotation_store import AnnotationStore, same_signature, signature
+from ...library.annotation_identity import ProtectionCancelled, verified_hash
 from ...library.collections import CollectionStore, validate
 from ...recovery import active
 from ...recovery.policy import canonical
@@ -103,8 +103,15 @@ def add_members(payload, emit):
             hashed = row["sha256"]
             if row["status"] == "linked":
                 # Verification happens outside the commit lock, then binding CAS
-                # below rejects concurrent replacement/quarantine decisions.
-                hashed, sig = verified_hash(row["path"], CONTROL.is_cancelled)
+                # below rejects concurrent replacement/quarantine decisions. A
+                # stored hash holds while the file keeps its signature.
+                try:
+                    if hashed:
+                        sig = signature(row["path"])
+                    else:
+                        hashed, sig = verified_hash(row["path"], CONTROL.is_cancelled)
+                except ProtectionCancelled:
+                    return {"cancelled": True}
                 if not same_signature(row["signature"], sig):
                     raise ValueError("Image changed; synchronize before adding it")
             snapshots.append(row)

@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+from contextlib import nullcontext
 import csv
 from datetime import datetime
 from pathlib import Path
@@ -26,6 +27,10 @@ from ...operations.tags import fetch_pixiv_tags
 from ...library.annotation_identity import ProtectionCancelled, reconcile
 from ...library.annotations import annotated_catalog, update_annotations
 from ...paths import DEFAULT_LIBRARY_INDEX, DEFAULT_PIXIV_TAG_CACHE
+from ...recovery import ACTIVE
+from ...recovery.collection_restore import relink_pending
+from ...recovery.locking import data_lock
+from ...scanner import normalize_exclude_roots, normalize_scan_roots
 from ..payload import as_bool, as_float, base_dir, db_path, paths, resolve_path
 from ..runtime import CONTROL, Emitter, JsonDict, make_progress_callback
 from ..serializers import library_image_to_json
@@ -44,7 +49,9 @@ def _scan_paths(payload: JsonDict, settings: JsonDict) -> tuple[list[Path], list
     base = base_dir(payload)
     roots = paths(payload.get("roots") or payload.get("download_roots") or settings.get("download_roots"), base)
     excludes = paths(payload.get("exclude_roots") or settings.get("exclude_roots"), base)
-    return roots, excludes
+    # Walk keys, the resolved paths build_catalog stores and annotation roots
+    # must share one spelling (drive-letter case, 8.3 names, junction targets).
+    return normalize_scan_roots(roots), normalize_exclude_roots(excludes)
 
 
 def index_status(payload: JsonDict, _emit_event: Emitter) -> JsonDict:
@@ -131,6 +138,9 @@ def scan(payload: JsonDict, emit_event: Emitter) -> JsonDict:
     # Re-attach tags by work id — this is what lets a moved or renamed file keep
     # them. Only fills gaps build_catalog's path-keyed carry-forward left behind.
     save_library_index_metadata(index_path, roots, exclude_roots, entry_count=len(images))
+    session = ACTIVE.get()
+    if session:
+        relink_pending(session)
     return {
         "files_seen": summary.files_seen,
         "indexed": summary.indexed,
@@ -255,13 +265,16 @@ def fetch_tags(payload: JsonDict, emit_event: Emitter) -> JsonDict:
         # Re-read and merge by PID rather than writing back our long-held
         # snapshot: this run can last minutes, during which library.set_tags or
         # library.update_metadata (separate processes) write their own full
-        # catalogs, and a wholesale write would silently revert them.
-        with annotated_catalog(index_path) as (store, fresh):
-            for image in fresh.values():
-                tags = changed.get(image.pid) if image.pid else None
-                if tags is not None:
-                    image.pixiv_tags = [dict(item) for item in tags]
-            save_library_index(fresh.values(), index_path, annotation_store_id=store.store_id)
+        # catalogs, and a wholesale write would silently revert them. A sync
+        # commit rewrites the index too, so hold its lock across both steps.
+        session = ACTIVE.get()
+        with data_lock([session.directory / "sync-commit"]) if session else nullcontext():
+            with annotated_catalog(index_path) as (store, fresh):
+                for image in fresh.values():
+                    tags = changed.get(image.pid) if image.pid else None
+                    if tags is not None:
+                        image.pixiv_tags = [dict(item) for item in tags]
+                save_library_index(fresh.values(), index_path, annotation_store_id=store.store_id)
 
     result = fetch_pixiv_tags(
         targets,

@@ -1,5 +1,6 @@
 """Review queue contracts use isolated datasets and mocked Pixiv requests."""
 
+from contextlib import contextmanager
 from pathlib import Path
 from unittest.mock import patch
 
@@ -7,7 +8,8 @@ import pytest
 
 from pixiv_pbd_manager.gui_api import run_command
 from pixiv_pbd_manager.gui_api.runtime import CONTROL
-from pixiv_pbd_manager.resolver import PixivResolveError, ResolvedArtist
+from pixiv_pbd_manager.resolver import PixivResolveError, PixivUserCandidate, ResolvedArtist
+from pixiv_pbd_manager.scan_review import ReviewStore
 
 
 @pytest.fixture
@@ -53,6 +55,16 @@ def test_persist_partial_and_stale_guard(dataset):
         call(dataset, "scan.review.apply", path=second, revision=item["revision"])
     assert len(call(dataset, "scan.review.list")["items"]) == 1
 
+
+
+def test_preview_hashes_the_database_once_not_per_folder(dataset):
+    for number in range(5):
+        image(dataset, f"F{number}-5555{number}/1000000{number}_p0.jpg")
+    from pixiv_pbd_manager.gui_api.commands import scan
+    with patch.object(scan, "database_signature", wraps=scan.database_signature) as signature:
+        call(dataset, "scan.preview")
+    assert signature.call_count == 2
+    assert len(call(dataset, "scan.review.list")["items"]) == 5
 
 def test_migration_has_no_invented_evidence(dataset):
     folder = image(dataset, "legacy/photo.jpg")
@@ -125,3 +137,74 @@ def test_offline_and_no_clues(dataset):
     assert call(dataset, "scan.review.detail", path=folder)["sample_paths"] == [str(Path(folder) / "photo.jpg")]
     Path(folder).rename(Path(folder).with_name("moved"))
     assert call(dataset, "scan.review.detail", path=folder)["unavailable"]
+
+
+def test_renamed_folder_neither_blocks_apply_nor_lingers(dataset):
+    folder = Path(image(dataset, "Artist-55555/10000001_p0.jpg"))
+    call(dataset, "scan.preview")
+    folder.rename(folder.with_name("Renamed-55555"))
+    changes = call(dataset, "scan.preview")["changes"]
+    call(dataset, "scan.apply", operations=changes)
+    assert call(dataset, "scan.review.list")["items"] == []
+
+
+def test_verify_again_keeps_low_pid_and_fuzzy_evidence(dataset):
+    low = image(dataset, "1234 LegacyArtist/photo.jpg")
+    named = image(dataset, "SomeArtist - pixiv/photo.jpg")
+    match = PixivUserCandidate("777", "SomeArtist", 0.9, "search")
+    with patch("pixiv_pbd_manager.resolver.resolve_name_by_fuzzy_search", return_value=match):
+        call(dataset, "scan.preview", resolve_online=True, fuzzy_search=True, scan_recognize_low_pids=True)
+    for path in (low, named):
+        before = call(dataset, "scan.review.detail", path=path)
+        assert before["status"] == "awaiting_confirmation"
+        call(dataset, "scan.review.retry", path=path, scan_recognize_low_pids=True)
+        after = call(dataset, "scan.review.detail", path=path)
+        assert after["candidates"] == before["candidates"] and after["status"] == "awaiting_confirmation"
+
+
+def test_ambiguous_folder_still_proposes_new_work_ids(dataset):
+    image(dataset, "Alice-55555/10000001_p0.jpg")
+    image(dataset, "Alice-55555/Bob-66666/20000001_p0.jpg")
+    call(dataset, "scan.apply", operations=call(dataset, "scan.preview")["changes"])
+    image(dataset, "Alice-55555/10000002_p0.jpg")
+    changes = {change["id"]: change for change in call(dataset, "scan.preview")["changes"]}
+    assert changes["add_work_ids:55555"]["work_ids"] == ["10000002"]
+
+
+def test_mark_stale_matches_folders_inside_and_around_changes(tmp_path):
+    store = ReviewStore(tmp_path, "dataset")
+    folders = {name: tmp_path / name for name in ("a", "b", "c", "d/e")}
+    for folder in folders.values():
+        folder.mkdir(parents=True)
+        store.save({"path": str(folder), "candidates": [], "queries": []})
+    store.mark_stale([str(folders["a"] / "x.png"), str(tmp_path / "d")], [str(folders["b"] / "sub")])
+    rows = {Path(row["path"]).relative_to(tmp_path).as_posix(): row for row in store.rows()}
+    store.close()
+    assert {name for name, row in rows.items() if row.get("stale")} == {"a", "b", "d/e"}
+    assert [name for name, row in rows.items() if row.get("unavailable")] == ["b"]
+
+
+def test_review_queries_do_not_hold_the_sync_commit_lock(dataset):
+    from pixiv_pbd_manager.recovery import locking
+    folder = image(dataset, "plain/10000000_p0.jpg")
+    call(dataset, "scan.preview")
+    held, seen, original = [], [], locking.data_lock
+
+    @contextmanager
+    def tracking(paths):
+        names = [Path(path).name for path in paths]
+        held.extend(names)
+        try:
+            with original(paths):
+                yield
+        finally:
+            for name in names:
+                held.remove(name)
+
+    def fetch(pid, **_kwargs):
+        seen.append("sync-commit" in held)
+        return ResolvedArtist("11111", "A", pid)
+    with patch.object(locking, "data_lock", tracking):
+        with patch("pixiv_pbd_manager.resolver.fetch_artwork_author", side_effect=fetch):
+            call(dataset, "scan.review.sample", path=folder, resolve_online=True)
+    assert seen == [False]

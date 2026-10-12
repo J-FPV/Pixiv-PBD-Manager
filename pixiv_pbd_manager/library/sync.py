@@ -12,8 +12,18 @@ def within(path, roots):
     return any(is_relative_to(path, root) for root in roots)
 
 
-def excluded(path, roots, excludes):
-    return not within(path.resolve(), roots) or within(path.resolve(), excludes) or path.is_symlink()
+def excluded(resolved, roots, excludes):
+    return not within(resolved, roots) or within(resolved, excludes)
+
+
+def _prefix(value):
+    return os.path.normcase(os.path.join(str(value), ""))
+
+
+def outside(paths, roots, excludes):
+    """excluded() for many normalized path strings, as plain prefix tests."""
+    inside, skipped = tuple(map(_prefix, roots)), tuple(map(_prefix, excludes))
+    return {path for path in paths if not (text := _prefix(path)).startswith(inside) or text.startswith(skipped)}
 
 
 def scopes_for(changed, roots, full=False):
@@ -35,12 +45,12 @@ def scopes_for(changed, roots, full=False):
 
 
 def discover(scopes, roots, excludes, cancelled):
-    found, completed, unavailable = {}, [], []
+    """Return files found, scopes walked, unreadable subfolders and unavailable scopes."""
+    found, completed, unreadable, unavailable = {}, [], [], []
     for scope, recursive in scopes:
         if excluded(scope, roots, excludes):
             continue
         root = next((root for root in roots if is_relative_to(scope, root)), scope)
-        errors = []
         try:
             # Probe root access separately: missing mounts are not deleted files.
             with os.scandir(root) as entries:
@@ -53,12 +63,15 @@ def discover(scopes, roots, excludes, cancelled):
                     list(entries)
                 completed.append((scope, recursive))
                 continue
-            pending = [scope]
+            pending, walked = [scope], set()
             while pending:
                 if cancelled():
                     from .annotation_identity import ProtectionCancelled
                     raise ProtectionCancelled()
                 folder = pending.pop()
+                if os.path.normcase(str(folder)) in walked:
+                    continue  # a junction back into this walk
+                walked.add(os.path.normcase(str(folder)))
                 try:
                     with os.scandir(folder) as entries:
                         for entry in entries:
@@ -66,27 +79,38 @@ def discover(scopes, roots, excludes, cancelled):
                             if entry.is_symlink():
                                 continue
                             if entry.is_dir(follow_symlinks=False):
-                                if recursive and not excluded(path, roots, excludes):
-                                    pending.append(path)
-                            elif path.suffix.lower() in IMAGE_SUFFIXES and not within(path, excludes):
-                                # The parent was already resolved/validated. Do
-                                # not resolve every regular file again on Windows.
+                                if recursive:
+                                    # Junctions are not symlinks: descend by the resolved
+                                    # target so file keys match build_catalog's paths.
+                                    target = path.resolve()
+                                    if not excluded(target, roots, excludes):
+                                        pending.append(target)
+                            elif path.suffix.lower() in IMAGE_SUFFIXES:
+                                # Excluded folders are never entered, as in a full
+                                # scan, and the parent is already resolved; do not
+                                # test or resolve every file again on Windows.
                                 stat = entry.stat(follow_symlinks=False)
                                 found[str(path)] = (stat.st_size, stat.st_mtime_ns)
-                except OSError as exc:
-                    errors.append(str(exc))
+                except OSError:
+                    if folder == scope:
+                        raise
+                    # A subfolder that cannot be listed (System Volume Information,
+                    # a legacy junction) proves nothing below it, but it does not
+                    # make the rest of the scope unavailable.
+                    unreadable.append(folder)
         except OSError as exc:
-            errors.append(str(exc))
-        if errors:
-            unavailable.append({"path": str(scope), "error": errors[0]})
+            unavailable.append({"path": str(scope), "error": str(exc)})
         else:
             completed.append((scope, recursive))
-    return found, completed, unavailable
+    return found, completed, unreadable, unavailable
 
 
-def covered(path, scopes):
-    path = Path(path)
-    return any(is_relative_to(path, scope) if recursive else path.parent == scope for scope, recursive in scopes)
+def covered(paths, scopes):
+    """The normalized paths a completed walk of `scopes` would have listed:
+    anywhere under a recursive scope, or directly inside a flat one."""
+    deep = tuple(_prefix(scope) for scope, recursive in scopes if recursive)
+    flat = {os.path.normcase(str(scope)) for scope, recursive in scopes if not recursive}
+    return {path for path in paths if _prefix(path).startswith(deep) or os.path.normcase(os.path.dirname(path)) in flat}
 
 
 def confirm_missing(paths, roots):
@@ -121,11 +145,13 @@ def confirm_missing(paths, roots):
 
 
 def stable_files(found, old, wait=time.sleep):
+    """Split new or modified files into settled and still-changing ones. Files
+    matching their index entry need no rebuild and are in neither list."""
     changed = {path: sig for path, sig in found.items() if path not in old or sig != (old[path].size_bytes, old[path].mtime_ns)}
     if changed:
         wait(1)
     stable, pending = [], []
-    for path, sig in found.items():
+    for path, sig in changed.items():
         try:
             stat = Path(path).stat()
             if (stat.st_size, stat.st_mtime_ns) != sig:

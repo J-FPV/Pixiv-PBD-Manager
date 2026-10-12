@@ -1,13 +1,16 @@
 import json
 import os
 from pathlib import Path
+import shutil
 import sqlite3
+from unittest.mock import patch
 from zipfile import ZipFile
 
 from PIL import Image
 import pytest
 
 from pixiv_pbd_manager import gui_api
+from pixiv_pbd_manager.library.annotation_identity import ProtectionCancelled
 from pixiv_pbd_manager.library.annotation_store import AnnotationStore
 from pixiv_pbd_manager.library.collections import CollectionStore
 from pixiv_pbd_manager.recovery.session import RecoverySession
@@ -68,6 +71,32 @@ def test_members_follow_move_deduplicate_and_keep_missing(library):
     call("history.undo", id=call("history.list")["latest_id"])
     assert selected(call, identity)["member_count"] == 2
 
+
+
+HASH = "pixiv_pbd_manager.gui_api.commands.collections.verified_hash"
+
+
+def test_cancel_while_hashing_new_members_is_not_an_error(library):
+    _, _, call = library
+    identity = call("collections.create", name="References", kind="project")["id"]
+    store_id = call("collections.list")["store_id"]
+    ids = [image["image_id"] for image in call("library.list")["images"]]
+    with patch(HASH, side_effect=ProtectionCancelled()):
+        assert call("collections.members.add", id=identity, store_id=store_id, image_ids=ids) == {"cancelled": True}
+    assert selected(call, identity)["member_count"] == 0
+
+
+def test_adding_members_reuses_stored_fingerprints(library):
+    _, images, call = library
+    project(call)
+    store_id = call("collections.list")["store_id"]
+    ids = [image["image_id"] for image in call("library.list")["images"]]
+    second = call("collections.create", name="Second", kind="project")["id"]
+    with patch(HASH, side_effect=AssertionError("hashed a fingerprinted file again")):
+        assert call("collections.members.add", id=second, store_id=store_id, image_ids=ids)["added"] == 2
+    Image.new("RGB", (30, 20), "green").save(images / "one.png")
+    third = call("collections.create", name="Third", kind="project")["id"]
+    assert "changed" in call("collections.members.add", id=third, store_id=store_id, image_ids=ids, error=True)
 
 def test_smart_rules_explicit_update_and_conflict_undo(library):
     root, _, call = library
@@ -133,8 +162,50 @@ def test_foreign_members_need_unique_verified_content(library, duplicate):
         records = collection_changes(session, collections)
         members = records[0]["after"]["members"]
         one_id = next(m["image_id"] for m in saved["members"] if m["path"].endswith("one.png"))
-        assert sum(not m["pending"] for m in members) == (0 if duplicate else 1)
-        assert all(m["image_id"] != one_id for m in members if not m["pending"])
+        assert sum(not m.get("pending") for m in members) == (0 if duplicate else 1)
+        assert all(m["image_id"] != one_id for m in members if not m.get("pending"))
+
+
+def test_restore_drops_foreign_member_remapped_onto_a_local_one(library):
+    root, images, call = library
+    identity = project(call)
+    other = root / "other.json"
+    from pixiv_pbd_manager.library.catalog import LibraryImage
+    from pixiv_pbd_manager.library.collections import read_backup, validate
+    from pixiv_pbd_manager.recovery.collection_restore import collection_changes
+    path = images / "one.png"
+    with RecoverySession({"_base_dir": str(root), "library_index": str(other)}, "backup.preview", lambda _: None) as session:
+        with AnnotationStore(other) as store:
+            local = store.insert(LibraryImage(path=str(path), size_bytes=path.stat().st_size, mtime_ns=path.stat().st_mtime_ns,
+                                              width=10, height=20, format="png"))
+            store_id = store.store_id
+        [saved] = [body for body in read_backup(root / ".pixiv-pbd-manager/library_index.collections.sqlite3") if body["id"] == identity]
+        saved["members"].append({"store_id": store_id, "image_id": local, "sha256": "", "size": path.stat().st_size, "path": str(path)})
+        [record] = collection_changes(session, [saved])
+    validate(record["after"])
+    assert sum(member["image_id"] == local for member in record["after"]["members"]) == 1
+
+
+
+@pytest.mark.parametrize("command", ["library.scan", "library.sync"])
+def test_members_restored_before_the_first_scan_link_after_it(library, command):
+    root, _, call = library
+    identity = project(call)
+    backup = call("backup.create")["id"]
+    for name in ("library_index.json", "library_index.annotations.sqlite3", "library_index.collections.sqlite3"):
+        (root / ".pixiv-pbd-manager" / name).unlink()  # a new machine that has not scanned yet
+    preview = call("backup.preview", id=backup, categories=["collections"])
+    call("backup.restore", id=backup, categories=["collections"], token=preview["token"])
+    assert {member["status"] for member in selected(call, identity)["members"]} == {"pending"}
+    call(command, **({"full": True} if command == "library.sync" else {}))
+    members = selected(call, identity)["members"]
+    assert len(members) == 2 and all(member["available"] for member in members)
+
+def test_restore_preview_ignores_unchanged_collections(library):
+    _, _, call = library
+    project(call)
+    backup = call("backup.create")["id"]
+    assert call("backup.preview", id=backup, categories=["collections"])["changes"] == [{"category": "collections", "changed": 0, "unlinked": 0}]
 
 
 def test_v1_packages_still_import_and_collection_triggers_rejected(library):
@@ -183,6 +254,25 @@ def test_project_verified_copy_delete_keeps_identity(library):
     moved.write_bytes(original.read_bytes())
     original.unlink()
     call("library.sync", full=True)
+    after = selected(call, identity)
+    assert {member["image_id"] for member in before["members"]} == {member["image_id"] for member in after["members"]}
+    assert all(member["available"] for member in after["members"])
+
+
+def test_project_copy_then_delete_in_two_batches_keeps_identity(library):
+    _, images, call = library
+    identity = project(call)
+    before = selected(call, identity)
+    original = images / "one.png"
+    call("library.update_metadata", paths=[str(original)], rating=5, tags=["keep"])
+    call("library.annotations.protect")
+    (images / "other").mkdir()
+    copy = shutil.copy2(original, images / "other" / "one.png")
+    call("library.sync", changed_paths=[str(copy)])
+    original.unlink()
+    call("library.sync", changed_paths=[str(original)])
+    row = next(image for image in call("library.list")["images"] if image["path"] == str(copy))
+    assert row["rating"] == 5 and row["tags"] == ["keep"]
     after = selected(call, identity)
     assert {member["image_id"] for member in before["members"]} == {member["image_id"] for member in after["members"]}
     assert all(member["available"] for member in after["members"])

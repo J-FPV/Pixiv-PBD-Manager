@@ -1,6 +1,6 @@
 """Durable, dataset-scoped folder evidence. Never infer evidence from a UI cache."""
 
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 import hashlib
 import json
 import os
@@ -80,13 +80,20 @@ class ReviewStore:
     def rows(self):
         return [json.loads(row[0]) for row in self.db.execute("SELECT body FROM folders WHERE dataset=? ORDER BY path", (self.dataset,))]
 
-    def save(self, item, expected=None):
+    def save(self, item, expected=None, *, keep_marks=False):
         session = ACTIVE.get()
-        with session.guard() if session else _unguarded():
+        with session.guard() if session else nullcontext():
             with self.db:
                 self.db.execute("BEGIN IMMEDIATE")
-                if expected is not None and self.get(item["path"]).get("revision") != expected:
-                    raise ValueError("Review changed; refresh before retrying")
+                if expected is not None:
+                    stored = self.get(item["path"])
+                    if stored.get("revision") != expected:
+                        if not keep_marks:
+                            raise ValueError("Review changed; refresh before retrying")
+                        # A sync marked the folder while this query ran; that mark
+                        # is newer than the query's snapshot, so it survives.
+                        item = {**item, "stale": item.get("stale") or stored.get("stale", False),
+                                "unavailable": item.get("unavailable") or stored.get("unavailable", False)}
                 item = {**item, "revision": str(time.time_ns()), "updated_at": time.time(), "status": status_for(item)}
                 self.db.execute("INSERT OR REPLACE INTO folders VALUES (?,?,?)", (self.dataset, item["path"], canonical(item)))
         return item
@@ -99,17 +106,43 @@ class ReviewStore:
                 if is_under_known_save_root(Path(item["path"]), roots):
                     self.db.execute("DELETE FROM folders WHERE dataset=? AND path=?", (self.dataset, item["path"]))
 
+    def discard_gone(self):
+        """Drop rows for folders renamed or deleted inside a reachable parent; an
+        unreachable parent may be an offline drive, so its rows stay."""
+        with self.db:
+            for item in self.rows():
+                folder = Path(item["path"])
+                if not folder.exists() and folder.parent.is_dir():
+                    self.db.execute("DELETE FROM folders WHERE dataset=? AND path=?", (self.dataset, item["path"]))
+
     def mark_stale(self, paths, unavailable=()):
+        """Mark rows whose folder contains, or lies inside, a changed path. Sync
+        calls this while holding the commit lock, so it is set lookups and one
+        transaction rather than a rows x paths scan with a save per row."""
+        def related(values):
+            exact = {os.path.normcase(str(Path(value))) for value in values}
+            enclosing = {os.path.normcase(str(parent)) for value in values for parent in Path(value).parents}
+            return lambda folder: os.path.normcase(str(folder)) in enclosing or any(
+                os.path.normcase(str(parent)) in exact for parent in (folder, *folder.parents))
+        changed, offline = related(paths), related(unavailable)
+        marks = {}
         for item in self.rows():
-            root = Path(item["path"])
-            offline = any(is_relative_to(root, Path(path)) or is_relative_to(Path(path), root) for path in unavailable)
-            if offline or any(is_relative_to(Path(path), root) or is_relative_to(root, Path(path)) for path in paths):
-                self.save({**item, "stale": True, "unavailable": offline or not root.is_dir()}, item["revision"])
-
-
-@contextmanager
-def _unguarded():
-    yield
+            folder = Path(item["path"])
+            unreachable = offline(folder)
+            if unreachable or changed(folder):
+                marks[item["path"]] = unreachable or not folder.is_dir()
+        if not marks:
+            return
+        session = ACTIVE.get()
+        with session.guard() if session else nullcontext():
+            with self.db:
+                self.db.execute("BEGIN IMMEDIATE")
+                for path, unreachable in marks.items():
+                    row = self.db.execute("SELECT body FROM folders WHERE dataset=? AND path=?", (self.dataset, path)).fetchone()
+                    if row:
+                        item = {**json.loads(row[0]), "stale": True, "unavailable": unreachable}
+                        item = {**item, "revision": str(time.time_ns()), "updated_at": time.time(), "status": status_for(item)}
+                        self.db.execute("INSERT OR REPLACE INTO folders VALUES (?,?,?)", (self.dataset, path, canonical(item)))
 
 
 @contextmanager

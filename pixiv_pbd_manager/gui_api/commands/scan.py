@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+from pathlib import Path
 from typing import Any
 
 from ...cookie_store import load_cookie
@@ -83,6 +85,8 @@ def preview(payload: JsonDict, emit_event: Emitter) -> JsonDict:
         capture_review=True,
         review_history=history,
     )
+    # Hash the database once: it is the same file for every folder below.
+    stale = baseline != database_signature(db_path(payload, settings))
     with open_reviews(payload, settings) as store:
         for item in result.review:
             queried = item.pop("queried_now", False)
@@ -95,7 +99,7 @@ def preview(payload: JsonDict, emit_event: Emitter) -> JsonDict:
                 if query.get("artist_id") and query["status"] == "resolved":
                     item["candidates"].append({"artist_id": query["artist_id"], "name": query["name"], "source": "online_pid"})
             item["database_signature"] = baseline
-            item["stale"] = baseline != database_signature(db_path(payload, settings))
+            item["stale"] = stale
             store.save(item)
         store.discard_assigned(ArtistDatabase.load(db_path(payload, settings)), settings.get("exclude_roots", []))
     summary = result.summary
@@ -124,13 +128,18 @@ def apply(payload: JsonDict, _emit_event: Emitter) -> JsonDict:
     settings = load_settings_for_payload(payload)
     session = ACTIVE.get()
     with session.guard() if session else nullcontext():
-        ids = {str(op.get("artist_id")) for op in payload.get("operations", []) if isinstance(op, dict)}
+        # Only the folders this apply attributes need fresh evidence; a review
+        # row for a renamed or offline folder must not block unrelated applies.
+        folders = {os.path.normcase(str(Path(path).resolve())) for op in payload.get("operations", []) if isinstance(op, dict)
+                   for path in [*(op.get("save_paths") or []), *(op.get("paths") or [])]}
         with open_reviews(payload, settings) as store:
+            current = None
             for item in store.rows():
-                if not any(candidate["artist_id"] in ids for candidate in item["candidates"]):
+                if os.path.normcase(item["path"]) not in folders:
                     continue
                 now = snapshot(item["path"], item.get("excludes", []), item.get("max_depth"))
-                if item.get("stale") or now["unavailable"] or now["fingerprint"] != item.get("fingerprint") or item.get("database_signature") != database_signature(db_path(payload, settings)):
+                current = current or database_signature(db_path(payload, settings))
+                if item.get("stale") or now["unavailable"] or now["fingerprint"] != item.get("fingerprint") or item.get("database_signature") != current:
                     raise ValueError("Scan result is stale; verify the folder before applying")
             return _apply(payload, _emit_event)
 

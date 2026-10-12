@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from dataclasses import replace
 import hashlib
 import json
 from pathlib import Path
@@ -63,8 +64,54 @@ def path_missing(path: str) -> bool:
     return False
 
 
-def reconcile(store: AnnotationStore, images: list, roots: list[Path], should_cancel=None, *, missing_paths=None) -> list:
-    """Only publish bindings after completing discovery and validating both sides."""
+def _reclaim_copies(old, donors, used, current, assignments, detached, catalog, should_cancel):
+    """A copy bound before its original vanished (a copy-then-delete move seen in
+    two batches) holds a fresh, unannotated identity. The vanished original
+    reclaims it when exactly one such copy has its size, time and content."""
+    copies = defaultdict(list)
+    for row in old:
+        if row["status"] == "linked" and row["binding_key"] and not row["revision"] and not row["sha256"] \
+                and row["id"] not in detached:
+            copies[row["signature"][0]].append(row)
+    by_content = defaultdict(list)
+    for row in donors:
+        if row["id"] not in used and copies[row["signature"][0]] and is_absent(row):
+            by_content[(row["signature"][0], row["sha256"])].append(row)
+    for (size, digest), rows in by_content.items():
+        # Copies keep the modification time; FAT volumes round it to 2 seconds.
+        matches = [row for row in copies[size] if abs(row["signature"][1] - rows[0]["signature"][1]) <= 2_000_000_000]
+        verified = []
+        for row in matches:
+            try:
+                if verified_hash(row["path"], should_cancel)[0] == digest:
+                    verified.append(row)
+            except (OSError, ValueError):
+                continue
+        if len(rows) != 1 or len(verified) != 1:
+            continue
+        donor, copy = rows[0], verified[0]
+        key = copy["binding_key"]
+        image = current[key][0] if key in current else (catalog or {}).get(copy["path"])
+        if image is None:
+            continue
+        if key not in current:
+            image = replace(image)  # overlay must not rewrite the caller's catalog entry
+        try:
+            current[key] = (image, signature(copy["path"]))
+        except OSError:
+            continue
+        assignments[key] = donor
+        used.add(donor["id"])
+        detached.pop(donor["id"], None)
+        detached[copy["id"]] = (copy, "missing")
+
+
+def reconcile(store: AnnotationStore, images: list, roots: list[Path], should_cancel=None, *, missing_paths=None,
+              catalog=None) -> list:
+    """Only publish bindings after completing discovery and validating both sides.
+
+    `catalog` (path -> image) lets a vanished original reclaim a copy that an
+    earlier batch already bound; without it only this batch's images can match."""
     old = store.records()
     by_path = {row["binding_key"]: row for row in old if row["binding_key"]}
     protected_paths = {path_key(row["path"]) for row in old if row["status"] in ("moving", "restoring", "quarantined")}
@@ -174,6 +221,7 @@ def reconcile(store: AnnotationStore, images: list, roots: list[Path], should_ca
                 assignments[key] = row
                 used.add(row["id"])
                 detached.pop(row["id"], None)
+    _reclaim_copies(old, donors, used, current, assignments, detached, catalog, should_cancel)
     if should_cancel and should_cancel():
         raise ProtectionCancelled()
     with store.transaction():

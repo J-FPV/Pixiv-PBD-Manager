@@ -67,7 +67,11 @@ export function UnmatchedView({ language, folders, settings, pendingExclude, exc
       if (result.artists) onArtists(result.artists);
       await load();
       if (command === "apply") setDetail(null);
-      else if (detail && !paths) setDetail(await runGuiApi<ReviewItem>("scan.review.detail", { ...settings, path: detail.path }));
+      else if (detail && !paths) {
+        const fresh = await runGuiApi<ReviewItem>("scan.review.detail", { ...settings, path: detail.path });
+        // The evidence may have been closed while the command ran; keep it closed.
+        setDetail((current) => current?.path === fresh.path ? fresh : current);
+      }
     } catch (err) { setError(String(err)); } finally { setBusy(false); controller.current = null; setProgress(""); }
   };
   return <section className="panel reviewPanel">

@@ -100,6 +100,12 @@ COMMANDS: dict[str, Callable[[JsonDict, Emitter], JsonDict]] = {
 }
 
 
+PAUSE_SYNC_COMMANDS = frozenset({
+    "library.scan", "backup.restore", "history.undo", "scan.apply", "scan.review.apply",
+    "cleanup.quarantine", "cleanup.restore", "cleanup.delete",
+})
+
+
 def run_command(command: str, payload: JsonDict | None = None, *, emit: Emitter = emit_event) -> int:
     payload = dict(payload or {})
     base_dir = resolve_base_dir(payload.get("project_root"))
@@ -118,7 +124,10 @@ def run_command(command: str, payload: JsonDict | None = None, *, emit: Emitter 
             from ..recovery.session import RecoverySession
             from ..recovery.locking import data_lock
             with RecoverySession(payload, command, emit) as session:
-                pause_sync = command.startswith(("scan.", "cleanup.")) or command in ("library.scan", "backup.restore", "history.undo")
+                # Hold sync commits off only for commands that move files, rewrite
+                # the index or apply review evidence. Network-bound scan and review
+                # queries must not hold the lock: sync gives up on it after 15 s.
+                pause_sync = command in PAUSE_SYNC_COMMANDS
                 with data_lock([session.directory / "sync-commit"]) if pause_sync else nullcontext():
                     result = handler(payload, emit)
                 if isinstance(result, dict) and session.last_undo:

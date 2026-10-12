@@ -12,7 +12,7 @@ from ...operations.scan import preview_scan_changes
 from ...operations._scan_pipeline import ResolvedHit
 from ...recovery import ACTIVE
 from ...scan_review import database_signature, open_reviews, snapshot, status_for
-from ..payload import db_path
+from ..payload import as_float, db_path
 from ..runtime import CONTROL
 from ..serializers import artist_to_json
 from .settings import load_settings_for_payload
@@ -39,6 +39,7 @@ def list_items(payload, _emit):
             with store.db:
                 store.db.execute("INSERT OR IGNORE INTO migrations VALUES (?)", (store.dataset,))
         store.discard_assigned(ArtistDatabase.load(db_path(payload, settings)), settings.get("exclude_roots", []))
+        store.discard_gone()
         # Listing doesn't walk the library. Detail/apply verify metadata; watcher marks dirty rows.
         rows = []
         for item in store.rows():
@@ -66,7 +67,7 @@ def _query(payload, emit, *, more):
             original_revision = item["revision"]
             current = snapshot(item["path"], item.get("excludes", []), item.get("max_depth"))
             if current["unavailable"]:
-                store.save({**item, "unavailable": True}, original_revision)
+                store.save({**item, "unavailable": True}, original_revision, keep_marks=True)
                 continue
             # Changed files invalidate old evidence, but retain queried IDs for the lifetime budget.
             previous = {query["pid"]: query for query in item.get("queries", [])}
@@ -76,9 +77,14 @@ def _query(payload, emit, *, more):
             item = {**item, **current, "stale": False, "unverified": False, "error": "", "conflict": False}
             local = preview_scan_changes([Path(item["path"])], db_path(payload, settings), resolve_online=False,
                                          exclude_roots=[Path(path) for path in item.get("excludes", [])],
-                                         max_depth=item.get("max_depth"), capture_review=True)
+                                         max_depth=item.get("max_depth"), capture_review=True,
+                                         allow_low_pids=bool(settings.get("scan_recognize_low_pids", False)))
             local_item = next((row for row in local.review if row["path"] == item["path"]), {})
-            item["candidates"] = local_item.get("candidates", [])
+            # Fuzzy search matched the folder name, not its files; that evidence
+            # holds while the name reads the same, and it is not re-run offline.
+            named = [candidate for candidate in item.get("candidates", []) if "fuzzy_search:" in candidate["source"]
+                     and local_item.get("name_hint", "") == item.get("name_hint", "")]
+            item["candidates"] = local_item.get("candidates", []) + named
             item["conflict"] = local_item.get("conflict", False)
             item["name_hint"] = local_item.get("name_hint", "")
             item["candidates"].extend({"artist_id": query["artist_id"], "name": query["name"], "source": "online_pid"}
@@ -93,12 +99,15 @@ def _query(payload, emit, *, more):
             baseline = database_signature(db_path(payload, settings))
             if not settings.get("resolve_online", True):
                 wanted = []
-            for pid in wanted:
+            for number, pid in enumerate(wanted):
                 if CONTROL.is_cancelled() or failures >= 3:
                     break
+                if number:
+                    time.sleep(as_float(payload, "resolve_delay", 0.8))  # pace requests, as scan.preview does
                 emit({"type": "progress", "key": PROGRESS_SCAN_REVIEW, "payload": {"current": index + 1, "total": len(items), "path": item["path"], "pid": pid}})
                 try:
-                    result = resolver.fetch_artwork_author(pid, cookie=load_cookie(), allow_insecure_ssl_fallback=bool(settings.get("ssl_fallback", True)))
+                    result = resolver.fetch_artwork_author(pid, cookie=payload.get("pixiv_cookie") or load_cookie(),
+                                                           allow_insecure_ssl_fallback=bool(settings.get("ssl_fallback", True)))
                     previous[pid] = {"pid": pid, "status": "resolved" if result else "empty", "artist_id": result.id if result else "", "name": result.name if result else "", "error": ""}
                     failures = 0
                 except resolver.PixivResolveError as exc:
@@ -109,12 +118,11 @@ def _query(payload, emit, *, more):
                 item["candidates"].extend({"artist_id": query["artist_id"], "name": query["name"], "source": "online_pid"}
                                           for query in previous.values() if query["status"] == "resolved")
                 item["database_signature"] = baseline
-                item = store.save(item, original_revision)
+                item = store.save(item, original_revision, keep_marks=True)
                 original_revision = item["revision"]
-                time.sleep(0.8)
             item["queries"] = list(previous.values())
             item["database_signature"] = baseline
-            store.save(item, original_revision)
+            store.save(item, original_revision, keep_marks=True)
             if failures >= 3:
                 break
     return list_items(payload, emit)

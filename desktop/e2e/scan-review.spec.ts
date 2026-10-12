@@ -36,3 +36,18 @@ test("review filters, evidence, confirmation and restart", async ({ page }) => {
   await expect(page.locator(".reviewRow")).toContainText("Mixed");
   expect(errors).toEqual([]);
 });
+
+test("evidence closed while verifying again stays closed", async ({ page }) => {
+  await page.goto("/");
+  await page.evaluate(() => sessionStorage.setItem("pbd-mock-review", JSON.stringify([
+    { path: "C:\\Art\\Pending", count: 1, status: "pending", revision: "1", updated_at: 1700000000, candidates: [], queries: [] }
+  ])));
+  await page.getByRole("button", { name: "待处理", exact: true }).click();
+  await page.getByRole("button", { name: "识别证据", exact: true }).click();
+  await page.evaluate(() => sessionStorage.setItem("pbd-mock-delay", "300"));
+  await page.getByRole("dialog").getByRole("button", { name: "重新核实", exact: true }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "关闭", exact: true }).click();
+  await expect(page.locator(".reviewToolbar").getByRole("button", { name: "取消", exact: true })).toBeVisible();
+  await expect(page.locator(".reviewToolbar").getByRole("button", { name: "取消", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+});

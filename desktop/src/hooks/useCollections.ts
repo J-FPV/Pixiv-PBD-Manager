@@ -22,7 +22,8 @@ export function useCollections(images: LibraryImage[], setFilters: (filters: Lib
   useEffect(() => {
     void load().catch((err) => setError(String(err)));
     const saved = (event: Event) => {
-      if ((event as CustomEvent).detail?.command === "history.undo" || event.type === "pbd-library-sync") void load().catch((err) => setError(String(err)));
+      // A scan or full sync may link members restored before their images were scanned.
+      if (["history.undo", "library.scan"].includes((event as CustomEvent).detail?.command) || event.type === "pbd-library-sync") void load().catch((err) => setError(String(err)));
     };
     window.addEventListener("pbd-api-result", saved); window.addEventListener("pbd-library-sync", saved);
     return () => { window.removeEventListener("pbd-api-result", saved); window.removeEventListener("pbd-library-sync", saved); };

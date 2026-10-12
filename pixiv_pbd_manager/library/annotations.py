@@ -12,9 +12,11 @@ from .catalog import load_library_index
 
 
 @contextmanager
-def annotated_catalog(index_path: Path):
+def annotated_catalog(index_path: Path, catalog: dict | None = None):
+    """`catalog` is the parsed index from a caller that has proved it current;
+    its images are annotated in place instead of parsing the file again."""
     with AnnotationStore(index_path) as store:
-        catalog = load_library_index(index_path)
+        catalog = load_library_index(index_path) if catalog is None else catalog
         records = store.ensure(list(catalog.values()))
         unavailable = {row["id"] for row in records
                        if row["status"] in ("moving", "quarantined", "restoring", "deleting", "deleted")}
