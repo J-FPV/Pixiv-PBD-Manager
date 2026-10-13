@@ -138,7 +138,7 @@ export function SimilarTableRow({
         <span>{t(language, item.group.kind === "exact" ? "exact" : item.group.kind)}</span>
         <span />
         <span>
-          {item.group.entries.length} files, pHash {item.group.best_phash_distance}, dHash {item.group.best_dhash_distance}
+          {t(language, "similarGroupFiles").replace("{count}", String(item.group.entries.length))}, pHash {item.group.best_phash_distance}, dHash {item.group.best_dhash_distance}
           <small className="recommendationRule">{t(language, ruleKey)}</small>
         </span>
         <span />

@@ -1,6 +1,11 @@
 import { expect, test } from "@playwright/test";
 import type { Locator, Page } from "@playwright/test";
 
+// Tiles by name: the default order (newest PID first) is not what these tests are about.
+const tileNamed = (page: Page, name: string) => page.locator(`.libraryTileOpen[title="${name}"]`);
+const selectNamed = (page: Page, name: string) =>
+  page.locator(".libraryTile").filter({ has: tileNamed(page, name) }).locator(".libraryTileSelect").click();
+
 async function dragTile(page: Page, tile: Locator, distance = 35) {
   const box = await tile.boundingBox();
   if (!box) throw new Error("Missing tile");
@@ -33,10 +38,10 @@ test.beforeEach(async ({ page }) => {
 test("dragging exports original paths, preserves selection, and does not open the preview", async ({ page }) => {
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
-  const tiles = page.locator(".libraryTileOpen");
+  const tile = tileNamed(page, "101000001_p0.jpg");
   await expect(page).toHaveTitle("Pixiv PBD Manager");
-  await expect(tiles.first().locator("img")).toHaveAttribute("draggable", "false");
-  await dragTile(page, tiles.first());
+  await expect(tile.locator("img")).toHaveAttribute("draggable", "false");
+  await dragTile(page, tile);
   const first = await page.evaluate(() => Reflect.get(window, "dragCalls"));
   expect(first).toHaveLength(1);
   expect(first[0].command).toBe("drag_original_files");
@@ -45,24 +50,24 @@ test("dragging exports original paths, preserves selection, and does not open th
   expect(first[0].paths[0]).not.toMatch(/thumb:|thumb\.localhost|data:|blob:/);
   await expect(page.locator(".libraryDetailModal")).toHaveCount(0);
 
-  await page.locator(".libraryTileSelect").nth(0).click();
-  await page.locator(".libraryTileSelect").nth(1).click();
-  await dragTile(page, tiles.first());
+  await selectNamed(page, "101000001_p0.jpg");
+  await selectNamed(page, "101000001_p1.jpg");
+  await dragTile(page, tile);
   const batch = await page.evaluate(() => Reflect.get(window, "dragCalls"));
   expect(batch).toHaveLength(2);
   expect(batch[1].paths).toHaveLength(2);
   await expect(page.getByText("已选 2 张")).toBeVisible();
-  await dragTile(page, tiles.nth(2));
+  await dragTile(page, tileNamed(page, "101000002_p0.jpg"));
   const unselected = await page.evaluate(() => Reflect.get(window, "dragCalls"));
   expect(unselected[2].paths).toHaveLength(1);
   await expect(page.locator(".libraryDetailModal")).toHaveCount(0);
-  await tiles.first().click();
+  await tile.click();
   await expect(page.getByRole("heading", { name: "101000001_p0.jpg" })).toBeVisible();
   expect(errors).toEqual([]);
 });
 
 test("small mouse movement still clicks, and native failures are visible and recoverable", async ({ page }) => {
-  const tile = page.locator(".libraryTileOpen").first();
+  const tile = tileNamed(page, "101000001_p0.jpg");
   await dragTile(page, tile, 2);
   await expect(page.getByRole("heading", { name: "101000001_p0.jpg" })).toBeVisible();
   expect(await page.evaluate(() => Reflect.get(window, "dragCalls"))).toEqual([]);

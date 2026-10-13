@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { SIMILAR_RESULT_CACHE_KEY, UI_STATE_KEY, UNMATCHED_CACHE_KEY } from "../constants";
+import { LIBRARY_SORT_REVISION } from "../utils/librarySort";
 import { persistJson } from "../utils/storage";
 import type { AppState } from "./useAppState";
 
@@ -25,6 +26,7 @@ export function useUiStatePersistence(s: AppState): void {
       activeTab,
       filter,
       librarySort,
+      librarySortRevision: LIBRARY_SORT_REVISION,
       similarRoots,
       similarExcludes,
       similarRootBoxHeight,

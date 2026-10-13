@@ -48,11 +48,19 @@ const VIEWS = {
   similar: async (page) => {
     await page.getByRole("button", { name: "相似图片" }).click();
     await page.getByRole("button", { name: "查找相似图片" }).click();
-    await page.getByText(/4 files.*1 groups/i).waitFor();
+    await page.getByText(/4 个文件.*1 组/).waitFor();
   },
   settings: async (page) => {
     await page.getByRole("button", { name: "设置" }).click();
     await page.getByText("扫描与解析", { exact: true }).waitFor();
+  },
+  unmatched: async (page) => {
+    await page.getByRole("button", { name: "待处理" }).click();
+    await page.waitForTimeout(300);
+  },
+  logs: async (page) => {
+    await page.getByRole("button", { name: "日志" }).click();
+    await page.waitForTimeout(300);
   }
 };
 
@@ -84,6 +92,7 @@ async function main() {
   const outDir = outArg
     ? isAbsolute(outArg) ? outArg : resolve(process.cwd(), outArg)
     : join(desktopDir, "test-results", "screenshots");
+  const theme = args.find((arg) => arg.startsWith("--theme="))?.slice(8);
   const wanted = args.filter((arg) => !arg.startsWith("--"));
   const names = wanted.length ? wanted : Object.keys(VIEWS);
   for (const name of names) {
@@ -112,6 +121,7 @@ async function main() {
     page.on("pageerror", (error) => errors.push(error.message));
     await page.goto(BASE_URL);
     await page.getByText("Sample Artist", { exact: true }).waitFor();
+    if (theme) await page.evaluate((value) => { globalThis.document.documentElement.dataset.theme = value; }, theme);
     for (const name of names) {
       const cleanup = await VIEWS[name](page);
       const file = join(outDir, `${name}.png`);

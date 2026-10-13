@@ -71,7 +71,7 @@ export function LibraryGrid({
   }, [sortResetKey, virtualizer]);
 
   return (
-    <div className="libraryGridScroll" ref={parentRef}>
+    <div className={`libraryGridScroll${selectedPaths.size ? " selecting" : ""}`} ref={parentRef}>
       {dragError ? (
         <div className="libraryDragError" role="alert">
           <span>{dragError}</span>

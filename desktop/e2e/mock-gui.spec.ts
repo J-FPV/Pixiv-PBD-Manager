@@ -18,7 +18,7 @@ test("mock backend covers the primary desktop flows", async ({ page }) => {
   await expect(page.getByRole("button", { name: /101000001_p0\.jpg/ })).toBeVisible();
   await page.getByRole("button", { name: /101000001_p0\.jpg/ }).click();
   await expect(page.getByRole("heading", { name: "101000001_p0.jpg" })).toBeVisible();
-  await expect(page.locator(".libraryDetailCounter")).toHaveText("1 / 4");
+  await expect(page.locator(".libraryDetailCounter")).toHaveText("3 / 4");
 
   await page.keyboard.press("ArrowRight");
   const favoriteButton = page.locator(".libraryFavoriteButton");
@@ -58,6 +58,6 @@ test("mock backend covers the primary desktop flows", async ({ page }) => {
 
   await page.getByRole("button", { name: "相似图片" }).click();
   await page.getByRole("button", { name: "查找相似图片" }).click();
-  await expect(page.getByText(/4 files.*1 groups/i)).toBeVisible();
+  await expect(page.getByText(/4 个文件.*1 组/)).toBeVisible();
   expect(browserErrors).toEqual([]);
 });

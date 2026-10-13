@@ -60,7 +60,6 @@ function CleanupActionBar({
         <span>{t(language, "showIgnored")} ({ignoredSize})</span>
       </label>
       <Button
-        className={hasSelection ? "favToggle active" : "favToggle"}
         disabled={busy || (!hasSelection && !selection.recommendedCount)}
         onClick={() => hasSelection ? selection.clearSelection() : selection.selectAllRecommended()}
       >

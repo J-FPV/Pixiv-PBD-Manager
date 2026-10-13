@@ -5,7 +5,7 @@
 
 import type { SortDirection } from "./types";
 
-export type LibrarySortKey = "created" | "modified" | "filename" | "size" | "pixels" | "rating";
+export type LibrarySortKey = "pid" | "created" | "modified" | "filename" | "size" | "pixels" | "rating";
 export interface LibrarySort {
   key: LibrarySortKey;
   direction: SortDirection;

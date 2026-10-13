@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 async function openLibrary(page: Page) {
   await page.goto("/");
   await page.getByRole("button", { name: "图库", exact: true }).click();
-  await expect(page.getByRole("combobox", { name: "排序方式" })).toHaveValue("modified");
+  await expect(page.getByRole("combobox", { name: "排序方式" })).toHaveValue("pid");
   await expect(page.locator(".libraryTileOpen").first()).toBeVisible();
 }
 
@@ -23,13 +23,13 @@ test("sorting synchronizes filtering, detail navigation, selection, and original
   await openLibrary(page);
   const sort = page.getByRole("combobox", { name: "排序方式" });
   const tiles = page.locator(".libraryTileOpen");
-  await page.locator(".libraryTileSelect").first().click();
+  const checked = page.locator(".libraryTile").filter({ has: page.getByTitle("101000001_p0.jpg", { exact: true }) });
+  await checked.locator(".libraryTileSelect").click();
   const facets = await page.locator(".filterChip").allTextContents();
   await sort.selectOption("size");
   await expect(tiles.first()).toHaveAttribute("title", "101000001_p1.jpg");
   expect(await page.locator(".filterChip").allTextContents()).toEqual(facets);
   await expect(page.getByText("已选 1 张", { exact: true })).toBeVisible();
-  const checked = page.locator(".libraryTile").filter({ has: page.getByTitle("101000001_p0.jpg", { exact: true }) });
   await expect(checked.locator(".libraryTileSelect")).toHaveAttribute("aria-pressed", "true");
   await page.locator(".libraryToolbar input").fill("101000001");
   await expect(tiles).toHaveCount(2);
@@ -55,7 +55,7 @@ test("sorting synchronizes filtering, detail navigation, selection, and original
   expect(errors).toEqual([]);
 });
 
-test("all six fields, default directions, preference persistence, and reset behavior", async ({ page }) => {
+test("all seven fields, default directions, preference persistence, and reset behavior", async ({ page }) => {
   await page.addInitScript(() => Object.assign(window, {
     __TAURI_INTERNALS__: {
       metadata: { currentWindow: { label: "main" } },
@@ -64,8 +64,8 @@ test("all six fields, default directions, preference persistence, and reset beha
   }));
   await openLibrary(page);
   const sort = page.getByRole("combobox", { name: "排序方式" });
-  await expect(sort.locator("option")).toHaveCount(6);
-  for (const key of ["created", "modified", "size", "pixels", "rating", "filename"]) {
+  await expect(sort.locator("option")).toHaveCount(7);
+  for (const key of ["pid", "created", "modified", "size", "pixels", "rating", "filename"]) {
     await sort.selectOption(key);
     const initial = key === "filename" ? "升序" : "降序";
     const toggled = key === "filename" ? "降序" : "升序";
@@ -87,11 +87,46 @@ test("all six fields, default directions, preference persistence, and reset beha
   await page.getByRole("button", { name: "重置所有设置", exact: true }).click();
   await page.locator(".confirmModal").getByRole("button", { name: "重置所有设置", exact: true }).click();
   await page.getByRole("button", { name: "图库", exact: true }).click();
-  await expect(sort).toHaveValue("modified");
+  await expect(sort).toHaveValue("pid");
   await expect(page.getByRole("button", { name: "降序", exact: true })).toBeVisible();
   await page.reload();
-  await expect(sort).toHaveValue("modified");
+  await expect(sort).toHaveValue("pid");
 });
+
+test("newest artworks come first, and files without a PID follow by download time", async ({ page }) => {
+  await page.route("**/src/mockData.ts", async (route) => {
+    const response = await route.fetch();
+    const script = await response.text();
+    await route.fulfill({ response, body: script + `
+      const seed = MOCK_LIBRARY_IMAGES[0];
+      for (const [name, created] of [["older-download.png", 1], ["newer-download.png", 2]]) {
+        MOCK_LIBRARY_IMAGES.push({ ...seed, path: seed.folder + '/' + name, filename: name, pid: '', page: null,
+          image_id: 'mock-' + name, created_ns: seed.created_ns + created * 1000000000 });
+      }` });
+  });
+  await openLibrary(page);
+  const titles = () => page.locator(".libraryTileOpen").evaluateAll((tiles) => tiles.map((tile) => tile.getAttribute("title")));
+  await expect.poll(titles).toEqual([
+    "202000001_p0.jpg", "101000002_p0.jpg", "101000001_p0.jpg", "101000001_p1.jpg", "newer-download.png", "older-download.png"
+  ]);
+  await page.getByRole("button", { name: "降序", exact: true }).click();
+  await expect.poll(titles).toEqual([
+    "101000001_p0.jpg", "101000001_p1.jpg", "101000002_p0.jpg", "202000001_p0.jpg", "older-download.png", "newer-download.png"
+  ]);
+});
+
+for (const [revision, expected] of [[undefined, "pid"], [2, "modified"]] as const) {
+  test(`a saved modified-time sort ${revision ? "chosen after" : "left over from"} the PID default ${revision ? "is kept" : "follows it"}`, async ({ page }) => {
+    await page.addInitScript((saved) => {
+      if (!sessionStorage.getItem("seeded")) {
+        localStorage.setItem("pixiv-pbd-manager.uiState.v1", JSON.stringify(saved));
+        sessionStorage.setItem("seeded", "1");
+      }
+    }, { activeTab: "library", librarySort: { key: "modified", direction: "desc" }, ...(revision ? { librarySortRevision: revision } : {}) });
+    await page.goto("/");
+    await expect(page.getByRole("combobox", { name: "排序方式" })).toHaveValue(expected);
+  });
+}
 
 test("30,000-image grid remains virtualized, sorts the full set, and returns to the top", async ({ page }) => {
   test.setTimeout(60_000);
@@ -101,7 +136,7 @@ test("30,000-image grid remains virtualized, sorts the full set, and returns to 
     await route.fulfill({ response, body: script + `
       const seed = MOCK_LIBRARY_IMAGES[0];
       MOCK_LIBRARY_IMAGES.splice(0, MOCK_LIBRARY_IMAGES.length, ...Array.from({length: 30000}, (_, i) => ({
-        ...seed, path: seed.folder + '/' + (i + 1) + '.jpg', filename: (i + 1) + '.jpg',
+        ...seed, path: seed.folder + '/' + (i + 1) + '.jpg', filename: (i + 1) + '.jpg', pid: String(i + 1),
         mtime_ns: seed.mtime_ns + i * 1000000000, created_ns: seed.created_ns + i * 1000000000
       })));` });
   });

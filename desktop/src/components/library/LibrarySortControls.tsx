@@ -4,6 +4,7 @@ import type { Language, LibrarySort, LibrarySortKey } from "../../types";
 import { LIBRARY_SORT_KEYS } from "../../utils/librarySort";
 
 const LABELS = {
+  pid: "sortPid",
   created: "createdTime",
   modified: "modifiedTime",
   filename: "sortFilename",

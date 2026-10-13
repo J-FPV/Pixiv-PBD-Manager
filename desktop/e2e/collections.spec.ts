@@ -60,8 +60,9 @@ test("projects retain selections, export all original members despite search, an
     } }
   }));
   await openLibrary(page);
-  await page.locator(".libraryTileSelect").nth(0).click();
-  await page.locator(".libraryTileSelect").nth(1).click();
+  for (const name of ["101000001_p0.jpg", "101000001_p1.jpg"]) {
+    await page.locator(".libraryTile").filter({ has: page.getByTitle(name, { exact: true }) }).locator(".libraryTileSelect").click();
+  }
   await create(page, "project", "Project A");
   await page.getByRole("combobox", { name: "加入项目", exact: true }).selectOption({ label: "Project A" });
   await page.getByRole("button", { name: "加入项目", exact: true }).click();

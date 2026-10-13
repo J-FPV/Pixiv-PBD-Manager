@@ -118,7 +118,11 @@ export function SimilarToolbar({
         </Button>
         {result ? (
           <span className="summary">
-            {result.files_seen} files / {result.indexed} indexed / {result.groups.length} groups / {result.error_count} errors
+            {t(language, "similarSummary")
+              .replace("{files}", String(result.files_seen))
+              .replace("{indexed}", String(result.indexed))
+              .replace("{groups}", String(result.groups.length))
+              .replace("{errors}", String(result.error_count))}
           </span>
         ) : null}
       </div>

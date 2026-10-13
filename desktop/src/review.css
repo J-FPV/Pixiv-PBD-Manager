@@ -12,15 +12,17 @@
 .reviewSample .thumbnailButton { width: 144px; height: 110px; }
 .reviewSample img { object-fit: contain; }
 .reviewActions { flex-wrap: wrap; }
-.directorySyncStatus { display: flex; align-items: center; gap: 8px; padding: 2px 12px; font-size: 12px; border-top: 1px solid var(--line); color: var(--muted); }
+.directorySyncStatus { display: flex; align-items: center; gap: 6px; min-width: 0; padding-left: 16px; border-left: 1px solid var(--line); color: var(--muted); }
+.directorySyncStatus .button.iconOnly { width: 26px; min-width: 26px; min-height: 26px; }
 .directorySyncStatus span { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .collectionsPane { padding: 8px 10px 14px; border-bottom: 1px solid var(--line); }
 .collectionHeading, .collectionLine, .collectionRow { display: flex; align-items: center; gap: 5px; }
 .collectionHeading { justify-content: space-between; font-size: 13px; padding-top: 8px; }
 .collectionLine .button { flex-shrink: 0; padding: 4px; min-height: 26px; width: 24px; }
-.collectionRow { flex: 1; min-width: 0; border: 0; background: transparent; color: var(--text); text-align: left; padding: 7px 3px; cursor: pointer; }
+.collectionRow { flex: 1; width: 100%; min-width: 0; border: 0; border-radius: 6px; background: transparent; color: var(--text); text-align: left; padding: 7px 8px; cursor: pointer; }
+.collectionRow:hover { background: var(--surface-hover); }
 .collectionRow span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
-.collectionRow.active { color: var(--accent-strong); background: var(--accent-soft); }
+.collectionRow.active { color: var(--accent-strong); background: var(--accent-soft); font-weight: 600; }
 .collectionRow svg { flex-shrink: 0; }
 .collectionConditions { display: grid; gap: 7px; padding: 12px 0; font-size: 13px; }
 .collectionConditions label { display: flex; align-items: center; gap: 7px; }

@@ -14,7 +14,6 @@ import { TopBar } from "./components/app/TopBar";
 import { RecoveryContext } from "./hooks/RecoveryContext";
 import { useRecovery } from "./hooks/useRecovery";
 import { RecoveryNotice } from "./components/RecoveryUndo";
-import { DirectorySyncStatus } from "./components/app/DirectorySyncStatus";
 
 export default function App() {
   const s = useAppState();
@@ -43,6 +42,8 @@ export default function App() {
       <AppFooter
         language={s.language}
         status={s.status}
+        showCounts={s.activeTab === "artists"}
+        sync={libraryActions.directorySync}
         artistsCount={s.artists.length}
         selectedCount={s.selected.size}
         lanes={s.lanes}
@@ -51,7 +52,6 @@ export default function App() {
         pauseTask={s.pauseTask}
         cancelTask={s.cancelTask}
       />
-      <DirectorySyncStatus sync={libraryActions.directorySync} language={s.language} />
       <AppModals
         language={s.language}
         prompt={s.prompt}

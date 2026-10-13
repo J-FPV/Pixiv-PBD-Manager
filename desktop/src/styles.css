@@ -5,14 +5,18 @@
 :root {
   color-scheme: light;
   font-family: "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
-  --bg: #f6f7f9;
+  --bg: #f3f5f7;
   --surface: #ffffff;
-  --surface-muted: #f0f3f6;
-  --line: #dfe4ea;
-  --text: #1f2933;
-  --muted: #6b7280;
+  --surface-muted: #eef1f4;
+  --surface-hover: #f2f5f7;
+  --line: #dde3e9;
+  --line-strong: #c5ced8;
+  --text: #1c2630;
+  --muted: #66717d;
+  --focus-ring: 0 0 0 3px rgba(15, 159, 110, 0.28);
   --accent: #0f9f6e;
   --accent-strong: #067a53;
+  --accent-hover: #0b8a5f;
   --danger: #c43838;
   --danger-strong: #9f2d2d;
   --danger-soft: #fff0f0;
@@ -51,11 +55,15 @@
   --bg: #0f141a;
   --surface: #171d24;
   --surface-muted: #202832;
+  --surface-hover: #1e262f;
   --line: #2d3743;
+  --line-strong: #3d4a58;
   --text: #e6edf3;
   --muted: #9aa7b3;
+  --focus-ring: 0 0 0 3px rgba(19, 168, 117, 0.42);
   --accent: #13a875;
   --accent-strong: #68d8a8;
+  --accent-hover: #0f9466;
   --danger: #b83f45;
   --danger-strong: #8f3035;
   --danger-soft: #3a2023;
@@ -98,6 +106,27 @@ body {
   background: var(--bg);
   color: var(--text);
   overflow: hidden;
+  font-size: 14px;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* One keyboard focus treatment for every control; mouse clicks stay quiet. */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline: 0;
+  border-color: var(--accent);
+  box-shadow: var(--focus-ring);
+}
+
+::selection {
+  background: var(--row-checked);
 }
 
 button,
@@ -111,71 +140,146 @@ button {
   cursor: pointer;
 }
 
+/* Baseline for selects that no view styles itself, e.g. toolbar filters. */
+select {
+  min-height: 34px;
+  padding: 0 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--input-bg);
+  color: var(--text);
+}
+
 button:disabled {
   cursor: default;
   opacity: 0.55;
 }
 
+/* A column, not a fixed grid: the recovery notice and sync line come and go,
+   and must never take over the row that belongs to the main view. */
 .app {
-  display: grid;
-  grid-template-rows: auto 1fr auto;
+  display: flex;
+  flex-direction: column;
   height: 100vh;
   min-width: 920px;
 }
 
 .topbar {
-  display: grid;
-  grid-template-columns: 220px 1fr;
-  align-items: end;
+  display: flex;
+  align-items: stretch;
+  gap: 18px;
+  height: 50px;
+  padding: 0 14px 0 18px;
   background: var(--surface);
   border-bottom: 1px solid var(--line);
+  flex: 0 0 auto;
 }
 
 .brand {
-  padding: 18px 22px 16px;
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  padding-right: 18px;
+  border-right: 1px solid var(--line);
   font-weight: 650;
+  font-size: 14px;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+
+.brandMark {
+  display: inline-grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  background: var(--accent);
+  color: #ffffff;
 }
 
 .tabs {
   display: flex;
+  gap: 2px;
   min-width: 0;
 }
 
 .tabs button {
+  position: relative;
   display: inline-flex;
-  gap: 8px;
+  gap: 7px;
   align-items: center;
   justify-content: center;
-  min-width: 160px;
-  height: 56px;
+  padding: 0 14px;
   border: 0;
-  border-left: 1px solid var(--line);
-  border-bottom: 2px solid transparent;
-  background: var(--surface-muted);
+  background: transparent;
+  color: var(--muted);
+  font-size: 14px;
+  white-space: nowrap;
+  transition: color 120ms ease;
+}
+
+.tabs button::after {
+  content: "";
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: -1px;
+  height: 2px;
+  border-radius: 2px 2px 0 0;
+  background: transparent;
+}
+
+.tabs button:hover {
   color: var(--text);
 }
 
 .tabs button.active {
-  border-bottom-color: var(--accent);
-  background: var(--surface);
-  color: var(--accent-strong);
+  color: var(--text);
+  font-weight: 600;
+}
+
+.tabs button.active svg {
+  color: var(--accent);
+}
+
+.tabs button.active::after {
+  background: var(--accent);
+}
+
+.tabs button:focus-visible {
+  outline-offset: -6px;
 }
 
 main {
+  flex: 1 1 auto;
   min-height: 0;
   padding: 14px;
 }
 
 footer {
   display: flex;
-  gap: 18px;
+  gap: 16px;
   align-items: center;
-  min-height: 42px;
-  padding: 5px 14px;
+  min-height: 36px;
+  padding: 3px 10px 3px 14px;
   border-top: 1px solid var(--line);
   background: var(--surface);
   color: var(--muted);
-  font-size: 13px;
+  font-size: 12.5px;
+  flex: 0 0 auto;
+}
+
+.footerStatus {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.footerCounts {
+  display: inline-flex;
+  gap: 12px;
+  white-space: nowrap;
 }
 
 .panel {
@@ -253,7 +357,29 @@ footer {
   border-radius: 6px;
   background: var(--surface);
   color: var(--text);
+  font-size: 14px;
   white-space: nowrap;
+  transition: background-color 120ms ease, border-color 120ms ease;
+}
+
+.button:hover:not(:disabled) {
+  border-color: var(--line-strong);
+  background: var(--surface-hover);
+}
+
+.button.primary:hover:not(:disabled) {
+  border-color: var(--accent-hover);
+  background: var(--accent-hover);
+}
+
+.button.danger:hover:not(:disabled) {
+  border-color: var(--danger-strong);
+  background: var(--danger-strong);
+}
+
+.button.quiet:hover:not(:disabled) {
+  border-color: transparent;
+  background: var(--surface-muted);
 }
 
 .button.primary {
@@ -285,7 +411,8 @@ footer {
 }
 
 .button.primary:active:not(:disabled) {
-  background: var(--accent-strong);
+  background: var(--accent-hover);
+  filter: brightness(0.94);
 }
 
 .button.danger:active:not(:disabled) {
@@ -293,14 +420,17 @@ footer {
   color: #ffffff;
 }
 
+/* A disabled destructive action stays recognisable but no longer shouts. */
 .button.danger:disabled {
-  color: #ffffff;
-  opacity: 0.72;
+  border-color: var(--line);
+  background: var(--surface);
+  color: var(--muted);
+  opacity: 1;
 }
 
 .button.danger:disabled > span,
 .button.danger:disabled svg {
-  color: #ffffff;
+  color: var(--muted);
 }
 
 .button.iconOnly {
@@ -1415,16 +1545,23 @@ body.col-resizing .colHandle::after {
   font-weight: 600;
 }
 
-.similarViewBody,
-.similarResultsView {
+.similarViewBody {
   min-height: 0;
 }
 
+/* The kind stats only exist after a run, so the row count varies: let the
+   table (always last) take the remaining height instead of a fixed grid row. */
 .similarResultsView {
-  display: grid;
-  grid-template-rows: auto auto 1fr;
+  display: flex;
+  flex-direction: column;
   gap: 10px;
   height: 100%;
+  min-height: 0;
+}
+
+.similarResultsView > .similarTable {
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 .cleanupActionBar {
@@ -1438,7 +1575,6 @@ body.col-resizing .colHandle::after {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
-  padding: 0 12px 10px;
 }
 
 .similarKindStats > span {
@@ -1865,6 +2001,13 @@ body.col-resizing .colHandle::after {
   min-height: 0;
   overflow-y: auto;
   padding: 22px 26px;
+}
+
+/* Full-width inputs on a wide window make short values hard to scan;
+   settings read best as a single readable column. */
+.settingsContent > * {
+  width: 100%;
+  max-width: 860px;
 }
 
 .settingsGroup {
@@ -2538,11 +2681,28 @@ body.col-resizing .colHandle::after {
   font-size: 12px;
   line-height: 1.45;
   cursor: pointer;
+  transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease;
+}
+
+.filterChip:hover {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+}
+
+.filterChip:hover .filterChipCount {
+  opacity: 1;
 }
 
 .filterChip.active {
   border-color: var(--accent);
   background: var(--accent);
+  color: #ffffff;
+}
+
+.filterChip.active:hover {
+  border-color: var(--accent-hover);
+  background: var(--accent-hover);
   color: #ffffff;
 }
 
@@ -2597,12 +2757,14 @@ body.col-resizing .colHandle::after {
   text-align: left;
 }
 
-.libraryTile.selected {
+.libraryTile.selected,
+.libraryTile.selected:hover {
   border-color: var(--accent);
   box-shadow: 0 0 0 1px var(--accent);
 }
 
-.libraryTile.checked {
+.libraryTile.checked,
+.libraryTile.checked:hover {
   border-color: var(--accent);
   background: var(--accent-soft);
 }
@@ -2642,6 +2804,26 @@ body.col-resizing .colHandle::after {
 .libraryTileSelect[aria-pressed="true"] {
   border-color: var(--accent);
   background: var(--accent);
+}
+
+/* The art is the content: the select box only appears when it is useful — on
+   hover, keyboard focus, or once the tile is checked. */
+@media (hover: hover) {
+  .libraryTileSelect {
+    opacity: 0;
+    transition: opacity 120ms ease;
+  }
+
+  .libraryTile:hover .libraryTileSelect,
+  .libraryTile:focus-within .libraryTileSelect,
+  .libraryGridScroll.selecting .libraryTileSelect,
+  .libraryTileSelect[aria-pressed="true"] {
+    opacity: 1;
+  }
+}
+
+.libraryTile:hover {
+  border-color: var(--line-strong);
 }
 
 .libraryTileBadges {
@@ -2975,6 +3157,11 @@ body.col-resizing .colHandle::after {
   margin-top: 6px;
 }
 
+/* In this column the key's 84px basis would become its height. */
+.libraryTagEditor > .libraryMetaKey {
+  flex: 0 0 auto;
+}
+
 .libraryTagChips {
   display: flex;
   flex-wrap: wrap;
@@ -2998,6 +3185,26 @@ body.col-resizing .colHandle::after {
   background: none;
   color: var(--muted);
   cursor: pointer;
+}
+
+.libraryTagChip {
+  transition: border-color 120ms ease, background-color 120ms ease;
+}
+
+.libraryTagChip:hover {
+  border-color: var(--line-strong);
+  background: var(--surface-hover);
+}
+
+/* Removing is the chip's only action, so the x itself answers the pointer. */
+.libraryTagChip button {
+  padding: 1px;
+  border-radius: 50%;
+}
+
+.libraryTagChip button:hover {
+  background: var(--danger-soft);
+  color: var(--danger);
 }
 
 .libraryTagChips input {
