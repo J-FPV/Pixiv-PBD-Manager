@@ -1,4 +1,4 @@
-# Backup And Safe Undo (Unreleased)
+# Backup And Safe Undo
 
 [中文](../zh/backup-recovery.md)
 

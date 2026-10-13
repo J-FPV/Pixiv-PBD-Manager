@@ -6,9 +6,9 @@ Pixiv PBD Manager is a local Pixiv image library manager. It scans existing down
 
 This README is written for people who just want to use the app. Development notes, CLI details, and implementation notes live in [docs/en](docs/en/).
 
-The unreleased development version adds Settings → Backup & recovery: automatic organization-data backups, category restores, and persistent undo for the last 20 image-annotation or manual artist-assignment edits. See [Backup and undo](docs/en/backup-recovery.md).
+Settings → Backup & recovery provides automatic organization-data backups, category restores, and persistent undo for the last 20 image-annotation or manual artist-assignment edits. See [Backup and undo](docs/en/backup-recovery.md).
 
-Development also adds a persistent review queue, runtime incremental folder synchronization, smart collections and project collections. See [Folder sync and collections](docs/en/library-organization.md). These changes are not published yet.
+The app also keeps a persistent review queue, synchronizes library folders incrementally while running, and offers smart and project collections. See [Folder sync and collections](docs/en/library-organization.md).
 
 ## Download And Install
 
@@ -22,15 +22,16 @@ Most users should use the `setup.exe`. An `msi` is also published for environmen
 
 The installer includes the Python backend and dependencies. You do not need to install Python, Node.js, or Rust just to use the app.
 
-## v0.1.10 Highlights
+## v0.1.11 Highlights
 
-- Pixiv tag fetching is now incremental: artworks already fetched are skipped, and a Re-fetch tags button forces a refresh.
-- Artworks that fail three times in a row are retried weekly instead, so deleted or private works stop slowing down every later run.
-- Fetched tags survive organizing and renaming, and fetching checkpoints every 25 artworks.
-- Fixed a case where an interrupted index write silently lost the entire index.
-- Fixed ratings, favorites, and tag edits being reverted when a long tag fetch finished.
+- The library now sorts by artwork ID, newest first, by default; files without an artwork ID follow, newest download first.
+- Smart and project collections, with original files draggable into apps such as PureRef; grid images can be dragged out as originals too.
+- Unmatched folders become a review queue that keeps recognition evidence, with filters, retries and confirmation; optional runtime folder sync keeps the library current.
+- Settings → Backup & recovery: automatic backups, category restores and undo for the last 20 annotation or manual assignment edits.
+- Favorites, ratings, local tags and workflow markers are stored separately and survive index rebuilds, renames and moves.
+- A refreshed interface: compact top bar, one status bar, hover feedback on buttons and tags, and several layout fixes.
 
-See the [v0.1.10 release notes](docs/en/release-notes.md) for the complete summary.
+See the [v0.1.11 release notes](docs/en/release-notes.md) for the complete summary.
 
 ## What It Does
 
@@ -116,7 +117,7 @@ The Image Library page browses every image in your download folders as a thumbna
 
 - **Build the catalog**: on first open, click "Scan library". The app walks your download folders, reads each image's dimensions, and parses the Pixiv PID/artist into a local catalog (`library_index.json`). Later opens are instant; rescans only re-read files whose size or modified time changed.
 - **Filters**: the sidebar filters by artist, folder, tag, favorite state, rating, workflow status, format, orientation, resolution, and year. Search matches filenames, paths, PIDs, artists, and tags.
-- **Sorting**: next to search, sort by creation time, modification time, filename, file size, pixel area, or rating; the arrow toggles ascending/descending order. Modified time, newest first is the default. Your choice survives restarts, and detail navigation follows grid order. Creation time is the local file's creation time, not its Pixiv publication date, and may change when copied.
+- **Sorting**: next to search, sort by artwork ID, creation time, modification time, filename, file size, pixel area, or rating; the arrow toggles ascending/descending order. Newest artwork ID first is the default; files without an artwork ID follow, newest download (file creation) time first. Your choice survives restarts, and detail navigation follows grid order. Creation time is the local file's creation time, not its Pixiv publication date, and may change when copied.
 - **Favorites, ratings, and status**: favorite an image, rate it from 0–5 stars, or mark it as High reference value, Used, or To organize. These fields only update the local index; image files are untouched.
 - **Batch organization**: select images from the top-left control on each thumbnail, then add/remove tags, change favorites and ratings, set workflow markers, or promote fetched Pixiv tags to local tags.
 - **Export**: exports selected images when a selection exists, otherwise the current filtered result. The UTF-8 CSV can therefore be scoped by artist, folder, or tag before export.
@@ -127,7 +128,7 @@ The Image Library page browses every image in your download folders as a thumbna
 
 The catalog lives in `library_index.json`; scan metadata is stored beside it in `library_index.meta.json`. Neither changes local image files.
 
-### Annotation Protection (Development Branch, Unreleased)
+### Annotation Protection
 
 Favorites, ratings, local tags, and workflow markers now live independently in `library_index.annotations.sqlite3`. The first upgraded run backs up and migrates the old catalog, then verifies annotated images in the background. Pause or cancel the task, and resume it from the library's More menu.
 

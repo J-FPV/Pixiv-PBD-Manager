@@ -28,7 +28,7 @@ from .operations import (
 )
 
 
-__version__ = "0.1.4"
+__version__ = "0.1.11"
 
 __all__ = [
     "__version__",

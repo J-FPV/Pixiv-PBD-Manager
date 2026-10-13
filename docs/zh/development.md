@@ -6,11 +6,11 @@
 
 ## 当前 GUI 路线
 
-### 图库整理（开发版）
+### 图库整理
 
 待处理证据、原生目录监听、合集身份及备份协议见[目录同步与合集](library-organization.md)。重点测试为 `test_scan_review.py`、`test_library_sync.py`、`test_collections.py`、`scan-review.spec.ts`、`collections.spec.ts`；Rust 测试覆盖真实 Windows 深层目录事件，`scripts/benchmark_library_sync.py` 验证三万图片局部合并及大项目备份、撤销。
 
-### 备份事务（开发版）
+### 备份事务
 
 `pixiv_pbd_manager/recovery/` 管理跨进程锁、白名单 ZIP、SQLite 一致性快照和持久化提交日志。GUI IPC 每个进程拥有恢复会话；耗时查询在锁外运行，JSON/标注提交受短锁和恢复代次保护。恢复日志可重复执行，更新标注时不回退身份绑定。前端恢复入口暂停自动保存并在完成后重载，禁止旧状态写回。
 
@@ -48,7 +48,7 @@ Python 仍是唯一业务逻辑来源。扫描、检查更新、下载、相似�
 
 ## 图片标注存储
 
-开发分支使用独立 SQLite 文件 `<索引文件名>.annotations.sqlite3`，默认 `library_index.annotations.sqlite3`。`images.id` 是每份文件独立的 UUID，不是内容哈希；同内容副本不共享收藏、评分、本地标签或状态。`binding_key` 只允许一个当前绑定；`revision` 跟踪用户编辑，`binding_revision` 防止扫描、后台哈希或清理覆盖并发的位置变更。
+图片标注使用独立 SQLite 文件 `<索引文件名>.annotations.sqlite3`，默认 `library_index.annotations.sqlite3`。`images.id` 是每份文件独立的 UUID，不是内容哈希；同内容副本不共享收藏、评分、本地标签或状态。`binding_key` 只允许一个当前绑定；`revision` 跟踪用户编辑，`binding_revision` 防止扫描、后台哈希或清理覆盖并发的位置变更。
 
 - `annotation_store.py`：schema v1、事务、旧数据迁移和读取叠加。首次迁移原子保存 `library_index.json.pre-annotations.bak`；失败会回滚，不清空用户标注。
 - `annotation_identity.py`：先匹配原路径，移动候选优先用文件系统标识、再用唯一 SHA-256 匹配，二者均须校验内容。文件大小、mtime 仅用于缓存/筛选；不按 Pixiv ID 或感知哈希继承用户标注。

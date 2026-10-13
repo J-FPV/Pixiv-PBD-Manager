@@ -1,4 +1,4 @@
-# Review Queue, Folder Sync And Collections (Unreleased)
+# Review Queue, Folder Sync And Collections
 
 [中文](../zh/library-organization.md)
 

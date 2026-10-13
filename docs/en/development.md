@@ -6,11 +6,11 @@ This document is for people who want to modify, test, package, or release the pr
 
 ## Current GUI Direction
 
-### Library Organization (Unreleased)
+### Library Organization
 
 Review evidence, native directory synchronization and collection identity/backup contracts are described in [Library organization](library-organization.md). New focused tests: `test_scan_review.py`, `test_library_sync.py`, `test_collections.py`, `scan-review.spec.ts` and `collections.spec.ts`. The Rust tests exercise real recursive Windows notifications; `scripts/benchmark_library_sync.py` checks 30,000 local records and large-project backup/undo.
 
-### Recovery Transactions (Unreleased)
+### Recovery Transactions
 
 `pixiv_pbd_manager/recovery/` owns cross-process guards, allowlisted archives, consistent SQLite snapshots and prepared-write journals. Each GUI IPC process has a recovery session: slow discovery stays outside locks, while commits check the restore epoch. Replaying a journal is idempotent and annotation restoration never rewinds media bindings. The frontend suspends autosave during restore and reloads afterward.
 
@@ -272,7 +272,7 @@ Tags containing `alpha`, `beta`, `rc`, or `dev` are automatically marked as prer
 
 ## Annotation Storage
 
-The development branch stores per-copy annotations in `<index-stem>.annotations.sqlite3`, normally `library_index.annotations.sqlite3`. `images.id` is a per-copy UUID, not a content hash. Identical copies do not share annotations. `binding_key` uniquely binds a current location, `revision` tracks edits, and `binding_revision` guards against concurrent scans, hashing, and cleanup.
+Per-copy annotations are stored in `<index-stem>.annotations.sqlite3`, normally `library_index.annotations.sqlite3`. `images.id` is a per-copy UUID, not a content hash. Identical copies do not share annotations. `binding_key` uniquely binds a current location, `revision` tracks edits, and `binding_revision` guards against concurrent scans, hashing, and cleanup.
 
 - `annotation_store.py`: schema v1, transactions, overlays, and atomic migration backup (`library_index.json.pre-annotations.bak`). Failed migration rolls back without clearing annotations.
 - `annotation_identity.py`: original-path reuse, then filesystem identity and unique SHA-256 move matching. Both move paths require verified content. Size/mtime are cache hints; Pixiv IDs and perceptual hashes never transfer user annotations.

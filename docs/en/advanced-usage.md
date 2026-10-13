@@ -161,7 +161,7 @@ Both scan results and quarantine history are paginated so large operations do no
 
 ## Library Index And Doctor
 
-Sort all filtered results by creation time, modification time, filename, file size, pixel area (width times height), or rating in either direction. Filenames use natural ordering (`2.jpg` before `10.jpg`); ties use filename then full path, and missing times or dimensions stay last. Changing sort returns the grid to the top without clearing selection. Preferences live in desktop UI state; Reset all settings restores the default, while Reset window layout leaves sorting unchanged.
+Sort all filtered results by artwork ID, creation time, modification time, filename, file size, pixel area (width times height), or rating in either direction. The default is artwork ID, newest first; pages of one work stay in page order, and files without an artwork ID follow, ordered by download (file creation) time. Filenames use natural ordering (`2.jpg` before `10.jpg`); ties use filename then full path, and missing times or dimensions stay last. Changing sort returns the grid to the top without clearing selection. Preferences live in desktop UI state; Reset all settings restores the default, while Reset window layout leaves sorting unchanged.
 
 Index format v2 adds nullable `created_ns`. Legacy indexes remain readable while a background incremental scan fills in creation times, preserving cached dimensions, local/Pixiv tags, favorites, ratings, and markers. Creation time is not download time or Pixiv publication time; unavailable values remain unknown instead of substituting a different timestamp. The detail panel shows creation and modification times.
 
@@ -169,7 +169,7 @@ The catalog is stored in `.pixiv-pbd-manager/library_index.json`; `library_index
 
 Library Doctor is a read-only diagnostic for database readability, missing or overlapping artist save paths, browser profiles placed inside the library, quarantine safety/writability, and index freshness. It never creates, moves, or deletes images.
 
-In the development branch, image favorites, 0–5 star ratings, local tags, and workflow markers live in `library_index.annotations.sqlite3`. Legacy catalog annotations are automatically backed up and migrated. Rescans and index rebuilding do not clear them. Use thumbnail selectors for bulk editing; “Add Pixiv tags to local tags” copies fetched tags without another network request.
+Image favorites, 0–5 star ratings, local tags, and workflow markers live in `library_index.annotations.sqlite3`. Legacy catalog annotations are automatically backed up and migrated. Rescans and index rebuilding do not clear them. Use thumbnail selectors for bulk editing; “Add Pixiv tags to local tags” copies fetched tags without another network request.
 
 After background verification, rescanning can match a unique unchanged file that moved or was renamed. Duplicate copies remain independent. For uncertain matches, use More → Unlinked annotations to find the old record and choose a current image without an annotation record. Unverified or different content requires confirmation, and existing target annotations are never overwritten. Cancelled protection can resume from More → Resume annotation protection. Back up SQLite as well as the rebuildable catalog.
 
@@ -316,6 +316,6 @@ Use a specific browser profile:
 ```powershell
 python -m pixiv_pbd_manager open --browser "C:\Program Files\Google\Chrome\Application\chrome.exe" --user-data-dir "C:\PixivBrowserProfile"
 ```
-## Backup And Undo (Unreleased)
+## Backup And Undo
 
 See [Backup and safe undo](backup-recovery.md) for retention, category restoration, archive validation and conflict handling.
